@@ -132,4 +132,61 @@ describe("updateValues", () => {
 
     expect(fakeSheets.valuesUpdateCalls).toHaveLength(0);
   });
+
+  it("never sends a raw free-text patch as a user-entered value", async () => {
+    const fakeSheets = createFakeSheetsClient();
+    const gateway = createSheetsGateway(fakeSheets);
+
+    await gateway.updateValues("file-1", [
+      { range: "Employee A!I7", values: [["=1+1"]], inputOption: "RAW" },
+    ]);
+
+    expect(fakeSheets.valuesUpdateCalls).toEqual([
+      {
+        spreadsheetId: "file-1",
+        requestBody: { valueInputOption: "RAW", data: [{ range: "Employee A!I7", values: [["=1+1"]] }] },
+      },
+    ]);
+
+    const sentOptions = fakeSheets.valuesUpdateCalls.map((call) => call.requestBody.valueInputOption);
+    expect(sentOptions).not.toContain("USER_ENTERED");
+  });
+
+  it("groups mixed input options into one batch each and never leaks the option into the payload", async () => {
+    const fakeSheets = createFakeSheetsClient();
+    const gateway = createSheetsGateway(fakeSheets);
+
+    await gateway.updateValues("file-1", [
+      { range: "Employee A!E7", values: [[9]] },
+      { range: "Employee A!I7", values: [["=1+1"]], inputOption: "RAW" },
+      { range: "Employee A!G7", values: [[1]], inputOption: "USER_ENTERED" },
+      { range: "Employee A!P7", values: [["2026-07"]], inputOption: "RAW" },
+    ]);
+
+    expect(fakeSheets.valuesUpdateCalls).toEqual([
+      {
+        spreadsheetId: "file-1",
+        requestBody: {
+          valueInputOption: "USER_ENTERED",
+          data: [
+            { range: "Employee A!E7", values: [[9]] },
+            { range: "Employee A!G7", values: [[1]] },
+          ],
+        },
+      },
+      {
+        spreadsheetId: "file-1",
+        requestBody: {
+          valueInputOption: "RAW",
+          data: [
+            { range: "Employee A!I7", values: [["=1+1"]] },
+            { range: "Employee A!P7", values: [["2026-07"]] },
+          ],
+        },
+      },
+    ]);
+
+    const payloads = fakeSheets.valuesUpdateCalls.flatMap((call) => call.requestBody.data);
+    expect(payloads.every((entry) => !("inputOption" in entry))).toBe(true);
+  });
 });

@@ -117,9 +117,25 @@ export interface RangeValues {
   values: CellValue[][];
 }
 
-export interface ValuePatch {
+/** One `values.batchUpdate` entry exactly as the Sheets REST API accepts it. */
+export interface ValueRangePayload {
   range: string;
   values: CellValue[][];
+}
+
+/**
+ * How Sheets interprets a written value.
+ *
+ * `USER_ENTERED` is the default because column H must keep its `=F-G-E`
+ * formula contract. Free-text cells — notes (`I`) and the work-report slots
+ * (`J:AS`) — must be sent as `RAW`, otherwise a note beginning with `=` or `+`
+ * becomes a formula and a note like `2026-07` is coerced into a date.
+ */
+export type ValueInputOption = "RAW" | "USER_ENTERED";
+
+export interface ValuePatch extends ValueRangePayload {
+  /** Defaults to `USER_ENTERED` when omitted, preserving the formula contract. */
+  inputOption?: ValueInputOption;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -263,7 +279,7 @@ export interface ValuesBatchGetParams {
 
 export interface ValuesBatchUpdateParams {
   spreadsheetId: string;
-  requestBody: { valueInputOption: string; data: ValuePatch[] };
+  requestBody: { valueInputOption: string; data: ValueRangePayload[] };
 }
 
 export interface SheetsClient {

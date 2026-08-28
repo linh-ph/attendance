@@ -9,11 +9,14 @@ import {
   type SheetSummary,
   type SheetsClient,
   type SheetsGateway,
+  type ValueInputOption,
+  type ValuePatch,
+  type ValueRangePayload,
   type ValueRangeResource,
 } from "./types";
 
 const UNFORMATTED_VALUE = "UNFORMATTED_VALUE";
-const USER_ENTERED = "USER_ENTERED";
+const USER_ENTERED: ValueInputOption = "USER_ENTERED";
 
 function toSheetSummary(sheet: SheetResource, index: number): SheetSummary {
   const properties = sheet.properties ?? {};
@@ -46,6 +49,26 @@ function toBatchReply(reply: SheetReplyResource): SheetBatchReply {
   }
 
   return narrowed;
+}
+
+/**
+ * Splits patches into one `values.batchUpdate` payload per input option.
+ *
+ * The Sheets API applies a single `valueInputOption` to a whole batch, so a
+ * `RAW` note cannot share a call with a `USER_ENTERED` formula. Insertion order
+ * is preserved, and the per-patch option never reaches the wire payload.
+ */
+function groupByInputOption(patches: ValuePatch[]): Map<ValueInputOption, ValueRangePayload[]> {
+  const groups = new Map<ValueInputOption, ValueRangePayload[]>();
+
+  for (const patch of patches) {
+    const option = patch.inputOption ?? USER_ENTERED;
+    const group = groups.get(option) ?? [];
+    group.push({ range: patch.range, values: patch.values });
+    groups.set(option, group);
+  }
+
+  return groups;
 }
 
 function toRangeValues(valueRange: ValueRangeResource): RangeValues {
@@ -110,10 +133,12 @@ export function createSheetsGateway(sheets: SheetsClient): SheetsGateway {
       }
 
       try {
-        await sheets.spreadsheets.values.batchUpdate({
-          spreadsheetId: fileId,
-          requestBody: { valueInputOption: USER_ENTERED, data: patches },
-        });
+        for (const [valueInputOption, data] of groupByInputOption(patches)) {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: fileId,
+            requestBody: { valueInputOption, data },
+          });
+        }
       } catch (error) {
         throw normalizeGoogleError(error, "values.batchUpdate");
       }

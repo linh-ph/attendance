@@ -23,3 +23,7 @@ export function decimalToTime(value: number): TimeSlot | null {
 export function isHalfHourDecimal(value: number): boolean {
   return Number.isFinite(value) && value >= 0 && value <= 23.5 && value * 2 === Math.round(value * 2);
 }
+
+export function hasHalfHourIncrement(value: number): boolean {
+  return Number.isFinite(value) && value * 2 === Math.round(value * 2);
+}

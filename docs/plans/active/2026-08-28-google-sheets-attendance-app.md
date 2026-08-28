@@ -262,7 +262,7 @@ git commit -m "chore: scaffold Dockerized Next.js app"
 - Create: `src/lib/attendance/model.ts`, `time.ts`, `slots.ts`, `validation.ts`, `range-mapper.ts`
 - Test: `src/lib/attendance/time.test.ts`, `slots.test.ts`, `validation.test.ts`, `range-mapper.test.ts`
 
-- [ ] **Step 1: Write failing tests for the domain contract**
+- [x] **Step 1: Write failing tests for the domain contract**
 
 Tests must cover these concrete examples:
 
@@ -295,7 +295,7 @@ Also assert rejection of non-30-minute boundaries, empty descriptions, `end <= s
 
 Run `docker compose run --rm test npm test -- src/lib/attendance`. Expected: FAIL because the domain modules do not exist.
 
-- [ ] **Step 2: Define one canonical day model and time primitives**
+- [x] **Step 2: Define one canonical day model and time primitives**
 
 Implement these public types and constants; other layers must import them rather than redefining attendance fields:
 
@@ -324,7 +324,7 @@ export const STATUS_OPTIONS = [
 
 `time.ts` converts only valid `:00`/`:30` values and decimal halves. `slots.ts` creates exactly 06:00 through 23:30, permits `24:00` only as a work-block end boundary so the 23:30 slot can be filled, uses `[start,end)`, returns the list of overwritten non-empty slots for confirmation, skips lunch when enabled, and never mutates its input.
 
-- [ ] **Step 3: Implement validation and exact dirty A1 mapping**
+- [x] **Step 3: Implement validation and exact dirty A1 mapping**
 
 Define `validateAttendanceDay(day, configuredStatuses): ValidationIssue[]` with stable issue codes: `invalid-boundary`, `clock-order`, `break-negative`, `break-too-long`, `work-hours-negative`, `unknown-status`, and `empty-work-block`. Define `diffDay(baseline,current,row): CellPatch[]` where:
 
@@ -340,7 +340,7 @@ Map D/I and J:AS exactly; work-hours column H is never client-written because it
 
 Run all Task 2 tests. Expected: PASS.
 
-- [ ] **Step 4: Commit the pure domain**
+- [x] **Step 4: Commit the pure domain**
 
 ```bash
 git add src/lib/attendance
@@ -1112,9 +1112,11 @@ Self-review checks before handoff:
 
 Task 1 focused proof: RED `docker compose run --rm test npm test -- src/app/api/health/route.test.ts` failed because `./route` did not exist; GREEN passed 1/1 after the route was added.
 Task 1 Docker proof: `docker compose build test`; Docker lint, typecheck, and test (1/1); `docker compose build app`; and runtime `GET /api/health` returning `{"status":"ok"}` all passed.
+Task 2 RED proof: focused attendance tests first failed because the requested domain modules did not exist; Fix Round 1 regressions then failed for a future configured status sheet value, an absent configured status mapping, and a negative fractional break.
+Task 2 GREEN/full proof: `docker compose run --rm test npm test -- src/lib/attendance` passed 19/19; full Docker Vitest passed 20/20; Docker lint and typecheck passed; `git diff --check` passed. The domain was committed as `f4c1f47` and Fix Round 1 is recorded with its follow-up commit.
 Repository-required checks: Task 1 `git diff --check` passed; remaining tasks retain their own required validation.
 Live Google proof: Requires user-supplied credentials, enabled APIs, OAuth audience/callbacks, test accounts, and any organization approval.
 
 ## Result
 
-Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Tasks 2–13 have not started. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.
+Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Tasks 3–13 have not started. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.

@@ -1,5 +1,5 @@
 import type { AttendanceDay } from "./model";
-import { isHalfHourDecimal } from "./time";
+import { hasHalfHourIncrement, isHalfHourDecimal } from "./time";
 
 export type ValidationIssueCode =
   | "invalid-boundary"
@@ -32,7 +32,7 @@ export function validateAttendanceDay(
   const issues: ValidationIssue[] = [];
   const hasInvalidClock = (day.clockIn !== null && !isHalfHourDecimal(day.clockIn))
     || (day.clockOut !== null && !isHalfHourDecimal(day.clockOut))
-    || (day.breakHours >= 0 && !isHalfHourDecimal(day.breakHours));
+    || !hasHalfHourIncrement(day.breakHours);
   if (hasInvalidClock) issues.push({ code: "invalid-boundary" });
 
   if (day.clockIn !== null && day.clockOut !== null && day.clockOut <= day.clockIn) {

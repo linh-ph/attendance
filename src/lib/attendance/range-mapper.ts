@@ -1,10 +1,15 @@
-import { STATUS_OPTIONS, type AttendanceDay, type StatusCode } from "./model";
+import type { AttendanceDay, StatusCode } from "./model";
 import { TIME_SLOTS } from "./slots";
 
 export interface CellPatch {
   range: string;
   baseline: string | number | null;
   value: string | number | null;
+}
+
+export interface ConfiguredStatus {
+  code: string;
+  sheetValue: string;
 }
 
 const SUMMARY_COLUMNS = {
@@ -26,15 +31,29 @@ function columnName(index: number): string {
   return column;
 }
 
-function sheetStatusValue(statusCode: StatusCode | null): string | null {
+function sheetStatusValue(
+  statusCode: StatusCode | null,
+  configuredStatuses: ReadonlyArray<ConfiguredStatus>,
+): string | null {
   if (statusCode === null) return null;
-  return STATUS_OPTIONS.find((status) => status.code === statusCode)?.sheetValue ?? statusCode;
+  const status = configuredStatuses.find((candidate) => candidate.code === statusCode);
+  if (!status) throw new Error("unknown-status");
+  return status.sheetValue;
 }
 
-export function diffDay(baseline: AttendanceDay, current: AttendanceDay, row: number): CellPatch[] {
+export function diffDay(
+  baseline: AttendanceDay,
+  current: AttendanceDay,
+  row: number,
+  configuredStatuses: ReadonlyArray<ConfiguredStatus>,
+): CellPatch[] {
   const patches: CellPatch[] = [];
   const summaryValues = [
-    [SUMMARY_COLUMNS.statusCode, sheetStatusValue(baseline.statusCode), sheetStatusValue(current.statusCode)],
+    [
+      SUMMARY_COLUMNS.statusCode,
+      sheetStatusValue(baseline.statusCode, configuredStatuses),
+      sheetStatusValue(current.statusCode, configuredStatuses),
+    ],
     [SUMMARY_COLUMNS.clockIn, baseline.clockIn, current.clockIn],
     [SUMMARY_COLUMNS.clockOut, baseline.clockOut, current.clockOut],
     [SUMMARY_COLUMNS.breakHours, baseline.breakHours, current.breakHours],

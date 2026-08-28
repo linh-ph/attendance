@@ -42,4 +42,13 @@ describe("attendance validation", () => {
       "work-hours-negative",
     ]);
   });
+
+  it("reports both invalid-boundary and break-negative for a negative fractional break", () => {
+    const day = { ...emptyDay("2026-07-01"), breakHours: -0.25 };
+
+    expect(validateAttendanceDay(day, STATUS_OPTIONS).map((issue) => issue.code)).toEqual([
+      "invalid-boundary",
+      "break-negative",
+    ]);
+  });
 });

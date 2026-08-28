@@ -105,9 +105,11 @@ is remembered locally per normalized signed-in email; it is a convenience value,
 not an authorization decision, and is not stored in an attendance workbook.
 
 The active dashboard folder is the default destination for create and import.
-The manager can choose a different destination in either wizard. After a
-successful create or import, that destination becomes the active dashboard
-folder so the new file is immediately visible.
+The manager can choose a different destination in either wizard. As soon as
+Drive successfully creates or converts the new file, that destination becomes
+the active dashboard folder so the file is immediately visible. This also
+applies when a later configuration or invitation step fails: the retained file
+appears as `Needs setup` or `Needs repair` and exposes the existing resume flow.
 
 ## 3. Reference workbook contract
 
@@ -428,8 +430,9 @@ view. This visibility limitation was accepted as part of the design.
 6. Create Drive permissions sequentially for unique employee emails.
 7. Mark successful invitations as complete and retain individual failures.
 8. Mark setup `ready` when all required structural steps succeed.
-9. Return the destination folder ID/name so the browser makes it the active
-   dashboard folder.
+9. Return the destination folder ID/name as soon as Drive file creation succeeds
+   so the browser makes it active even if a later setup step returns a partial
+   failure.
 
 The file is never automatically deleted if a later setup step fails.
 
@@ -449,8 +452,8 @@ The file is never automatically deleted if a later setup step fails.
 6. Add/reconcile app configuration, metadata, mappings, protections, and
    invitations.
 7. Keep the converted file and expose a retry/resume action for partial setup.
-8. On success, return the destination folder ID/name so it becomes the active
-   dashboard folder.
+8. Once Drive conversion succeeds, return the destination folder ID/name so it
+   becomes active even if a later setup step returns a partial failure.
 
 The first version supports employee-attendance workbooks only. Every visible
 sheet other than an existing reserved `__APP_CONFIG` sheet must match all of
@@ -519,6 +522,9 @@ the UI if the source changed since it was loaded.
   produces `Folder unavailable`; no fallback to an all-Drive scan is allowed.
 - A create/import request whose destination folder becomes invalid before Save
   is rejected before file creation and preserves the wizard input for retry.
+- If Drive creates/converts the file but a later setup step fails, the response
+  retains the file ID and destination folder; the browser activates that folder
+  and shows the partial file with its resume action.
 
 ## 10. Next.js and Docker structure
 

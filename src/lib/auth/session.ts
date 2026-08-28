@@ -64,6 +64,25 @@ type JwtReader = (params: {
   secureCookie: boolean;
 }) => Promise<JWT | null>;
 
+function isHttpsUrl(value: string | undefined): boolean | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return undefined;
+  }
+}
+
+export function usesSecureCookie(
+  request: Pick<Request, "url">,
+  authUrl = process.env.AUTH_URL,
+): boolean {
+  return isHttpsUrl(authUrl) ?? isHttpsUrl(request.url) ?? true;
+}
+
 export async function requireGoogleSessionFromRequest(
   request: Request,
   readJwt: JwtReader = getToken,
@@ -76,7 +95,7 @@ export async function requireGoogleSessionFromRequest(
   const token = await readJwt({
     req: request,
     secret,
-    secureCookie: process.env.AUTH_URL?.startsWith("https://") ?? false,
+    secureCookie: usesSecureCookie(request),
   });
 
   return requireGoogleSession({

@@ -71,9 +71,9 @@ Out of scope:
 | Authorization | `src/lib/access/policy.ts` | Per-request current-owner or exact employee-sheet authorization |
 | Orchestration | `src/lib/files/setup-service.ts`, `import-service.ts`, `member-service.ts`, `src/lib/discovery/file-discovery.ts`, `src/lib/attendance/service.ts` | Idempotent, retryable application use cases over injected gateways |
 | API | `src/app/api/dashboard/route.ts`, `google/picker-token/route.ts`, `folders/validate/route.ts`, `files/create/route.ts`, `files/import/inspect/route.ts`, `files/import/route.ts`, `files/[fileId]/setup/route.ts`, `files/[fileId]/members/route.ts`, `files/[fileId]/attendance/[sheetId]/route.ts` | Validated JSON/multipart boundary, session lookup, authorization, safe error responses |
-| Dashboard/folders | `src/app/dashboard/page.tsx`, `dashboard-client.tsx`, `src/components/google-picker.tsx`, `src/lib/dashboard/folder-preference.ts` | Role-aware cards, browser-local folder preference, folder/file Picker |
-| Manager UI | `src/app/files/new/page.tsx`, `new-file-wizard.tsx`, `src/app/files/import/page.tsx`, `import-wizard.tsx`, `src/app/files/[fileId]/setup/page.tsx`, `legacy-setup-wizard.tsx`, `src/app/files/[fileId]/members/page.tsx`, `member-form.tsx`, `src/components/member-rows.tsx` | Create/import/legacy setup/member workflows and partial-failure resume states |
-| Attendance UI | `src/app/files/[fileId]/attendance/[sheetId]/page.tsx`, `attendance-editor.tsx`, `src/components/day-summary.tsx`, `timeline-editor.tsx`, `work-block-form.tsx` | Month/day navigation and two synchronized editing modes |
+| Dashboard/folders | `src/app/(authenticated)/dashboard/page.tsx`, `dashboard-client.tsx`, `src/components/google-picker.tsx`, `src/lib/dashboard/folder-preference.ts` | Role-aware cards, browser-local folder preference, folder/file Picker |
+| Manager UI | `src/app/(authenticated)/files/new/page.tsx`, `new-file-wizard.tsx`, `src/app/(authenticated)/files/import/page.tsx`, `import-wizard.tsx`, `src/app/(authenticated)/files/[fileId]/setup/page.tsx`, `legacy-setup-wizard.tsx`, `src/app/(authenticated)/files/[fileId]/members/page.tsx`, `member-form.tsx`, `src/components/member-rows.tsx` | Create/import/legacy setup/member workflows and partial-failure resume states |
+| Attendance UI | `src/app/(authenticated)/files/[fileId]/attendance/[sheetId]/page.tsx`, `attendance-editor.tsx`, `src/components/day-summary.tsx`, `timeline-editor.tsx`, `work-block-form.tsx` | Month/day navigation and two synchronized editing modes |
 | Proof | `src/**/*.test.ts(x)`, `src/lib/testing/runtime-guard.ts`, `fake-google-store.ts`, `src/app/api/e2e/reset/route.ts`, `tests/e2e/*.spec.ts`, `tests/fakes/*.ts`, `tests/fixtures/workbook.ts`, `vitest.config.ts`, `vitest.setup.ts`, `playwright.config.ts` | Unit, integration, browser, security, and recovery proof |
 | Operations | `README.md`, `docs/product/attendance.md`, `docs/runbooks/google-cloud-setup.md` | Product behavior, local Docker commands, Google Cloud configuration, live smoke checklist |
 
@@ -735,12 +735,12 @@ git commit -m "feat: import attendance workbooks"
 
 - Create: `src/lib/discovery/file-discovery.ts`, `src/lib/dashboard/folder-preference.ts`
 - Create: `src/app/api/dashboard/route.ts`
-- Create: `src/app/dashboard/page.tsx`, `src/app/dashboard/dashboard-client.tsx`
+- Create: `src/app/(authenticated)/dashboard/page.tsx`, `src/app/(authenticated)/dashboard/dashboard-client.tsx`
 - Create: `src/app/api/files/[fileId]/setup/route.ts`
-- Create: `src/app/files/[fileId]/setup/page.tsx`, `src/app/files/[fileId]/setup/legacy-setup-wizard.tsx`
+- Create: `src/app/(authenticated)/files/[fileId]/setup/page.tsx`, `src/app/(authenticated)/files/[fileId]/setup/legacy-setup-wizard.tsx`
 - Modify: `src/lib/files/setup-service.ts`
 - Modify: `src/components/google-picker.tsx`
-- Test: `src/lib/discovery/file-discovery.test.ts`, `src/lib/dashboard/folder-preference.test.ts`, `src/app/dashboard/dashboard-client.test.tsx`, `src/lib/files/setup-service.test.ts`
+- Test: `src/lib/discovery/file-discovery.test.ts`, `src/lib/dashboard/folder-preference.test.ts`, `src/app/(authenticated)/dashboard/dashboard-client.test.tsx`, `src/lib/files/setup-service.test.ts`
 
 - [ ] **Step 1: Write failing manager and employee discovery tests**
 
@@ -786,7 +786,7 @@ Tests assert no mutation before Picker confirmation, picked-ID mismatch returns 
 - [ ] **Step 5: Commit discovery and dashboard**
 
 ```bash
-git add src/lib/discovery src/lib/dashboard src/app/api/dashboard src/app/dashboard src/app/api/files/*/setup src/app/files/*/setup src/components/google-picker.tsx src/lib/files/setup-service.test.ts
+git add src/lib/discovery src/lib/dashboard src/app/api/dashboard 'src/app/(authenticated)/dashboard' src/app/api/files/*/setup 'src/app/(authenticated)/files'/*/setup src/components/google-picker.tsx src/lib/files/setup-service.test.ts
 git commit -m "feat: add folder-scoped dashboard"
 ```
 
@@ -795,9 +795,9 @@ git commit -m "feat: add folder-scoped dashboard"
 **Files:**
 
 - Create: `src/components/member-rows.tsx`
-- Create: `src/app/files/new/page.tsx`, `src/app/files/new/new-file-wizard.tsx`
-- Create: `src/app/files/import/page.tsx`, `src/app/files/import/import-wizard.tsx`
-- Test: `src/components/member-rows.test.tsx`, `src/app/files/new/new-file-wizard.test.tsx`, `src/app/files/import/import-wizard.test.tsx`
+- Create: `src/app/(authenticated)/files/new/page.tsx`, `src/app/(authenticated)/files/new/new-file-wizard.tsx`
+- Create: `src/app/(authenticated)/files/import/page.tsx`, `src/app/(authenticated)/files/import/import-wizard.tsx`
+- Test: `src/components/member-rows.test.tsx`, `src/app/(authenticated)/files/new/new-file-wizard.test.tsx`, `src/app/(authenticated)/files/import/import-wizard.test.tsx`
 
 - [ ] **Step 1: Write failing create-wizard interaction tests**
 
@@ -832,7 +832,7 @@ Run Task 9 tests, lint, and typecheck. Expected: PASS.
 - [ ] **Step 5: Commit manager wizards**
 
 ```bash
-git add src/components/member-rows.tsx src/components/member-rows.test.tsx src/app/files/new src/app/files/import
+git add src/components/member-rows.tsx src/components/member-rows.test.tsx 'src/app/(authenticated)/files/new' 'src/app/(authenticated)/files/import'
 git commit -m "feat: add create and import wizards"
 ```
 
@@ -842,8 +842,8 @@ git commit -m "feat: add create and import wizards"
 
 - Create: `src/lib/files/member-service.ts`
 - Create: `src/app/api/files/[fileId]/members/route.ts`
-- Create: `src/app/files/[fileId]/members/page.tsx`, `src/app/files/[fileId]/members/member-form.tsx`
-- Test: `src/lib/files/member-service.test.ts`, `src/app/api/files/[fileId]/members/route.test.ts`, `src/app/files/[fileId]/members/member-form.test.tsx`
+- Create: `src/app/(authenticated)/files/[fileId]/members/page.tsx`, `src/app/(authenticated)/files/[fileId]/members/member-form.tsx`
+- Test: `src/lib/files/member-service.test.ts`, `src/app/api/files/[fileId]/members/route.test.ts`, `src/app/(authenticated)/files/[fileId]/members/member-form.test.tsx`
 
 - [ ] **Step 1: Write failing owner-only and idempotency tests**
 
@@ -872,7 +872,7 @@ Run Task 10 tests. Expected: PASS.
 - [ ] **Step 4: Commit member management**
 
 ```bash
-git add src/lib/files/member-service.ts src/lib/files/member-service.test.ts src/app/api/files/*/members src/app/files/*/members
+git add src/lib/files/member-service.ts src/lib/files/member-service.test.ts src/app/api/files/*/members 'src/app/(authenticated)/files'/*/members
 git commit -m "feat: add attendance members"
 ```
 
@@ -926,7 +926,7 @@ git commit -m "feat: add authorized attendance saves"
 
 **Files:**
 
-- Create: `src/app/files/[fileId]/attendance/[sheetId]/page.tsx`, `attendance-editor.tsx`
+- Create: `src/app/(authenticated)/files/[fileId]/attendance/[sheetId]/page.tsx`, `attendance-editor.tsx`
 - Create: `src/components/day-summary.tsx`, `src/components/timeline-editor.tsx`, `src/components/work-block-form.tsx`
 - Test: corresponding `*.test.tsx` files beside each component/page
 
@@ -973,7 +973,7 @@ Expected: all tests PASS with no React act, accessibility-label, lint, or TypeSc
 - [ ] **Step 5: Commit the editor**
 
 ```bash
-git add src/app/files/*/attendance src/components/day-summary.tsx src/components/day-summary.test.tsx src/components/timeline-editor.tsx src/components/timeline-editor.test.tsx src/components/work-block-form.tsx src/components/work-block-form.test.tsx
+git add 'src/app/(authenticated)/files'/*/attendance src/components/day-summary.tsx src/components/day-summary.test.tsx src/components/timeline-editor.tsx src/components/timeline-editor.test.tsx src/components/work-block-form.tsx src/components/work-block-form.test.tsx
 git commit -m "feat: add attendance editor"
 ```
 
@@ -1116,9 +1116,10 @@ Task 2 RED proof: focused attendance tests first failed because the requested do
 Task 2 GREEN/full proof: `docker compose run --rm test npm test -- src/lib/attendance` passed 19/19; full Docker Vitest passed 20/20; Docker lint and typecheck passed; `git diff --check` passed. The domain was committed as `f4c1f47` and Fix Round 1 is recorded with its follow-up commit.
 Task 3 RED/GREEN proof: Docker-focused tests first failed because `src/lib/auth/google-token.ts` and `session.ts` did not exist; the identity-preservation regression then failed until the successful refresh retained prior JWT claims and cleared its old refresh error. `docker compose run --rm test npm test -- src/lib/auth/google-token.test.ts src/lib/auth/session.test.ts` passed 10/10. The direct Auth.js session-callback assertion serializes normalized email and refresh error only, with neither provider access nor refresh token present; focused proof also injects the server JWT reader and verifies the generic no-store 401 mapping.
 Task 3 full Docker proof: `docker compose run --rm test npm run lint`, `docker compose run --rm test npm run typecheck`, `docker compose run --rm test npm test` (30/30), and `docker compose build app` all passed. The build recognized the Auth.js route and Next 16 proxy. No live OAuth proof was attempted because external credentials and organization approval are not available.
+Task 3 Fix Round 1 security proof: RED tests rejected the old refresh-error proxy authorization, insecure HTTPS-cookie selection, and public-path Auth.js evaluation. GREEN focused Docker proof passed 21/21 across authorization, proxy boundary, token, and session tests. It includes real `next-auth/jwt` encrypted JWT encode/getToken proof for HTTP and HTTPS cookie names/salts. Full Docker lint/typecheck, Vitest 41/41, production build, and `git diff --check` passed; the build reports `/` and `/login` as static and recognizes the Next 16 proxy.
 Repository-required checks: Task 1 `git diff --check` passed; remaining tasks retain their own required validation.
 Live Google proof: Requires user-supplied credentials, enabled APIs, OAuth audience/callbacks, test accounts, and any organization approval.
 
 ## Result
 
-Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Task 3 adds encrypted Auth.js JWT Google OAuth sessions, identity-preserving refresh-token rotation, server-only token decoding, proxy protection, and English sign-in/sign-out controls; it was committed as `125a0ef` with focused 10/10 and full 30/30 Docker Vitest, Docker lint/typecheck, and Docker production build passing. Live OAuth remains unattempted pending external credentials and approval. Tasks 4–13 remain unchecked. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.
+Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Task 3 adds encrypted Auth.js JWT Google OAuth sessions, identity-preserving refresh-token rotation, server-only token decoding, proxy protection, and English sign-in/sign-out controls; it was committed as `125a0ef` with focused 10/10 and full 30/30 Docker Vitest, Docker lint/typecheck, and Docker production build passing. Security Fix Round 1 rejects refresh-error browser sessions at the proxy, derives Auth.js secure-cookie selection from validated configured/request URLs, and avoids Auth.js evaluation for public pages while protected future UI paths inherit the route-group layout; focused 21/21 and full 41/41 Docker Vitest, Docker lint/typecheck, and Docker production build passed. Live OAuth remains unattempted pending external credentials and approval. Tasks 4–13 remain unchecked. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.

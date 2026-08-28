@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import { refreshGoogleToken } from "@/lib/auth/google-token";
+import { isPublicPath } from "@/lib/auth/paths";
 import { toBrowserSession } from "@/lib/auth/session";
 
 export const GOOGLE_SCOPES = [
@@ -11,8 +12,6 @@ export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/drive.file",
   "https://www.googleapis.com/auth/drive.metadata.readonly",
 ] as const;
-
-const publicPaths = new Set(["/", "/login", "/api/health"]);
 
 export const authConfig = {
   providers: [
@@ -48,7 +47,8 @@ export const authConfig = {
     },
     authorized({ auth, request }) {
       const path = request.nextUrl.pathname;
-      return publicPaths.has(path) || path.startsWith("/api/auth/") || Boolean(auth);
+      const email = auth?.user?.email?.trim().toLowerCase();
+      return isPublicPath(path) || Boolean(email) && !auth?.error;
     },
   },
 } satisfies NextAuthConfig;

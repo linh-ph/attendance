@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { encode } from "next-auth/jwt";
 import { authConfig } from "@/auth.config";
 import {
   UnauthenticatedError,
   requireGoogleSession,
   requireGoogleSessionFromRequest,
+  usesSecureCookie,
   toApiErrorResponse,
 } from "./session";
 
@@ -42,10 +44,36 @@ describe("requireGoogleSession", () => {
       accessToken: "server-only-access-token",
     });
 
-    expect(readJwt).toHaveBeenCalledWith(
-      expect.objectContaining({ secret: "test-secret", secureCookie: false }),
-    );
+    expect(readJwt).toHaveBeenCalledWith(expect.objectContaining({ secret: "test-secret" }));
     vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ["http", "http://attendance.test/api/dashboard", "authjs.session-token"],
+    ["https", "https://attendance.test/api/dashboard", "__Secure-authjs.session-token"],
+  ])("uses the Auth.js %s cookie name and salt", async (_protocol, url, cookieName) => {
+    const secret = "test-secret";
+    vi.stubEnv("AUTH_SECRET", secret);
+    vi.stubEnv("AUTH_URL", "");
+    const encryptedToken = await encode({
+      secret,
+      salt: cookieName,
+      token: { email: "Manager@Blended-Asia.com", accessToken: "server-only-access-token" },
+    });
+
+    await expect(
+      requireGoogleSessionFromRequest(
+        new Request(url, { headers: { cookie: `${cookieName}=${encodeURIComponent(encryptedToken)}` } }),
+      ),
+    ).resolves.toEqual({
+      email: "manager@blended-asia.com",
+      accessToken: "server-only-access-token",
+    });
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to a secure cookie when configured and request URLs are malformed", () => {
+    expect(usesSecureCookie({ url: "not a URL" }, "also not a URL")).toBe(true);
   });
 });
 

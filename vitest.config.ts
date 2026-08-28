@@ -11,8 +11,11 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    exclude: ["tests/e2e/**"],
+    // `tests/**` carries suites that are not tied to one source module, such as
+    // the optional reference-workbook proof. Playwright specs live under
+    // `tests/e2e` and are run by `npm run test:e2e`, never by Vitest.
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "tests/e2e/**"],
     server: {
       deps: { inline: ["next-auth", "@auth/core"] },
     },

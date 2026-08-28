@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { auth, signOut } from "@/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,10 +8,24 @@ export const metadata: Metadata = {
   description: "Attendance management backed by Google Sheets.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const session = await auth();
+
+  async function signOutAction() {
+    "use server";
+    await signOut({ redirectTo: "/" });
+  }
+
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {session?.user?.email ? (
+          <form action={signOutAction}>
+            <button type="submit">Sign out</button>
+          </form>
+        ) : null}
+        {children}
+      </body>
     </html>
   );
 }

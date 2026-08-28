@@ -1,3 +1,5 @@
+import { SignInButton } from "@/components/sign-in-button";
+
 export default function Home() {
   return (
     <main>
@@ -8,9 +10,7 @@ export default function Home() {
           Manage monthly attendance records in Google Sheets with the people who
           already work there.
         </p>
-        <button type="button" disabled>
-          Sign in with Google
-        </button>
+        <SignInButton />
       </section>
     </main>
   );

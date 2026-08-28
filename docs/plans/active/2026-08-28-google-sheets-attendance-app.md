@@ -357,7 +357,7 @@ git commit -m "feat: add attendance editing domain"
 - Modify: `src/app/page.tsx`, `src/app/layout.tsx`
 - Test: `src/lib/auth/google-token.test.ts`, `src/lib/auth/session.test.ts`
 
-- [ ] **Step 1: Write failing token/session tests**
+- [x] **Step 1: Write failing token/session tests**
 
 Use injected `fetch` and clock functions. Assert that an unexpired token is returned unchanged, an expired token posts the refresh token to `https://oauth2.googleapis.com/token`, a successful refresh preserves the old refresh token when Google omits a new one, and failure yields `error: "RefreshAccessTokenError"`. Assert that `requireGoogleSession` lowercases `Manager@Blended-Asia.com` and rejects missing email, access token, or refresh error.
 
@@ -375,7 +375,7 @@ await expect(requireGoogleSession({
 
 Run the two test files. Expected: FAIL because the modules do not exist.
 
-- [ ] **Step 2: Configure Google OAuth and encrypted JWT sessions**
+- [x] **Step 2: Configure Google OAuth and encrypted JWT sessions**
 
 Export one scope constant:
 
@@ -394,13 +394,13 @@ Configure the Google provider with `access_type=offline`, `prompt=consent`, and 
 
 `src/app/api/auth/[...nextauth]/route.ts` exports `GET` and `POST` handlers. `src/proxy.ts` protects all UI/API routes except `/`, `/login`, `/api/auth/**`, and `/api/health`; every protected Route Handler still performs its own session/authorization checks.
 
-- [ ] **Step 3: Wire English sign-in/sign-out UI and secure response behavior**
+- [x] **Step 3: Wire English sign-in/sign-out UI and secure response behavior**
 
 Replace the temporarily disabled landing action with `signIn("google", { redirectTo: "/dashboard" })`. Add a server-action sign-out control to the authenticated layout. `requireGoogleSession` returns a domain `UnauthenticatedError`; API error mapping converts it to a generic English 401 response and never logs token values.
 
 Run Task 3 tests, lint, and typecheck. Expected: PASS.
 
-- [ ] **Step 4: Commit authentication**
+- [x] **Step 4: Commit authentication**
 
 ```bash
 git add src/auth.config.ts src/auth.ts src/proxy.ts src/types src/lib/auth src/app/api/auth src/app/login src/components/sign-in-button.tsx src/app/page.tsx src/app/layout.tsx
@@ -1114,9 +1114,11 @@ Task 1 focused proof: RED `docker compose run --rm test npm test -- src/app/api/
 Task 1 Docker proof: `docker compose build test`; Docker lint, typecheck, and test (1/1); `docker compose build app`; and runtime `GET /api/health` returning `{"status":"ok"}` all passed.
 Task 2 RED proof: focused attendance tests first failed because the requested domain modules did not exist; Fix Round 1 regressions then failed for a future configured status sheet value, an absent configured status mapping, and a negative fractional break.
 Task 2 GREEN/full proof: `docker compose run --rm test npm test -- src/lib/attendance` passed 19/19; full Docker Vitest passed 20/20; Docker lint and typecheck passed; `git diff --check` passed. The domain was committed as `f4c1f47` and Fix Round 1 is recorded with its follow-up commit.
+Task 3 RED/GREEN proof: Docker-focused tests first failed because `src/lib/auth/google-token.ts` and `session.ts` did not exist; the identity-preservation regression then failed until the successful refresh retained prior JWT claims and cleared its old refresh error. `docker compose run --rm test npm test -- src/lib/auth/google-token.test.ts src/lib/auth/session.test.ts` passed 10/10. The direct Auth.js session-callback assertion serializes normalized email and refresh error only, with neither provider access nor refresh token present; focused proof also injects the server JWT reader and verifies the generic no-store 401 mapping.
+Task 3 full Docker proof: `docker compose run --rm test npm run lint`, `docker compose run --rm test npm run typecheck`, `docker compose run --rm test npm test` (30/30), and `docker compose build app` all passed. The build recognized the Auth.js route and Next 16 proxy. No live OAuth proof was attempted because external credentials and organization approval are not available.
 Repository-required checks: Task 1 `git diff --check` passed; remaining tasks retain their own required validation.
 Live Google proof: Requires user-supplied credentials, enabled APIs, OAuth audience/callbacks, test accounts, and any organization approval.
 
 ## Result
 
-Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Tasks 3–13 have not started. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.
+Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Task 3 adds encrypted Auth.js JWT Google OAuth sessions, identity-preserving refresh-token rotation, server-only token decoding, proxy protection, and English sign-in/sign-out controls; focused 10/10 and full 30/30 Docker Vitest, Docker lint/typecheck, and Docker production build passed. Live OAuth remains unattempted pending external credentials and approval. Tasks 4–13 remain unchecked. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.

@@ -417,7 +417,7 @@ git commit -m "feat: add Google OAuth sessions"
 - Test: `src/lib/google/drive-gateway.test.ts`, `sheets-gateway.test.ts`, `src/app/api/google/picker-token/route.test.ts`
 - Test fixtures: `tests/fakes/google.ts`
 
-- [ ] **Step 1: Write failing Drive folder and pagination tests**
+- [x] **Step 1: Write failing Drive folder and pagination tests**
 
 Using a fake Drive client, assert:
 
@@ -440,7 +440,7 @@ Reject folder MIME mismatches, `trashed=true`, `ownedByMe=false`, any `driveId`,
 
 Run the tests. Expected: FAIL because the gateways do not exist.
 
-- [ ] **Step 2: Define gateway interfaces and implement Drive operations**
+- [x] **Step 2: Define gateway interfaces and implement Drive operations**
 
 Keep services dependent on these interfaces, not `googleapis` response types:
 
@@ -466,7 +466,7 @@ export interface SheetsGateway {
 
 `createSpreadsheetFile` calls Drive `files.create` with the Google Sheets MIME type and exactly `parents: [folderId]`. `convertXlsx` sends original bytes as XLSX media while request metadata uses the Sheets MIME type, confirmed output name, and exactly one parent. Permission calls use `sendNotificationEmail: true` and are invoked sequentially by services, never with `Promise.all`.
 
-- [ ] **Step 3: Implement the Picker boundary and on-demand token route**
+- [x] **Step 3: Implement the Picker boundary and on-demand token route**
 
 `GooglePicker` accepts `mode: "folder" | "spreadsheet"`, a callback, and no token prop. On open it requests `/api/google/picker-token`, keeps the access token only in component memory, loads `https://apis.google.com/js/api.js`, and builds:
 
@@ -485,7 +485,7 @@ Set OAuth token, referrer-restricted developer key, Cloud project number app ID,
 
 Run Task 4 tests, lint, and typecheck. Expected: PASS.
 
-- [ ] **Step 4: Commit Google boundaries**
+- [x] **Step 4: Commit Google boundaries**
 
 ```bash
 git add src/lib/google src/app/api/google src/app/api/folders src/components/google-picker.tsx tests/fakes/google.ts
@@ -500,7 +500,7 @@ git commit -m "feat: add Google API and Picker boundaries"
 - Create: `src/lib/access/policy.ts`
 - Test: `src/lib/config/schema.test.ts`, `repository.test.ts`, `src/lib/access/policy.test.ts`
 
-- [ ] **Step 1: Write failing config parse/write tests**
+- [x] **Step 1: Write failing config parse/write tests**
 
 Use the exact schema from the approved spec:
 
@@ -657,7 +657,7 @@ git commit -m "feat: create monthly attendance sheets"
 - Test: `src/lib/workbook/xlsx-inspector.test.ts`, `src/lib/files/import-service.test.ts`
 - Create: `tests/fixtures/workbook.ts`
 
-- [ ] **Step 1: Generate a deterministic in-memory workbook fixture and failing inspector tests**
+- [x] **Step 1: Generate a deterministic in-memory workbook fixture and failing inspector tests**
 
 `tests/fixtures/workbook.ts` uses ExcelJS to create buffers, not repository binary fixtures. Its valid workbook has two visible employee sheets, merged J2:K2 through AR2:AS2, 6–23 hour headers, alternating 0/30 minute headers, D3:I3 Japanese headers, July 2026 date rows from row 4, and H formulas. The test asserts:
 
@@ -673,7 +673,7 @@ expect(result).toEqual({
 
 Add mutations that independently break D:I headers, one merge, one minute header, selected month, and H formula compatibility. Assert each error includes sheet title and stable check code. Assert an existing `__APP_CONFIG` is ignored rather than trusted; any other visible auxiliary sheet blocks import. Run the inspector test and expect FAIL.
 
-- [ ] **Step 2: Implement bounded XLSX parsing and explicit recognition results**
+- [x] **Step 2: Implement bounded XLSX parsing and explicit recognition results**
 
 Accept only a buffer no larger than `20 * 1024 * 1024` bytes with ZIP/XLSX content; reject encrypted, corrupt, macro-enabled, and non-XLSX input with safe English messages. Define:
 
@@ -1118,9 +1118,13 @@ Task 3 RED/GREEN proof: Docker-focused tests first failed because `src/lib/auth/
 Task 3 full Docker proof: `docker compose run --rm test npm run lint`, `docker compose run --rm test npm run typecheck`, `docker compose run --rm test npm test` (30/30), and `docker compose build app` all passed. The build recognized the Auth.js route and Next 16 proxy. No live OAuth proof was attempted because external credentials and organization approval are not available.
 Task 3 Fix Round 1 security proof: RED tests rejected the old refresh-error proxy authorization, insecure HTTPS-cookie selection, and public-path Auth.js evaluation. GREEN focused Docker proof passed 21/21 across authorization, proxy boundary, token, and session tests. It includes real `next-auth/jwt` encrypted JWT encode/getToken proof for HTTP and HTTPS cookie names/salts. Full Docker lint/typecheck, Vitest 41/41, production build, and `git diff --check` passed; the build reports `/` and `/login` as static and recognizes the Next 16 proxy.
 Task 3 Fix Round 2 proxy proof: real exported-proxy RED integration tests returned 200 instead of redirecting protected requests because the beta.32 handler wrapper executed its supplied handler before a false `authorized` result. The direct `auth(request)` path now short-circuits public paths first and returns Auth.js’s authorization response, with a fail-closed fallback only for an unexpected null/undefined result. GREEN focused proxy/auth proof passed 23/23, including unauthenticated and encoded refresh-error redirects plus valid unexpired HTTPS-session continuation. Full Docker lint/typecheck, Vitest 46/46, production build, and `git diff --check` passed. Task 12's future focused-test path now quotes `src/app/(authenticated)/files`.
+Task 4 RED/GREEN proof: `docker compose run --rm test npm test -- src/lib/google src/app/api/google` first failed to resolve `./drive-gateway`, `./sheets-gateway`, and the picker-token `./route`; GREEN passed 27/27. Asserted literally: the exact folder field mask `id,name,mimeType,trashed,ownedByMe,driveId,capabilities(canAddChildren)`; `q` containing `'folder-1' in parents` and `trashed = false`; two list calls proving `nextPageToken` was followed; `FolderUnavailableError` for MIME mismatch, trashed, non-owned, any `driveId`, and `canAddChildren !== true`, with an empty `listCalls` on a failed get proving no all-Drive fallback; case-sensitive `name.includes("勤怠管理表")` manager post-filtering; `convertXlsx` passing the same buffer reference with exactly one parent; `sendNotificationEmail: true` and no `Promise.all` in either gateway; and a picker-token body of exactly `{ accessToken }` with `Cache-Control: private, no-store` asserted to contain no refresh token. `googleapis` is imported only by `src/lib/google/client.ts`, which has no unit test and was proven by a scoped typecheck that caught a bad `drive.files.create` overload cast.
+Task 5 Step 1 RED/GREEN proof: `docker compose run --rm test npm test -- src/lib/config` first failed to resolve `./schema`; GREEN passed 32/32 over the approved section 6 schema, including the plan's `parseAppConfig` example verbatim, lowercase email normalization, string-preserved Google IDs, blank-row termination of both variable-length tables, rejection of unknown schema versions, duplicate emails, duplicate sheet IDs, invalid setup states, and malformed headers, plus a lossless parse/serialize round trip. The module is pure; `repository.ts` and `access/policy.ts` remain unwritten because they require the Task 4 gateways.
+Task 7 Steps 1-2 RED/GREEN proof: `docker compose run --rm test npm test -- src/lib/workbook` first failed to resolve `./xlsx-inspector`; GREEN passed 18/18. The fixture builds every workbook in memory with ExcelJS and never reads the repository-root reference file. Proof covers the plan's exact two-sheet inspection result and five independent mutations breaking D:I headers, one merge, one minute header, the month, and the H formula, each reporting sheet title and a stable check code, plus an ignored `__APP_CONFIG`, a blocked visible auxiliary sheet, and the oversize, non-XLSX, corrupt, encrypted, and macro-enabled guards. `jszip@3.10.1` was promoted from an implicit hoisted transitive of ExcelJS to a declared pinned dev dependency because the fixture imports it directly.
+Wave validation after Tasks 4, 5 Step 1, and 7 Steps 1-2 landed together: `docker compose run --rm test npm run verify` passed end to end (lint, typecheck, Vitest 123/123 across 15 files, production build). The three streams were implemented concurrently under disjoint file ownership; `git status` confirmed no tracked file outside those sets was modified.
 Repository-required checks: Task 1 `git diff --check` passed; remaining tasks retain their own required validation.
 Live Google proof: Requires user-supplied credentials, enabled APIs, OAuth audience/callbacks, test accounts, and any organization approval.
 
 ## Result
 
-Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Task 3 adds encrypted Auth.js JWT Google OAuth sessions, identity-preserving refresh-token rotation, server-only token decoding, proxy protection, and English sign-in/sign-out controls; it was committed as `125a0ef` with focused 10/10 and full 30/30 Docker Vitest, Docker lint/typecheck, and Docker production build passing. Security Fix Round 1 rejects refresh-error browser sessions at the proxy, derives Auth.js secure-cookie selection from validated configured/request URLs, and avoids Auth.js evaluation for public pages while protected future UI paths inherit the route-group layout; focused 21/21 and full 41/41 Docker Vitest, Docker lint/typecheck, and Docker production build passed. Security Fix Round 2 removes Auth.js's beta.32 handler wrapper from protected requests: direct Auth.js request handling now enforces redirects for missing/refresh-error sessions while valid unexpired HTTPS sessions continue; focused 23/23 and full 46/46 Docker Vitest, Docker lint/typecheck, and Docker production build passed. Live OAuth remains unattempted pending external credentials and approval. Tasks 4–13 remain unchecked. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.
+Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Task 2 attendance domain completed in `f4c1f47` with Fix Round 1 configuration-driven status mapping and validation corrections; focused 19/19, full 20/20, Docker lint/typecheck, and diff checks passed. Task 3 adds encrypted Auth.js JWT Google OAuth sessions, identity-preserving refresh-token rotation, server-only token decoding, proxy protection, and English sign-in/sign-out controls; it was committed as `125a0ef` with focused 10/10 and full 30/30 Docker Vitest, Docker lint/typecheck, and Docker production build passing. Security Fix Round 1 rejects refresh-error browser sessions at the proxy, derives Auth.js secure-cookie selection from validated configured/request URLs, and avoids Auth.js evaluation for public pages while protected future UI paths inherit the route-group layout; focused 21/21 and full 41/41 Docker Vitest, Docker lint/typecheck, and Docker production build passed. Security Fix Round 2 removes Auth.js's beta.32 handler wrapper from protected requests: direct Auth.js request handling now enforces redirects for missing/refresh-error sessions while valid unexpired HTTPS sessions continue; focused 23/23 and full 46/46 Docker Vitest, Docker lint/typecheck, and Docker production build passed. Live OAuth remains unattempted pending external credentials and approval. Task 4 adds the typed Drive, Sheets, and Picker boundaries behind gateway interfaces that keep `googleapis` out of every consuming module; it was committed as `255db27` with focused Docker Vitest 27/27. Task 5 Step 1 adds the pure `__APP_CONFIG` version-1 parser and lossless serializer, committed as `659301f` with focused 32/32. Task 7 Steps 1-2 add the shared reference-workbook column contract, the in-memory ExcelJS fixture builders, and bounded XLSX recognition, committed as `07b4cb3` with focused 18/18 and with `jszip@3.10.1` promoted to a declared pinned dev dependency. A combined `npm run verify` passed lint, typecheck, Vitest 123/123, and the production build. Remaining: Task 5 Steps 2-3 (`config/repository.ts`, `access/policy.ts`), Task 6, Task 7 Steps 3-5, and Tasks 8–13. Open items carried forward: `sheets-gateway` writes use `USER_ENTERED` so the `=F-G-E` contract works, which means Task 11 must keep free-text notes (column I) from being coerced into formulas or dates; `ConfigMember` sheet, protection, and permission identifiers are nullable so partial setup can be recorded, so `access/policy.ts` must map a null mapping to `NeedsSetupError`/`NeedsRepairError`; and `inspectXlsx` deliberately takes no expected month, so the import service must compare each recognized sheet month against the manager-confirmed month itself. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.

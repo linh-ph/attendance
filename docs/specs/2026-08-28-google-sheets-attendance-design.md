@@ -36,8 +36,9 @@ database.
 ### 2.1 Roles
 
 - **Manager**: the current owner of a matching Google Sheets file. A manager can
-  create/import files, add or remove member mappings, share files, configure
-  protections, open employee tabs, and edit attendance data.
+  create/import files, add member mappings, share files, configure protections,
+  open employee tabs, and edit attendance data. Removing members or revoking
+  access is outside the first-version scope.
 - **Employee**: a signed-in email mapped to one employee tab in the file's
   protected configuration. An employee can read and update only the mapped tab
   through the application.
@@ -77,8 +78,7 @@ The import flow:
 6. Keep the converted file if a later setup step fails and allow setup to
    resume.
 
-The proposed first-version upload limit is 20 MB, configured by an environment
-variable and documented in the UI.
+The first-version upload limit is 20 MB and is documented in the UI.
 
 ## 3. Reference workbook contract
 
@@ -91,8 +91,8 @@ The application treats this structure as the initial template contract.
 | B | Weekday | Derived from the date and displayed in English on the web |
 | C | Business-day sequence (`営業日`) | Generated/maintained with the monthly template |
 | D | Status (`ステータス`) | Enum-backed select control |
-| E | Clock in (`出勤`) | 24-hour time, 30-minute increments |
-| F | Clock out (`退勤`) | 24-hour time, 30-minute increments |
+| E | Clock in (`出勤`) | Decimal hour in the sheet; rendered as 24-hour time on the web |
+| F | Clock out (`退勤`) | Decimal hour in the sheet; rendered as 24-hour time on the web |
 | G | Break (`休憩`) | Decimal hours, synchronized with lunch-break logic |
 | H | Work hours (`労働時間`) | Formula: `clockOut - break - clockIn` |
 | I | Notes (`備考`) | Free text for the selected day |
@@ -117,9 +117,13 @@ component contract.
 
 ### 3.2 Time and work-hour rules
 
+- The sheet stores clock values as decimal hours exactly like the reference
+  workbook: `8` means 08:00 and `17.5` means 17:30. The web converts between
+  these numbers and 24-hour display strings.
 - Clock in, clock out, break values, and work-block boundaries use 30-minute
   increments.
-- `workHours = clockOut - breakHours - clockIn`.
+- Both the web and sheet use `workHours = clockOutDecimal - breakHours -
+  clockInDecimal`; generated column-H formulas use the equivalent `=F-G-E`.
 - Clock out must be later than clock in.
 - Break hours cannot be negative or greater than the clocked duration.
 - A negative work-hour result is rejected before Save.
@@ -175,8 +179,9 @@ The attendance page combines two editing methods over one in-memory day model:
 1. **Timeline editor**: one row per 30-minute slot. A user can edit an individual
    slot or select a contiguous set of slots.
 2. **Work-block editor**: start and end controls accept `:00` and `:30`
-   boundaries. Applying a block writes the same work description into all
-   covered, non-lunch slots.
+   boundaries. Blocks use a half-open interval `[start, end)`. For example,
+   09:00–10:00 writes 09:00 and 09:30, but not 10:00. Applying a block writes
+   the same work description into all covered, non-lunch slots.
 
 Editing with either method immediately updates the other view. An overlapping
 block must show the cells that will be replaced before applying it.
@@ -196,11 +201,11 @@ The manager wizard has three stages:
 2. Member rows containing display name and email.
 3. Review and create.
 
-Validation requires a non-empty file name/month, valid unique emails, unique
-tab names, and valid Google Sheets tab-title characters. The create operation
-generates dates, weekday formatting, status enum behavior, formulas, 30-minute
-headers, employee tabs, the app configuration, Drive metadata, sharing, and
-protections.
+Validation requires a non-empty file name/month, a file name containing the
+accepted marker `勤怠管理表`, valid unique emails, unique tab names, and valid
+Google Sheets tab-title characters. The create operation generates dates,
+weekday formatting, status enum behavior, formulas, 30-minute headers, employee
+tabs, the app configuration, Drive metadata, sharing, and protections.
 
 ### 4.4 Manage members
 
@@ -208,9 +213,8 @@ A manager can add a name/email after file creation. The operation creates a new
 employee tab from the current template, adds the email mapping, shares the file
 if necessary, and applies protection.
 
-Member mutations must be retryable. Removing a mapping or revoking Drive access
-is a separate destructive flow and must require explicit confirmation; it is not
-part of the first implementation unless separately approved.
+Adding a member must be retryable. Removing a mapping or revoking Drive access
+is a separate destructive flow and is not part of the first implementation.
 
 ## 5. Automatic file discovery
 
@@ -252,9 +256,13 @@ A manager dashboard includes a file when:
 2. the file name contains `勤怠管理表`.
 
 Files with valid app configuration are ready to manage. Matching owner files
-without app configuration appear as `Needs setup` and can enter the member
-mapping flow. This supports legacy attendance spreadsheets without exposing
-them to employees before safe mapping exists.
+without app configuration appear as `Needs setup`. To start setup, the manager
+must explicitly select that same file through Google Picker. The Picker action
+grants the app per-file access under `drive.file`; metadata discovery alone does
+not authorize Drive permission mutations on a legacy file. After selection, the
+file enters the member mapping flow. This supports legacy attendance
+spreadsheets without exposing them to employees before safe mapping exists or
+requesting full Drive read/write access.
 
 ### 5.4 OAuth implication
 
@@ -273,23 +281,27 @@ with a testing OAuth audience and explicit test users.
 Every configured file contains a hidden sheet named `__APP_CONFIG`. The sheet is
 protected so only the owner/manager can edit it.
 
-The logical data includes:
+The first schema version has fixed tables and coordinates:
 
-- schema version;
-- setup state (`pending`, `ready`, `needs-repair`);
-- selected month;
-- manager/owner email last verified during setup;
-- template version;
-- status enum mappings;
-- employee display name;
-- normalized employee email;
-- employee sheet ID and title;
-- protection IDs when available;
-- invitation/setup status and last recoverable error.
+| Range | Purpose | Columns/keys |
+| --- | --- | --- |
+| `A1:B5` | Settings key/value table | `schemaVersion`, `setupState`, `month`, `ownerEmail`, `templateVersion` |
+| `D1:F` | Status enum table | Header in row 1; data rows contain `code`, `labelEn`, `sheetValue` until the first fully blank row |
+| `H1:N` | Member table | Header in row 1; data rows contain `displayName`, `email`, `sheetId`, `sheetTitle`, `protectionId`, `permissionId`, `setupStatus` until the first fully blank row |
 
-Drive `appProperties` contain only compact discovery/setup markers such as
-application schema version, month, and setup state. Detailed member data remains
-in the protected configuration sheet.
+Emails are normalized to lowercase before storage and comparison. Numeric Google
+resource IDs are stored as strings. Empty member rows have no meaning; member
+identity is the normalized email. A future schema change increments
+`schemaVersion` and requires an explicit reader/migration rather than silently
+reinterpreting columns.
+
+Drive `appProperties` use fixed keys with string values:
+
+- `attendanceApp = "v1"`;
+- `attendanceSetupState = "pending" | "ready" | "needs-repair"`;
+- `attendanceMonth = "YYYY-MM"`.
+
+Detailed member data remains in the protected configuration sheet.
 
 Sheet IDs, not only titles, are stored so a renamed sheet can be recognized and
 reconciled safely. User-facing errors identify a missing or conflicting sheet
@@ -358,12 +370,31 @@ The file is never automatically deleted if a later setup step fails.
 ### 8.2 Import flow
 
 1. Validate and parse the `.xlsx` upload without modifying Drive.
-2. Show and validate sheet-to-email mappings.
+2. Classify every non-configuration sheet using the recognized employee-layout
+   contract below, then show and validate sheet-to-email mappings.
 3. Upload with the Google Sheets MIME type so Drive converts the workbook.
 4. Mark setup `pending`.
 5. Add/reconcile app configuration, metadata, mappings, protections, and
    invitations.
 6. Keep the converted file and expose a retry/resume action for partial setup.
+
+The first version supports employee-attendance workbooks only. Every visible
+sheet other than an existing reserved `__APP_CONFIG` sheet must match all of
+these checks:
+
+- row 3 contains `ステータス`, `出勤`, `退勤`, `休憩`, `労働時間`, and `備考`
+  in columns D through I;
+- J:AS encodes the 30-minute slot sequence from 06:00 through 23:30 using the
+  hour row and `0`/`30` minute row;
+- the daily data region starts at row 4 and contains the selected month's date
+  rows in column A;
+- column H contains or can be reconciled to the `=F-G-E` formula pattern.
+
+If any non-configuration sheet fails, import is blocked before upload and the UI
+lists each failing sheet and check. Auxiliary/non-attendance sheets are not
+supported in the first version. An existing `__APP_CONFIG` sheet is not trusted
+from the upload; setup replaces it with the current schema after the manager
+confirms the import mapping.
 
 ### 8.3 Attendance Save
 
@@ -383,11 +414,13 @@ the UI if the source changed since it was loaded.
 
 - `.xlsx` only; reject encrypted/corrupt/unsupported workbooks.
 - 20 MB import maximum.
-- required file name and month;
+- required output file name and month, with the output name containing
+  `勤怠管理表`;
 - valid, normalized, unique emails;
 - unique, legal sheet titles;
 - one employee email per managed employee sheet;
-- recognized monthly layout or an explicit unsupported-template error;
+- every non-configuration sheet satisfies the explicit employee-layout checks
+  in section 8.2, otherwise show an unsupported-template error before upload;
 - 30-minute time boundaries;
 - clock out after clock in;
 - non-negative valid break and work hours;
@@ -431,10 +464,12 @@ Expected environment variables include:
 - Google OAuth client ID and client secret;
 - authentication/session encryption secret;
 - application base URL/callback URL;
-- optional Google Picker public API key/app ID if retained as a manual fallback;
-- import size limit;
-- allowed owner domain (`blended-asia.com`);
-- required attendance filename marker (`勤怠管理表`).
+- Google Picker public API key/app ID for explicit legacy-file authorization;
+- application base/runtime settings required by the deployment platform.
+
+The 20 MB import limit, allowed owner domain `blended-asia.com`, and required
+filename marker `勤怠管理表` are accepted product rules, not runtime-configurable
+defaults. Changing them requires a product-contract change.
 
 Only explicitly public browser configuration may use `NEXT_PUBLIC_`.
 
@@ -519,4 +554,3 @@ can use fixtures without real credentials.
   https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/sheets
 - Restricted scope verification:
   https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
-

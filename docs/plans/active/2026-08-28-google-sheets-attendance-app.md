@@ -110,7 +110,7 @@ Out of scope:
 - Modify: `.gitignore`
 - Create: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`, `src/app/api/health/route.ts`, `public/.gitkeep`, `README.md`
 
-- [ ] **Step 1: Create the pinned npm and TypeScript/tooling contract**
+- [x] **Step 1: Create the pinned npm and TypeScript/tooling contract**
 
 Create `package.json` with these exact scripts and dependency versions, then generate `package-lock.json` from the pinned manifest inside `node:24.19.0-bookworm-slim`:
 
@@ -165,7 +165,7 @@ docker run --rm --volume "$PWD:/app" --workdir /app node:24.19.0-bookworm-slim n
 
 Expected: exit 0 and a lockfile with `lockfileVersion: 3`; do not run a host-side build.
 
-- [ ] **Step 2: Create configuration, environment, and secret-exclusion files**
+- [x] **Step 2: Create configuration, environment, and secret-exclusion files**
 
 `next.config.ts` must export `{ output: "standalone" }`. `vitest.config.ts` uses the `jsdom` environment, `@/` alias to `src/`, `vitest.setup.ts`, and excludes `tests/e2e/**`. Extend `.gitignore` with:
 
@@ -197,7 +197,7 @@ NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER=
 
 Run `git check-ignore .env` and expect `.env`; run `git check-ignore .env.example` and expect exit 1.
 
-- [ ] **Step 3: Write the failing health-route test**
+- [x] **Step 3: Write the failing health-route test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -215,7 +215,7 @@ describe("GET /api/health", () => {
 
 Run `docker compose run --rm test npm test -- src/app/api/health/route.test.ts` before creating the route. Expected: FAIL because `./route` does not exist.
 
-- [ ] **Step 4: Implement the minimal app shell and readiness route**
+- [x] **Step 4: Implement the minimal app shell and readiness route**
 
 Implement the route exactly at the unauthenticated boundary:
 
@@ -232,7 +232,7 @@ Create an English landing page with product name, one-sentence explanation, and 
 
 Run the focused test again. Expected: PASS (1 test).
 
-- [ ] **Step 5: Create and prove the multi-stage Docker image**
+- [x] **Step 5: Create and prove the multi-stage Docker image**
 
 Use `node:24.19.0-bookworm-slim` for `deps`, `test`, `builder`, and non-root `runner` stages. The test stage installs Playwright Chromium and its Debian dependencies; the builder runs `npm run build`; the runner copies `.next/standalone`, `.next/static`, and `public`, listens on port 3000, runs `node server.js` as UID/GID 1001, and uses Node's built-in `fetch` for its health check. `compose.yaml` defines `app` (runner target, `.env`, port `3000:3000`) and `test` (test target, source bind mount plus an isolated `/app/node_modules` volume so focused tests exercise current files without rebuilding the image).
 
@@ -248,7 +248,7 @@ docker compose build app
 
 Expected: every command exits 0. Start with `docker compose up --detach app`, request `http://localhost:3000/api/health`, expect `{"status":"ok"}`, then stop only this Compose project with `docker compose down`.
 
-- [ ] **Step 6: Commit the foundation**
+- [x] **Step 6: Commit the foundation**
 
 ```bash
 git add .gitignore .dockerignore .env.example Dockerfile compose.yaml package.json package-lock.json next.config.ts tsconfig.json next-env.d.ts eslint.config.mjs vitest.config.ts vitest.setup.ts public src/app README.md
@@ -1110,11 +1110,11 @@ Self-review checks before handoff:
 
 ## Validation
 
-Focused proof: Not run; implementation has not started.  
-Integration or end-to-end proof: Not run; implementation has not started.  
-Repository-required checks: Plan structure and spec coverage will be checked before this plan commit.  
+Task 1 focused proof: RED `docker compose run --rm test npm test -- src/app/api/health/route.test.ts` failed because `./route` did not exist; GREEN passed 1/1 after the route was added.
+Task 1 Docker proof: `docker compose build test`; Docker lint, typecheck, and test (1/1); `docker compose build app`; and runtime `GET /api/health` returning `{"status":"ok"}` all passed.
+Repository-required checks: Task 1 `git diff --check` passed; remaining tasks retain their own required validation.
 Live Google proof: Requires user-supplied credentials, enabled APIs, OAuth audience/callbacks, test accounts, and any organization approval.
 
 ## Result
 
-Implementation has not started. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.
+Task 1 foundation completed in `f05f381` (`chore: scaffold Dockerized Next.js app`); Docker lint/typecheck, Vitest 1/1, production build, and readiness proof passed. Tasks 2–13 have not started. Keep this section current during execution with verified outcome, observed commands, limitations, and recovery state. Move the file to `docs/plans/completed/` only after the completion standard in `docs/WORKFLOW.md` is satisfied.

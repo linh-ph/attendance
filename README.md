@@ -76,7 +76,19 @@ user on port 3000.
 `tests/reference-workbook.test.ts` checks the real `202607勤怠管理表.xlsx`
 against the workbook contract. The workbook is not committed, so the suite runs
 only when `REFERENCE_XLSX_PATH` points at a readable copy and is skipped
-otherwise. Mount the file read-only rather than copying it into the repository:
+otherwise — a plain `npm test` reports it as skipped, never as a pass.
+
+When the workbook sits in the repository root it is already inside the test
+container's bind mount:
+
+```bash
+docker compose run --rm \
+  --env REFERENCE_XLSX_PATH=/app/202607勤怠管理表.xlsx \
+  test npm test -- tests/reference-workbook.test.ts
+```
+
+From anywhere else, mount it read-only rather than copying it into the
+repository:
 
 ```bash
 docker compose run --rm \
@@ -86,8 +98,3 @@ docker compose run --rm \
 ```
 
 The test only reads the workbook; it never writes it.
-
-> `vitest.config.ts` currently collects `src/**/*.test.ts(x)` only, so the
-> command above reports `No test files found` until `tests/**/*.test.ts` is
-> added to that `include` list. Until then the suite can be exercised with a
-> temporary config that widens `include`; a normal `npm test` is unaffected.

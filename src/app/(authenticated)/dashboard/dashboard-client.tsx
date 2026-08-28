@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { GooglePicker } from "@/components/google-picker";
 import {
   clearFolderPreference,
@@ -360,6 +361,17 @@ export function DashboardClient({ email }: DashboardClientProps) {
               label={folder ? "Change folder" : "Select dashboard folder"}
               onSelect={selectFolder}
             />
+          </div>
+
+          {/* Entry points to the manager wizards. Both confirm the destination
+              folder themselves, so they stay reachable before one is chosen. */}
+          <div className="section-actions">
+            <Link className="action action-primary" href="/files/new">
+              Create monthly file
+            </Link>
+            <Link className="action" href="/files/import">
+              Import workbook
+            </Link>
           </div>
         </header>
 

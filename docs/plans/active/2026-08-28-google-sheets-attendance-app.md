@@ -366,7 +366,10 @@ await expect(
   refreshGoogleToken(expiredToken, fakeFetch, () => 1_788_000_000_000),
 ).resolves.toMatchObject({ accessToken: "new-access", refreshToken: "refresh-1" });
 
-await expect(requireGoogleSession({ user: { email: "Manager@Blended-Asia.com" }, accessToken: "a" }))
+await expect(requireGoogleSession({
+  session: { user: { email: "Manager@Blended-Asia.com" } },
+  token: { accessToken: "a" },
+}))
   .resolves.toMatchObject({ email: "manager@blended-asia.com", accessToken: "a" });
 ```
 
@@ -387,7 +390,7 @@ export const GOOGLE_SCOPES = [
 ] as const;
 ```
 
-Configure the Google provider with `access_type=offline`, `prompt=consent`, and the joined scope string. Use Auth.js JWT session strategy. On initial login store `access_token`, `refresh_token`, and absolute expiry in the encrypted JWT; refresh only after expiry. The session callback exposes normalized email, short-lived access token, and a typed refresh error, but never exposes the refresh token.
+Configure the Google provider with `access_type=offline`, `prompt=consent`, and the joined scope string. Use Auth.js JWT session strategy. On initial login store `access_token`, `refresh_token`, and absolute expiry in the encrypted JWT; refresh only after expiry. The browser-visible session callback exposes normalized email and a typed refresh error only. `src/lib/auth/session.ts` uses the server-only `next-auth/jwt` decoder to read the encrypted JWT and obtain the short-lived access token for `requireGoogleSession`; neither access nor refresh token appears in the general `/api/auth/session` JSON response.
 
 `src/app/api/auth/[...nextauth]/route.ts` exports `GET` and `POST` handlers. `src/proxy.ts` protects all UI/API routes except `/`, `/login`, `/api/auth/**`, and `/api/health`; every protected Route Handler still performs its own session/authorization checks.
 
@@ -735,6 +738,7 @@ git commit -m "feat: import attendance workbooks"
 - Create: `src/app/dashboard/page.tsx`, `src/app/dashboard/dashboard-client.tsx`
 - Create: `src/app/api/files/[fileId]/setup/route.ts`
 - Create: `src/app/files/[fileId]/setup/page.tsx`, `src/app/files/[fileId]/setup/legacy-setup-wizard.tsx`
+- Modify: `src/lib/files/setup-service.ts`
 - Modify: `src/components/google-picker.tsx`
 - Test: `src/lib/discovery/file-discovery.test.ts`, `src/lib/dashboard/folder-preference.test.ts`, `src/app/dashboard/dashboard-client.test.tsx`, `src/lib/files/setup-service.test.ts`
 

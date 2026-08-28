@@ -4,3 +4,14 @@ scripts/bin/harness.exe
 
 # Isolated implementation worktrees
 .worktrees/
+node_modules/
+.next/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+!.env.e2e.example
+.brainstorm/
+~$*.xlsx

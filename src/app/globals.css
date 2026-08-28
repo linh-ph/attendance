@@ -1,0 +1,89 @@
+:root {
+  --background: #f7f8fa;
+  --surface: #ffffff;
+  --text: #172033;
+  --muted-text: #64748b;
+  --border: #dbe1ea;
+  --primary: #2563eb;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --success: #15803d;
+  --focus-ring: #93c5fd;
+  --spacing: 1rem;
+  --radius: 0.75rem;
+  --shadow: 0 12px 30px rgb(23 32 51 / 12%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+  display: grid;
+  min-height: 100vh;
+  padding: calc(var(--spacing) * 1.5);
+  place-items: center;
+}
+
+.hero {
+  width: min(100%, 42rem);
+  padding: clamp(2rem, 8vw, 4rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  margin: 0 0 var(--spacing);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 8vw, 4.5rem);
+  letter-spacing: -0.05em;
+}
+
+.hero > p:not(.eyebrow) {
+  max-width: 35rem;
+  color: var(--muted-text);
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+button {
+  margin-top: var(--spacing);
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: calc(var(--radius) / 1.5);
+  color: var(--surface);
+  background: var(--primary);
+  font: inherit;
+  font-weight: 700;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 32rem) {
+  main {
+    padding: var(--spacing);
+  }
+}

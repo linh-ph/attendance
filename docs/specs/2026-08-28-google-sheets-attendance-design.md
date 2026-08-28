@@ -69,13 +69,19 @@ monthly file.
 The import flow:
 
 1. Accept an `.xlsx` file and inspect it locally/server-side.
-2. Show all detected workbook sheet names before uploading to Drive.
-3. Require the manager to assign a unique employee email to every employee
+2. Ask the manager for the output file name and attendance month. The upload's
+   base file name is only an editable suggestion; the manager-confirmed value is
+   authoritative and must contain `勤怠管理表`.
+3. Show all detected workbook sheet names before uploading to Drive.
+4. Require the manager to assign a unique employee email to every employee
    sheet that will be managed by the application.
-4. On Save, upload and convert the workbook to Google Sheets.
-5. Add the application configuration, Drive metadata, member permissions, and
+5. Validate that every employee sheet's date rows belong to the
+   manager-selected month.
+6. On Save, upload and convert the workbook to Google Sheets using the
+   manager-confirmed output name.
+7. Add the application configuration, Drive metadata, member permissions, and
    per-sheet protections.
-6. Keep the converted file if a later setup step fails and allow setup to
+8. Keep the converted file if a later setup step fails and allow setup to
    resume.
 
 The first-version upload limit is 20 MB and is documented in the UI.
@@ -370,13 +376,18 @@ The file is never automatically deleted if a later setup step fails.
 ### 8.2 Import flow
 
 1. Validate and parse the `.xlsx` upload without modifying Drive.
-2. Classify every non-configuration sheet using the recognized employee-layout
-   contract below, then show and validate sheet-to-email mappings.
-3. Upload with the Google Sheets MIME type so Drive converts the workbook.
-4. Mark setup `pending`.
-5. Add/reconcile app configuration, metadata, mappings, protections, and
+2. Ask the manager to confirm an output file name and attendance month; prefill
+   the file name from the upload base name but do not derive the month from the
+   name.
+3. Classify every non-configuration sheet using the recognized employee-layout
+   contract below, validate that its date rows match the selected month, then
+   show and validate sheet-to-email mappings.
+4. Upload with the Google Sheets MIME type and the confirmed output name so
+   Drive converts the workbook.
+5. Mark setup `pending` and store the selected month.
+6. Add/reconcile app configuration, metadata, mappings, protections, and
    invitations.
-6. Keep the converted file and expose a retry/resume action for partial setup.
+7. Keep the converted file and expose a retry/resume action for partial setup.
 
 The first version supports employee-attendance workbooks only. Every visible
 sheet other than an existing reserved `__APP_CONFIG` sheet must match all of
@@ -384,10 +395,12 @@ these checks:
 
 - row 3 contains `ステータス`, `出勤`, `退勤`, `休憩`, `労働時間`, and `備考`
   in columns D through I;
-- J:AS encodes the 30-minute slot sequence from 06:00 through 23:30 using the
-  hour row and `0`/`30` minute row;
-- the daily data region starts at row 4 and contains the selected month's date
-  rows in column A;
+- row 2 uses merged two-column hour headers across J:AS: `J2:K2 = 6`,
+  `L2:M2 = 7`, continuing by one hour until `AR2:AS2 = 23`;
+- row 3 contains alternating minute values across J:AS: J3 is `0`, K3 is `30`,
+  continuing `0`, `30` through AR3 and AS3;
+- the daily data region starts at row 4 and column-A date rows belong to the
+  manager-selected month;
 - column H contains or can be reconciled to the `=F-G-E` formula pattern.
 
 If any non-configuration sheet fails, import is blocked before upload and the UI
@@ -490,6 +503,8 @@ Only explicitly public browser configuration may use `NEXT_PUBLIC_`.
 
 - Drive list pagination and metadata filtering;
 - create/import setup idempotency;
+- Google Picker authorization for a legacy file and refusal to mutate the file
+  before the manager explicitly selects it;
 - sequential permission creation and failed-member retry;
 - protected-sheet creation and reconciliation;
 - employee attempts to access another mapped sheet;
@@ -505,6 +520,8 @@ can use fixtures without real credentials.
 - manager creates a monthly file;
 - manager imports and maps the reference workbook;
 - manager discovers a legacy matching file and configures it;
+- legacy setup remains read-only until the manager selects the file in Google
+  Picker;
 - employee dashboard discovers only valid shared/mapped files;
 - employee edits with timeline and work-block methods;
 - lunch break, notes, status enum, calculation, Save, and retry states;

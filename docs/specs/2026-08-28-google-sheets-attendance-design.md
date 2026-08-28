@@ -15,12 +15,14 @@ The application must:
 - use the signed-in user's authority for Google Drive and Google Sheets API
   calls;
 - let a file owner create a new monthly attendance spreadsheet with a
-  user-entered name;
+  user-entered name in a manager-selected Google Drive folder;
 - let a file owner manually enter employee names and Google Workspace email
   addresses, create one tab per employee, share the file, and protect each tab;
 - let a manager import an `.xlsx` workbook, map each existing sheet to an
   employee email, and convert it into a new Google Sheets file on Save;
 - automatically discover relevant attendance files for managers and employees;
+- let a manager select one active My Drive folder and show only matching direct
+  child files on the manager dashboard;
 - map a signed-in employee to exactly one sheet tab and allow the employee to
   manage only that tab;
 - provide both a 30-minute timeline editor and a start/end work-block editor;
@@ -69,22 +71,43 @@ monthly file.
 The import flow:
 
 1. Accept an `.xlsx` file and inspect it locally/server-side.
-2. Ask the manager for the output file name and attendance month. The upload's
-   base file name is only an editable suggestion; the manager-confirmed value is
-   authoritative and must contain `勤怠管理表`.
+2. Ask the manager for the output file name, attendance month, and destination
+   My Drive folder. The upload's base file name is only an editable suggestion;
+   the manager-confirmed value is authoritative and must contain `勤怠管理表`.
 3. Show all detected workbook sheet names before uploading to Drive.
 4. Require the manager to assign a unique employee email to every employee
    sheet that will be managed by the application.
 5. Validate that every employee sheet's date rows belong to the
    manager-selected month.
-6. On Save, upload and convert the workbook to Google Sheets using the
-   manager-confirmed output name.
+6. On Save, upload and convert the workbook to Google Sheets in the selected
+   folder using the manager-confirmed output name.
 7. Add the application configuration, Drive metadata, member permissions, and
    per-sheet protections.
 8. Keep the converted file if a later setup step fails and allow setup to
    resume.
 
 The first-version upload limit is 20 MB and is documented in the UI.
+
+### 2.5 Drive folder selection
+
+Managers select folders through Google Picker. The first version supports one
+active dashboard folder at a time and restricts selection to a writable folder
+in the signed-in manager's My Drive. Shared Drives are outside scope because
+their organization-owned files do not satisfy the current-owner manager model.
+The Picker uses a folder-only view with folder display and selection enabled;
+the server accepts the returned ID only after fetching `id`, `name`, `mimeType`,
+`trashed`, `ownedByMe`, `driveId`, and `capabilities.canAddChildren` and
+validating the rules below.
+
+The manager dashboard includes matching files that are direct children of the
+active folder only. It does not traverse descendant folders. The last selection
+is remembered locally per normalized signed-in email; it is a convenience value,
+not an authorization decision, and is not stored in an attendance workbook.
+
+The active dashboard folder is the default destination for create and import.
+The manager can choose a different destination in either wizard. After a
+successful create or import, that destination becomes the active dashboard
+folder so the new file is immediately visible.
 
 ## 3. Reference workbook contract
 
@@ -178,6 +201,14 @@ Cards show file name, month when available, owner, mapped tab/member count,
 modified time, and setup state. Manager actions include Open, Manage members,
 and Open in Google Sheets. Employee actions open the mapped timesheet directly.
 
+The manager section has a required `Dashboard folder` control with `Select
+folder` and `Change folder` actions backed by Google Picker. Before a valid
+folder is selected, the section shows an empty state instead of scanning all
+owned files. The selected folder name is displayed, while its ID remains an
+internal value. If the folder is deleted, moved to a Shared Drive, trashed, or
+no longer writable, the section shows `Folder unavailable` and requires a new
+selection. The employee section and its discovery behavior are unaffected.
+
 ### 4.2 Attendance editor
 
 The attendance page combines two editing methods over one in-memory day model:
@@ -203,15 +234,17 @@ entire day row when only a subset changed.
 
 The manager wizard has three stages:
 
-1. File name and month.
+1. File name, month, and destination folder.
 2. Member rows containing display name and email.
 3. Review and create.
 
 Validation requires a non-empty file name/month, a file name containing the
-accepted marker `勤怠管理表`, valid unique emails, unique tab names, and valid
-Google Sheets tab-title characters. The create operation generates dates,
-weekday formatting, status enum behavior, formulas, 30-minute headers, employee
-tabs, the app configuration, Drive metadata, sharing, and protections.
+accepted marker `勤怠管理表`, a valid writable destination folder in the
+manager's My Drive, valid unique emails, unique tab names, and valid Google
+Sheets tab-title characters. The create operation places the new file directly
+in that folder and generates dates, weekday formatting, status enum behavior,
+formulas, 30-minute headers, employee tabs, the app configuration, Drive
+metadata, sharing, and protections.
 
 ### 4.4 Manage members
 
@@ -224,8 +257,9 @@ is a separate destructive flow and is not part of the first implementation.
 
 ## 5. Automatic file discovery
 
-Automatic discovery intentionally scans Google Drive metadata so users do not
-need to know spreadsheet IDs.
+Employee discovery scans Google Drive metadata so employees do not need to know
+spreadsheet IDs. Manager discovery is intentionally scoped to the manager's
+selected direct-parent folder.
 
 ### 5.1 Common candidate rules
 
@@ -256,10 +290,27 @@ A matching shared file without a valid mapping is not shown to an employee.
 
 ### 5.3 Manager filtering
 
-A manager dashboard includes a file when:
+A manager dashboard first validates the supplied active folder ID by retrieving
+its metadata. The folder must be untrashed, have the Google Drive folder MIME
+type, belong to the signed-in user's My Drive rather than a Shared Drive, be
+owned by that user, and report the capability to add children. A folder ID from
+browser storage is never trusted without this server-side check.
+
+The server then lists direct children using a Drive query equivalent to:
+
+`'<folderId>' in parents and mimeType =
+'application/vnd.google-apps.spreadsheet' and trashed = false`
+
+A manager dashboard includes a returned file when:
 
 1. the signed-in account is a current owner; and
-2. the file name contains `勤怠管理表`.
+2. the file name contains `勤怠管理表` using the same final case-sensitive
+   substring check as section 5.1.
+
+The server paginates until the selected folder's direct-child candidate set is
+complete. Files outside the selected folder and files only inside descendant
+folders are not shown. Selecting another folder replaces the active manager
+view; it does not move any existing file.
 
 Files with valid app configuration are ready to manage. Matching owner files
 without app configuration appear as `Needs setup`. To start setup, the manager
@@ -275,7 +326,8 @@ requesting full Drive read/write access.
 Guaranteed discovery of all owned/shared file metadata requires
 `https://www.googleapis.com/auth/drive.metadata.readonly`. The narrower
 `drive.file` scope remains responsible for app-created or app-selected file
-operations. Sheets access remains responsible for spreadsheet reads and writes.
+operations, including folders selected through Google Picker. Sheets access
+remains responsible for spreadsheet reads and writes.
 
 `drive.metadata.readonly` is a restricted scope. Internal organizational use
 may qualify for Google's internal-use verification exception, but the Workspace
@@ -336,6 +388,9 @@ Request offline access when needed to refresh short-lived access tokens.
 - Per-user provider tokens live in encrypted, HttpOnly, Secure session state.
 - Revoked/expired authorization redirects the user through re-consent without
   discarding unsaved form data where technically possible.
+- Browser storage may contain only the last selected dashboard folder ID and
+  display name under a key scoped by normalized signed-in email. It never stores
+  OAuth tokens, application secrets, or an authorization result.
 
 ### 7.3 Defense in depth
 
@@ -362,32 +417,40 @@ view. This visibility limitation was accepted as part of the design.
 
 ### 8.1 Create flow
 
-1. Validate input.
-2. Create the spreadsheet under the manager's OAuth identity.
+1. Validate input and revalidate the selected destination folder's metadata and
+   capabilities under the manager's OAuth identity.
+2. Create the Google Sheets file through Drive `files.create` with the Sheets
+   MIME type and `parents: [folderId]`, so it is placed directly in the selected
+   folder under the manager's ownership.
 3. Mark setup `pending` in Drive/app configuration.
 4. Create template/config/employee sheets and formulas.
 5. Add protections.
 6. Create Drive permissions sequentially for unique employee emails.
 7. Mark successful invitations as complete and retain individual failures.
 8. Mark setup `ready` when all required structural steps succeed.
+9. Return the destination folder ID/name so the browser makes it the active
+   dashboard folder.
 
 The file is never automatically deleted if a later setup step fails.
 
 ### 8.2 Import flow
 
 1. Validate and parse the `.xlsx` upload without modifying Drive.
-2. Ask the manager to confirm an output file name and attendance month; prefill
-   the file name from the upload base name but do not derive the month from the
-   name.
+2. Ask the manager to confirm an output file name, attendance month, and
+   destination folder; prefill the file name from the upload base name but do
+   not derive the month from the name.
 3. Classify every non-configuration sheet using the recognized employee-layout
    contract below, validate that its date rows match the selected month, then
    show and validate sheet-to-email mappings.
-4. Upload with the Google Sheets MIME type and the confirmed output name so
-   Drive converts the workbook.
+4. Revalidate the destination folder, then upload with the Google Sheets MIME
+   type, confirmed output name, and `parents: [folderId]` so Drive converts the
+   workbook directly in that folder.
 5. Mark setup `pending` and store the selected month.
 6. Add/reconcile app configuration, metadata, mappings, protections, and
    invitations.
 7. Keep the converted file and expose a retry/resume action for partial setup.
+8. On success, return the destination folder ID/name so it becomes the active
+   dashboard folder.
 
 The first version supports employee-attendance workbooks only. Every visible
 sheet other than an existing reserved `__APP_CONFIG` sheet must match all of
@@ -429,6 +492,8 @@ the UI if the source changed since it was loaded.
 - 20 MB import maximum.
 - required output file name and month, with the output name containing
   `勤怠管理表`;
+- required destination folder selected through Google Picker and revalidated as
+  a writable, owned My Drive folder immediately before create/import;
 - valid, normalized, unique emails;
 - unique, legal sheet titles;
 - one employee email per managed employee sheet;
@@ -450,6 +515,10 @@ the UI if the source changed since it was loaded.
 - A failed attendance Save never clears the dirty form.
 - A missing config/mapping/protection produces `Needs setup` or `Needs repair`,
   not silent fallback access.
+- A missing, trashed, Shared Drive, unowned, or non-writable dashboard folder
+  produces `Folder unavailable`; no fallback to an all-Drive scan is allowed.
+- A create/import request whose destination folder becomes invalid before Save
+  is rejected before file creation and preserves the wizard input for retry.
 
 ## 10. Next.js and Docker structure
 
@@ -459,6 +528,7 @@ Proposed bounded components:
 
 - authentication/session adapter;
 - Google Drive gateway;
+- Google Picker folder adapter and dashboard-folder preference adapter;
 - Google Sheets gateway;
 - workbook template/parser module;
 - sheet-native config repository;
@@ -497,11 +567,18 @@ Only explicitly public browser configuration may use `NEXT_PUBLIC_`.
 - work-hour calculation and invalid-time rejection;
 - email normalization and email-to-sheet authorization;
 - filename/domain/owner filtering;
+- dashboard-folder validation and direct-parent filtering;
 - template date and formula generation.
 
 ### 11.2 Integration tests
 
 - Drive list pagination and metadata filtering;
+- Picker-selected My Drive folder validation, including rejection of Shared
+  Drive, trashed, unowned, and non-writable folders;
+- direct-child manager listing that excludes descendants and files outside the
+  active folder;
+- create/import requests pass exactly one selected parent folder and reject a
+  destination that becomes invalid before creation;
 - create/import setup idempotency;
 - Google Picker authorization for a legacy file and refusal to mutate the file
   before the manager explicitly selects it;
@@ -519,6 +596,10 @@ can use fixtures without real credentials.
 - Google sign-in boundary using a deterministic test adapter;
 - manager creates a monthly file;
 - manager imports and maps the reference workbook;
+- manager selects and changes a dashboard folder, sees only direct matching
+  children, and sees a newly created/imported file immediately;
+- manager receives the `Folder unavailable` state when a remembered folder can
+  no longer be used;
 - manager discovers a legacy matching file and configures it;
 - legacy setup remains read-only until the manager selects the file in Google
   Picker;
@@ -547,6 +628,9 @@ can use fixtures without real credentials.
 - A no-database architecture intentionally limits centralized audit history and
   cross-file analytics. These can be added later without changing the sheet
   attendance contract.
+- The selected manager dashboard folder is browser-local and does not synchronize
+  across devices or browsers; the manager selects it again on a new browser.
+- Shared Drive folders are not supported in the first version.
 - Same-cell concurrent edits are last-writer-wins in the first version.
 
 ## 13. External references
@@ -559,8 +643,12 @@ can use fixtures without real credentials.
   https://developers.google.com/workspace/drive/api/guides/api-specific-auth
 - Drive file search:
   https://developers.google.com/workspace/drive/api/guides/search-files
+- Drive folder creation and direct parent placement:
+  https://developers.google.com/workspace/drive/api/guides/folder
 - Drive search terms:
   https://developers.google.com/workspace/drive/api/guides/ref-search-terms
+- Google Picker folder selection:
+  https://developers.google.com/workspace/drive/picker/reference/picker.docsview
 - Drive permission creation:
   https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions/create
 - Drive custom properties:

@@ -89,7 +89,7 @@ describe("POST /api/files/create", () => {
           sheetTitle: "Employee A",
           protectionId: "2",
           permissionId: "permission-1",
-          setupStatus: "complete",
+          setupStatus: "ready",
           error: null,
         },
         {
@@ -99,7 +99,7 @@ describe("POST /api/files/create", () => {
           sheetTitle: "Employee B",
           protectionId: "3",
           permissionId: "permission-2",
-          setupStatus: "complete",
+          setupStatus: "ready",
           error: null,
         },
       ],
@@ -121,7 +121,7 @@ describe("POST /api/files/create", () => {
     expect(body.file).toMatchObject({ id: "file-1", setupState: "pending", complete: false });
     expect(body.folder).toEqual({ id: "folder-1", name: "Attendance 2026" });
     expect(body.members.map((member) => member.setupStatus)).toEqual([
-      "complete",
+      "ready",
       "invite-failed",
     ]);
     expect(body.members[1].error).toBeTruthy();

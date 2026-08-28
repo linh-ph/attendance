@@ -79,7 +79,7 @@ export function isSetupError(value: unknown): value is SetupError {
 /* Public shapes                                                               */
 /* -------------------------------------------------------------------------- */
 
-export const MEMBER_SETUP_STATUSES = ["pending", "complete", "invite-failed"] as const;
+export const MEMBER_SETUP_STATUSES = ["pending", "ready", "invite-failed"] as const;
 export type MemberSetupStatus = (typeof MEMBER_SETUP_STATUSES)[number];
 
 /** Shown next to the member; never carries provider detail. */
@@ -95,7 +95,7 @@ export interface MemberSetupProgress {
   protectionId: string | null;
   permissionId: string | null;
   setupStatus: MemberSetupStatus;
-  /** English, member-safe explanation when `setupStatus` is not `complete`. */
+  /** English, member-safe explanation when `setupStatus` is not `ready`. */
   error: string | null;
 }
 
@@ -303,7 +303,7 @@ export function createSetupService(dependencies: SetupServiceDependencies): Setu
     const results: MemberSetupProgress[] = [];
 
     for (const member of members) {
-      if (member.setupStatus === "complete" && member.permissionId !== null) {
+      if (member.setupStatus === "ready" && member.permissionId !== null) {
         results.push(member);
         continue;
       }
@@ -313,9 +313,9 @@ export function createSetupService(dependencies: SetupServiceDependencies): Setu
         await config.updateMemberProgress(fileId, {
           email: member.email,
           permissionId,
-          setupStatus: "complete",
+          setupStatus: "ready",
         });
-        results.push({ ...member, permissionId, setupStatus: "complete", error: null });
+        results.push({ ...member, permissionId, setupStatus: "ready", error: null });
       } catch {
         // The file and every completed member stay intact so this one member
         // can be retried on its own.
@@ -356,7 +356,7 @@ export function createSetupService(dependencies: SetupServiceDependencies): Setu
     });
 
     const members = await inviteMembers(fileId, current);
-    const complete = members.every((member) => member.setupStatus === "complete");
+    const complete = members.every((member) => member.setupStatus === "ready");
 
     if (complete) {
       await config.updateSetupState(fileId, "ready");

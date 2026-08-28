@@ -76,7 +76,7 @@ describe("SetupService.create", () => {
           sheetTitle: "Employee A",
           protectionId: "2",
           permissionId: "permission-1",
-          setupStatus: "complete",
+          setupStatus: "ready",
           error: null,
         },
         {
@@ -86,7 +86,7 @@ describe("SetupService.create", () => {
           sheetTitle: "Employee B",
           protectionId: "3",
           permissionId: "permission-2",
-          setupStatus: "complete",
+          setupStatus: "ready",
           error: null,
         },
       ],
@@ -117,7 +117,7 @@ describe("SetupService.create", () => {
     expect(config.month).toBe("2026-07");
     expect(config.setupState).toBe("ready");
     expect(config.members.map((member) => member.email)).toEqual([EMPLOYEE_A, EMPLOYEE_B]);
-    expect(config.members.every((member) => member.setupStatus === "complete")).toBe(true);
+    expect(config.members.every((member) => member.setupStatus === "ready")).toBe(true);
     expect(config.statuses.map((status) => status.sheetValue)).toEqual(["出社", "欠勤"]);
   });
 
@@ -220,7 +220,7 @@ describe("SetupService.create", () => {
       sheetId: "1",
       protectionId: "2",
       permissionId: "permission-1",
-      setupStatus: "complete",
+      setupStatus: "ready",
       error: null,
     });
     expect(result.members[1]).toMatchObject({
@@ -249,7 +249,7 @@ describe("SetupService.create", () => {
     expect(fake.invitedEmails).toEqual([EMPLOYEE_A, EMPLOYEE_B]);
     expect(result.members.map((member) => member.setupStatus)).toEqual([
       "invite-failed",
-      "complete",
+      "ready",
     ]);
   });
 
@@ -289,7 +289,7 @@ describe("SetupService.create", () => {
     expect(resumed.complete).toBe(true);
     expect(resumed.fileId).toBe(partial.fileId);
     expect(resumed.setupState).toBe("ready");
-    expect(resumed.members.map((member) => member.setupStatus)).toEqual(["complete", "complete"]);
+    expect(resumed.members.map((member) => member.setupStatus)).toEqual(["ready", "ready"]);
     expect(resumed.members[1].permissionId).not.toBeNull();
   });
 

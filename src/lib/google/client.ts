@@ -1,5 +1,7 @@
 import { Readable } from "node:stream";
 import { google, type drive_v3 } from "googleapis";
+import { createFakeGoogleGateways } from "@/lib/testing/fake-google-store";
+import { resolveTestMode } from "@/lib/testing/runtime-guard";
 import { createDriveGateway } from "./drive-gateway";
 import { createSheetsGateway } from "./sheets-gateway";
 import type {
@@ -92,8 +94,22 @@ export function createSheetsClient(accessToken: string): SheetsClient {
   };
 }
 
-/** Builds the per-request gateways bound to one signed-in user's access token. */
+/**
+ * Builds the per-request gateways bound to one signed-in user's access token.
+ *
+ * The single non-production seam lives here, because this is the only place the
+ * application decides where Drive and Sheets calls actually go. `resolveTestMode`
+ * is consulted first and it *throws* when `E2E_TEST_MODE` is set under
+ * `NODE_ENV=production`, so a production build can neither fall through to the
+ * deterministic adapter nor be talked into it by an environment variable. With
+ * the flag absent — every production deployment — the guard returns `false` and
+ * the real `googleapis` gateways below are constructed exactly as before.
+ */
 export function createGoogleGateways(accessToken: string): GoogleGateways {
+  if (resolveTestMode(process.env)) {
+    return createFakeGoogleGateways(accessToken);
+  }
+
   return {
     drive: createDriveGateway(createDriveClient(accessToken)),
     sheets: createSheetsGateway(createSheetsClient(accessToken)),

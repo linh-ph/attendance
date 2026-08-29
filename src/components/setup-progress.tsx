@@ -34,7 +34,7 @@ export function SetupProgress({
   isRetrying = false,
 }: SetupProgressProps) {
   return (
-    <section className="section" aria-labelledby="setup-progress-heading">
+    <section className="section step" aria-labelledby="setup-progress-heading">
       <h2 id="setup-progress-heading">Setup did not finish</h2>
 
       <p role="status" className="form-status">

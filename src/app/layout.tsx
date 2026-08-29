@@ -6,6 +6,7 @@ import "./styles/tokens.css";
 import "./styles/shell.css";
 import "./styles/loading.css";
 import "./styles/attendance.css";
+import "./styles/manage.css";
 import "./styles/responsive.css";
 
 export const metadata: Metadata = {

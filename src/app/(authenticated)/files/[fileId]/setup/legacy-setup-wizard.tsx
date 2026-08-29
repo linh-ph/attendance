@@ -336,7 +336,7 @@ export function LegacySetupWizard({
 
   return (
     <div className="legacy-setup">
-      <section className="section" aria-labelledby="confirm-file-heading">
+      <section className="section step" aria-labelledby="confirm-file-heading">
         <h2 id="confirm-file-heading">Confirm this file</h2>
         <p>
           Select this same attendance file in Google Picker. Until then this app can neither
@@ -368,7 +368,7 @@ export function LegacySetupWizard({
       </section>
 
       {inspection === null ? null : (
-        <section className="section" aria-labelledby="map-sheets-heading">
+        <section className="section step" aria-labelledby="map-sheets-heading">
           <h2 id="map-sheets-heading">Map every sheet to a member</h2>
 
           <dl className="card-facts">

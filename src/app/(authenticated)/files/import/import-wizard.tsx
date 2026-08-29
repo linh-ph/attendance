@@ -535,7 +535,7 @@ export function ImportWizard({
 
   return (
     <div className="import-wizard">
-      <section className="section" aria-labelledby="upload-heading">
+      <section className="section step" aria-labelledby="upload-heading">
         <h2 id="upload-heading">Workbook</h2>
 
         <div className="field">
@@ -557,7 +557,7 @@ export function ImportWizard({
 
       {state.stage === "confirm" ? (
         <>
-          <section className="section" aria-labelledby="sheets-heading">
+          <section className="section step" aria-labelledby="sheets-heading">
             <h2 id="sheets-heading">Recognized sheets</h2>
 
             <ul className="card-list" aria-label="Recognized sheets">
@@ -570,7 +570,7 @@ export function ImportWizard({
             </ul>
           </section>
 
-          <section className="section" aria-labelledby="output-heading">
+          <section className="section step" aria-labelledby="output-heading">
             <h2 id="output-heading">Output file</h2>
 
             <div className="field">
@@ -623,7 +623,7 @@ export function ImportWizard({
             />
           </section>
 
-          <section className="section" aria-labelledby="mappings-heading">
+          <section className="section step" aria-labelledby="mappings-heading">
             <h2 id="mappings-heading">Sheet owners</h2>
 
             <ul className="member-input-list">

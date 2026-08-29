@@ -459,7 +459,7 @@ export function NewFileWizard({
 
   if (state.stage === "details") {
     return (
-      <section className="section" aria-labelledby="details-heading">
+      <section className="section step" aria-labelledby="details-heading">
         <h2 id="details-heading">File details</h2>
 
         <div className="field">
@@ -525,7 +525,7 @@ export function NewFileWizard({
 
   if (state.stage === "members") {
     return (
-      <section className="section" aria-labelledby="members-heading">
+      <section className="section step" aria-labelledby="members-heading">
         <h2 id="members-heading">Members</h2>
 
         <MemberInputs
@@ -559,7 +559,7 @@ export function NewFileWizard({
   }
 
   return (
-    <section className="section" aria-labelledby="review-heading">
+    <section className="section step" aria-labelledby="review-heading">
       <h2 id="review-heading">Review and create</h2>
 
       <dl className="card-facts">

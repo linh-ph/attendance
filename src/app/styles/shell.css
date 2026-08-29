@@ -266,12 +266,20 @@ button:disabled {
 }
 
 .section-actions,
-.folder-control {
+.section-header .folder-control {
   display: flex;
   gap: var(--space-xs);
   align-items: center;
   flex-wrap: wrap;
+  /* Pushed right only in the dashboard header; elsewhere it is a normal field. */
   margin-left: auto;
+}
+
+.folder-control {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .folder-name {

@@ -223,7 +223,7 @@ export function MemberForm({ fileId, api = memberApiClient }: MemberFormProps) {
 
   return (
     <div className="members">
-      <section className="section" aria-labelledby="members-heading">
+      <section className="section step" aria-labelledby="members-heading">
         <h2 id="members-heading">Members</h2>
 
         {loadError !== null ? (
@@ -245,7 +245,7 @@ export function MemberForm({ fileId, api = memberApiClient }: MemberFormProps) {
         )}
       </section>
 
-      <section className="section" aria-labelledby="add-member-heading">
+      <section className="section step" aria-labelledby="add-member-heading">
         <h2 id="add-member-heading">Add member</h2>
 
         <form id="add-member" className="member-form" noValidate onSubmit={(event) => void handleAdd(event)}>

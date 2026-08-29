@@ -4,7 +4,7 @@
 
 @media (max-width: 32rem) {
   .section-actions,
-  .folder-control {
+  .section-header .folder-control {
     margin-left: 0;
     width: 100%;
   }

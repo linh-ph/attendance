@@ -1,11 +1,22 @@
-# Docker-first. `node_modules` lives in a named volume in every service, so the
-# host never needs a matching Node — see CLAUDE.md.
+# Docker-first. `node_modules` lives in a named volume, so the host never needs
+# a matching Node — see CLAUDE.md.
 #
-# This file covers development and verification only: `app` to work against and
-# `test` to prove the change. The production image gets its own compose file.
+# One service. `app` is both what you work against and what you run the checks
+# in: the source is bind-mounted, so `docker compose run --rm app npm run
+# verify` sees the current files. The production image gets its own compose
+# file.
+#
+# Playwright is the exception. The `deps` target carries no Chromium, so
+# `npm run test:e2e` needs the Dockerfile's `test` stage instead. It needs no
+# `.env`: `playwright.config.ts` starts its own dev server with its own
+# local-only environment.
+#
+#   docker build --target test -t attendance-e2e .
+#   docker run --rm -v "$PWD:/app" -v /app/node_modules \
+#     attendance-e2e npm run test:e2e
 services:
-  # The app you work against. The source is bind-mounted and Next's dev server
-  # watches it, so a change on the host is live without a rebuild.
+  # The source is bind-mounted and Next's dev server watches it, so a change on
+  # the host is live without a rebuild.
   #
   # `NEXT_PUBLIC_*` need no build args here: the dev server compiles on demand
   # and reads them from the environment. They are only build-time for the
@@ -40,17 +51,5 @@ services:
       start_period: 40s
       retries: 5
 
-  # The test runner: lint, typecheck, Vitest, the production build, and
-  # Playwright. It carries Chromium, which is why the image is large.
-  test:
-    build:
-      context: .
-      target: test
-    env_file: .env
-    volumes:
-      - .:/app
-      - test_node_modules:/app/node_modules
-
 volumes:
   app_node_modules:
-  test_node_modules:

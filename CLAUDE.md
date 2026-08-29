@@ -33,22 +33,34 @@ CSS (no UI framework, no CSS-in-JS).
 Docker-first. Local Node may not match the pinned 24.19, and `node_modules` is a
 Compose volume — **do not run `npm` on the host.**
 
+Compose defines one service, `app`, and the working tree is bind-mounted into
+it, so `run` sees the current files without a rebuild.
+
 ```bash
-cp .env.example .env                              # first run only; .env is gitignored
-docker compose build test
-docker compose run --rm test npm run verify       # lint + typecheck + test + build
-docker compose run --rm test npm run test:e2e     # Playwright, 26 specs
-docker compose up --build app                     # http://localhost:3000
+cp .env.example .env                             # first run only; .env is gitignored
+docker compose run --rm app npm run verify       # lint + typecheck + test + build
+docker compose up --build app                    # http://localhost:3000
 ```
 
 Readiness: `GET /api/health` (unauthenticated).
+
+Playwright is the exception: `deps` carries no Chromium, so e2e runs against the
+Dockerfile's `test` stage, which Compose no longer builds. It needs no `.env` —
+`playwright.config.ts` starts its own dev server on port 3100 with its own
+local-only environment.
+
+```bash
+docker build --target test -t attendance-e2e .
+docker run --rm -v "$PWD:/app" -v /app/node_modules \
+  attendance-e2e npm run test:e2e
+```
 
 Optional proof against the real supplied workbook:
 
 ```bash
 docker compose run --rm \
   --env REFERENCE_XLSX_PATH=/app/202607勤怠管理表.xlsx \
-  test npm test -- tests/reference-workbook.test.ts
+  app npm test -- tests/reference-workbook.test.ts
 ```
 
 Without that variable the suite skips instead of falsely passing.

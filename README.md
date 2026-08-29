@@ -48,16 +48,15 @@ never written to `.env` — they live in the encrypted session cookie.
 ## Build, test, run
 
 ```bash
-# Build the test image and run the checks
-docker compose build test
-docker compose run --rm test npm run lint
-docker compose run --rm test npm run typecheck
-docker compose run --rm test npm test
-docker compose run --rm test npm run verify   # lint + typecheck + test + build
+# Run the checks. The working tree is bind-mounted, so no rebuild is needed
+# between runs.
+docker compose run --rm app npm run lint
+docker compose run --rm app npm run typecheck
+docker compose run --rm app npm test
+docker compose run --rm app npm run verify   # lint + typecheck + test + build
 
-# Build and start the production image
-docker compose build app
-docker compose up --detach app
+# Start the development server
+docker compose up --build app
 
 # Readiness
 curl http://localhost:3000/api/health          # {"status":"ok"}
@@ -66,10 +65,23 @@ curl http://localhost:3000/api/health          # {"status":"ok"}
 docker compose down
 ```
 
-The `test` service bind-mounts the working tree and keeps `/app/node_modules` in
-a named volume, so focused test runs pick up current files without rebuilding
-the image. The `app` service runs the standalone Next.js build as a non-root
-user on port 3000.
+Compose defines a single service. `app` bind-mounts the working tree and keeps
+`/app/node_modules` in a named volume, so focused runs pick up current files
+without rebuilding the image. `docker compose up app` starts the Next.js
+development server on port 3000; `docker compose run --rm app <command>`
+overrides that to run a check instead.
+
+The Playwright suite is the one thing this service cannot run: its `deps` target
+carries no Chromium. Build the Dockerfile's `test` stage for that.
+
+```bash
+docker build --target test -t attendance-e2e .
+docker run --rm -v "$PWD:/app" -v /app/node_modules \
+  attendance-e2e npm run test:e2e
+```
+
+The production image is built from the `runner` stage and gets its own compose
+file.
 
 ## Optional: prove the supplied reference workbook
 
@@ -78,13 +90,13 @@ against the workbook contract. The workbook is not committed, so the suite runs
 only when `REFERENCE_XLSX_PATH` points at a readable copy and is skipped
 otherwise — a plain `npm test` reports it as skipped, never as a pass.
 
-When the workbook sits in the repository root it is already inside the test
+When the workbook sits in the repository root it is already inside the
 container's bind mount:
 
 ```bash
 docker compose run --rm \
   --env REFERENCE_XLSX_PATH=/app/202607勤怠管理表.xlsx \
-  test npm test -- tests/reference-workbook.test.ts
+  app npm test -- tests/reference-workbook.test.ts
 ```
 
 From anywhere else, mount it read-only rather than copying it into the
@@ -94,7 +106,7 @@ repository:
 docker compose run --rm \
   -v "/absolute/path/to/202607勤怠管理表.xlsx:/ref.xlsx:ro" \
   --env REFERENCE_XLSX_PATH=/ref.xlsx \
-  test npm test -- tests/reference-workbook.test.ts
+  app npm test -- tests/reference-workbook.test.ts
 ```
 
 The test only reads the workbook; it never writes it.

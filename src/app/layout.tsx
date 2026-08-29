@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "./globals.css";
+// Ordered on purpose: tokens define what the rest reads, and the responsive
+// and motion overrides come last so they win.
+import "./styles/tokens.css";
+import "./styles/shell.css";
+import "./styles/loading.css";
+import "./styles/attendance.css";
+import "./styles/responsive.css";
 
 export const metadata: Metadata = {
-  title: "Google Sheets Attendance",
+  title: "blended-asia Attendance",
   description: "Attendance management backed by Google Sheets.",
 };
 

@@ -343,7 +343,7 @@ export function AttendanceEditor({
         </div>
       )}
 
-      <section className="section" aria-labelledby="day-summary-heading">
+      <section className="section section-summary" aria-labelledby="day-summary-heading">
         <h3 id="day-summary-heading">Day summary</h3>
         <DaySummary
           day={draft}
@@ -353,7 +353,7 @@ export function AttendanceEditor({
         />
       </section>
 
-      <section className="section" aria-labelledby="work-block-heading">
+      <section className="section section-block" aria-labelledby="work-block-heading">
         <h3 id="work-block-heading">Work block</h3>
         <WorkBlockForm
           day={draft}
@@ -362,7 +362,7 @@ export function AttendanceEditor({
         />
       </section>
 
-      <section className="section" aria-labelledby="timeline-heading">
+      <section className="section section-timeline" aria-labelledby="timeline-heading">
         <h3 id="timeline-heading">Work report</h3>
         <TimelineEditor
           day={draft}

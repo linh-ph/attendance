@@ -1,0 +1,101 @@
+/* Design tokens and the base layer. Everything else builds on these. */
+
+/**
+ * blended-asia Attendance — visual system.
+ *
+ * Direction: Swiss/International grid with a "time rail" motif. The product is
+ * timekeeping, so the design is built around time as the subject:
+ *
+ * - a strict left-aligned grid and wide-tracked micro-labels for structure;
+ * - a 3px accent rail down each card, reading as a timeline or punch-card edge,
+ *   coloured by what the card actually needs;
+ * - tabular numerals everywhere a time, count, or date appears, so columns of
+ *   hours line up instead of drifting.
+ *
+ * Two type roles, no webfont: the UI stack renders Japanese sheet names through
+ * the platform fallback, and a monospaced stack carries every number. That
+ * pairing is the deliberate choice — numeric alignment matters more here than a
+ * decorative display face, and it costs no network request.
+ *
+ * Motion is limited to transform/opacity so it stays on the compositor.
+ */
+
+:root {
+  /* Canvas and surfaces. A warm paper tone, not a cold default grey. */
+  --paper: #f4f5f3;
+  --surface: #ffffff;
+  --surface-sunken: #eceee9;
+
+  /* Ink scale: deep navy-ink rather than pure black. */
+  --ink-900: #141b2b;
+  --ink-700: #3d4759;
+  --ink-500: #6b7688;
+
+  --border: #dfe2dc;
+  --border-strong: #c6cbc2;
+
+  --primary: #2563eb;
+  --primary-ink: #1d4ed8;
+  --primary-wash: #e8efff;
+
+  /* Semantic states, each with a wash for pill backgrounds. */
+  --danger: #b42318;
+  --danger-wash: #fdecea;
+  --warning: #b54708;
+  --warning-wash: #fdf1e3;
+  --success: #1a7f52;
+  --success-wash: #e6f4ed;
+  --neutral-wash: #eceee9;
+
+  --focus-ring: #93c5fd;
+
+  /* Non-uniform radius: containers read softer than the controls inside them. */
+  --radius: 0.875rem;
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+  --radius-pill: 999px;
+
+  /* Spacing rhythm. Deliberately not one value used everywhere. */
+  --spacing: 1rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1.25rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+
+  --shadow-sm: 0 1px 2px rgb(20 27 43 / 6%);
+  --shadow-md: 0 4px 14px rgb(20 27 43 / 8%);
+  --shadow-lg: 0 18px 40px rgb(20 27 43 / 12%);
+  --shadow: var(--shadow-lg);
+
+  --font-ui:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    "Noto Sans JP", Arial, sans-serif;
+  --font-numeric:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration: 180ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--ink-900);
+  background: var(--paper);
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every time, count, and date aligns in a column. */
+.card-fact dd,
+.folder-name,
+.open-by-link-row input {
+  font-variant-numeric: tabular-nums;
+}

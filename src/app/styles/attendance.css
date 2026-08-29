@@ -1,0 +1,525 @@
+/**
+ * The timesheet — the screen this whole product exists for.
+ *
+ * It is laid out as a workbench: the day's figures on the left, the half-hour
+ * report on the right, and the two things that must never scroll away — which
+ * day you are on, and Save — pinned top and bottom. The report is 36 rows tall,
+ * so without that pinning the save button spends most of its life off screen.
+ *
+ * The time rail from the dashboard cards returns here at full size: a ruled
+ * gutter of tabular times running down the report, which is what the sheet's
+ * J:AS columns actually are.
+ */
+
+.attendance {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-md);
+  /* Room for the sticky save bar so it never covers the last control. */
+  padding-bottom: var(--space-lg);
+}
+
+@media (min-width: 64rem) {
+  .attendance {
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* The header and the save bar span both columns. */
+  .attendance-header,
+  .attendance-actions,
+  .navigation-warning,
+  .form-error,
+  .conflict-disclosure {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * Placed explicitly. Left to source order the three sections would fill the
+   * grid cell by cell, dropping the work block beside the summary and pushing
+   * the report onto a second row.
+   */
+  .section-summary {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .section-block {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .section-timeline {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Day bar                                                                     */
+/* -------------------------------------------------------------------------- */
+
+.attendance-header {
+  position: sticky;
+  /* Clears the app bar, which is sticky at the top of every page. */
+  top: 3.25rem;
+  z-index: 5;
+  display: flex;
+  gap: var(--space-sm) var(--space-md);
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--paper) 95%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.attendance-month {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.attendance-sheet {
+  margin: 0;
+  padding: 0.1875rem 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink-700);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.day-navigation {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.day-navigation button {
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  color: var(--ink-700);
+  background: var(--surface);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.day-navigation button:hover:not(:disabled) {
+  color: var(--ink-900);
+  border-color: var(--ink-500);
+  background: var(--surface);
+}
+
+.day-title {
+  width: 100%;
+  margin: 0;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-title-weekend {
+  color: var(--warning);
+}
+
+.day-weekend {
+  margin: 0;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--warning-wash);
+  color: var(--warning);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fields                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+
+.field > label,
+.field-label {
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.field-control {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.field-control:hover:not(:disabled) {
+  border-color: var(--ink-500);
+}
+
+.field-control:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--primary);
+}
+
+.field-control:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-500);
+  cursor: not-allowed;
+}
+
+.field-checkbox {
+  flex-direction: row;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.field-checkbox label {
+  color: var(--ink-900);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.field-checkbox input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--primary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Day summary                                                                 */
+/* -------------------------------------------------------------------------- */
+
+.day-summary {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.day-summary .field-checkbox,
+.day-summary .field-wide {
+  grid-column: 1 / -1;
+}
+
+.day-summary textarea.field-control {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+/*
+ * Work hours is column H — the sheet's own `=F-G-E`, never typed. It is the
+ * answer the rest of the form is working toward, so it is set apart and given
+ * the largest number on the screen.
+ */
+.field-derived {
+  grid-column: 1 / -1;
+  gap: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-control);
+  background: var(--primary-wash);
+}
+
+.work-hours {
+  color: var(--primary-ink);
+  font-family: var(--font-numeric);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Work block                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.work-block {
+  margin-top: var(--space-sm);
+}
+
+.work-block-form {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  align-items: end;
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.work-block-form .field-wide {
+  grid-column: 1 / -1;
+}
+
+.work-block-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  white-space: nowrap;
+}
+
+.work-block-warning,
+.work-block-confirm {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-control);
+  background: var(--warning-wash);
+  color: var(--ink-900);
+}
+
+.work-block-confirm-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-xs);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Work report — the time rail                                                 */
+/* -------------------------------------------------------------------------- */
+
+.timeline {
+  max-height: min(72vh, 46rem);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.timeline:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.timeline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Time gutter, rail, then the entry. The rail is a real border rather than a
+ * decoration: it is the line the half-hours hang off, the same way the sheet's
+ * slot columns hang off the clock.
+ */
+.timeline-row {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  align-items: center;
+  padding: 0.25rem var(--space-sm);
+  border-bottom: 1px solid var(--surface-sunken);
+}
+
+.timeline-row:last-child {
+  border-bottom: 0;
+}
+
+.timeline-row:focus-within {
+  background: var(--primary-wash);
+}
+
+.timeline-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding-right: var(--space-sm);
+  border-right: 2px solid var(--border);
+  cursor: pointer;
+}
+
+.timeline-time {
+  color: var(--ink-500);
+  font-family: var(--font-numeric);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* On the hour reads stronger, so the eye can count hours at a glance. */
+.timeline-row:nth-child(odd) .timeline-time {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+/* The suffix exists for screen readers; the column heading carries it visually. */
+.timeline-label-suffix {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.timeline-input {
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-900);
+  font: inherit;
+  font-size: 0.875rem;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.timeline-input:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.timeline-input:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 0;
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+/*
+ * The two reserved lunch slots. Hatching says "spoken for" in a way a grey
+ * fill does not, and it survives being printed or viewed without colour.
+ */
+.timeline-row-reserved {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface-sunken),
+    var(--surface-sunken) 6px,
+    var(--surface) 6px,
+    var(--surface) 12px
+  );
+}
+
+.timeline-row-reserved .timeline-time {
+  color: var(--ink-500);
+}
+
+/*
+ * The notice sits under the (disabled) input rather than replacing it, because
+ * a reserved slot can still hold text the sheet already had. Kept small so the
+ * two lunch rows do not tower over the other thirty-four.
+ */
+.timeline-reserved {
+  grid-column: 2;
+  margin-top: -0.125rem;
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Save bar and notices                                                        */
+/* -------------------------------------------------------------------------- */
+
+.attendance-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--paper) 95%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.dirty-indicator {
+  margin: 0;
+  padding: 0.1875rem 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--warning-wash);
+  color: var(--warning);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.save-status {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.875rem;
+}
+
+.form-error {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-control);
+  background: var(--danger-wash);
+  color: var(--ink-900);
+  list-style-position: inside;
+}
+
+.form-error-actions,
+.navigation-warning-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-xs);
+}
+
+.navigation-warning {
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-control);
+  background: var(--warning-wash);
+}
+
+.navigation-warning p {
+  margin: 0;
+}
+
+.conflict-disclosure {
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-control);
+  background: var(--primary-wash);
+}
+
+.conflict-disclosure p {
+  margin: 0 0 var(--space-2xs);
+}
+
+.conflict-disclosure ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-700);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 40rem) {
+  .attendance-header {
+    top: 0;
+  }
+
+  .day-navigation {
+    margin-left: 0;
+    width: 100%;
+  }
+}

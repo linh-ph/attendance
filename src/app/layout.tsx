@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 // Ordered on purpose: tokens define what the rest reads, and the responsive
 // and motion overrides come last so they win.
+import "react-day-picker/style.css";
 import "./styles/tokens.css";
 import "./styles/shell.css";
 import "./styles/loading.css";

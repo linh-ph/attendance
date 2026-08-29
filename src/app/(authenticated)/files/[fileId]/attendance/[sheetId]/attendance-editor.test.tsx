@@ -138,6 +138,22 @@ async function mount(
   return store;
 }
 
+/**
+ * Chooses a day through the calendar the header now uses: open the trigger,
+ * then click the one day button in the month bearing that number.
+ */
+function pickDay(isoDate: string): void {
+  fireEvent.click(screen.getByRole("button", { name: /^Choose day/u }));
+
+  const dayNumber = String(Number(isoDate.slice(8)));
+  const dayButtons = screen
+    .getAllByRole("button")
+    .filter((button) => button.textContent?.trim() === dayNumber);
+
+  expect(dayButtons).toHaveLength(1);
+  fireEvent.click(dayButtons[0]);
+}
+
 function setSelect(label: string, value: string): void {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
@@ -450,7 +466,7 @@ describe("AttendanceEditor", () => {
     await mount(createApi());
 
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
-    setSelect("Day", "2026-07-20");
+    pickDay("2026-07-20");
 
     expect(screen.getByText("You have unsaved changes on this day.")).toBeInTheDocument();
     expect(screen.getByText("Wednesday, July 15, 2026")).toBeInTheDocument();
@@ -465,7 +481,7 @@ describe("AttendanceEditor", () => {
     await mount(createApi());
 
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
-    setSelect("Day", "2026-07-20");
+    pickDay("2026-07-20");
     fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
 
     expect(screen.getByText("Wednesday, July 15, 2026")).toBeInTheDocument();
@@ -475,7 +491,7 @@ describe("AttendanceEditor", () => {
   it("navigates freely once the day is clean", async () => {
     await mount(createApi());
 
-    setSelect("Day", "2026-07-20");
+    pickDay("2026-07-20");
     expect(screen.getByText("Monday, July 20, 2026")).toBeInTheDocument();
     expect(screen.queryByText("You have unsaved changes on this day.")).toBeNull();
   });

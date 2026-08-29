@@ -21,7 +21,7 @@
 
 @media (min-width: 64rem) {
   .attendance {
-    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
 
@@ -35,9 +35,9 @@
   }
 
   /*
-   * Placed explicitly. Left to source order the three sections would fill the
-   * grid cell by cell, dropping the work block beside the summary and pushing
-   * the report onto a second row.
+   * Placed explicitly rather than left to source order. The two short forms
+   * sit side by side, and the report — 36 rows of half hours — takes the full
+   * width underneath, where it has room to breathe.
    */
   .section-summary {
     grid-column: 1;
@@ -45,13 +45,13 @@
   }
 
   .section-block {
-    grid-column: 1;
-    grid-row: 3;
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .section-timeline {
-    grid-column: 2;
-    grid-row: 2 / span 2;
+    grid-column: 1 / -1;
+    grid-row: 3;
   }
 }
 
@@ -303,7 +303,7 @@
 /* -------------------------------------------------------------------------- */
 
 .timeline {
-  max-height: min(72vh, 46rem);
+  max-height: min(64vh, 42rem);
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -522,4 +522,122 @@
     margin-left: 0;
     width: 100%;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Day calendar                                                                */
+/* -------------------------------------------------------------------------- */
+
+.day-calendar {
+  position: relative;
+}
+
+.day-calendar-trigger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+  padding: 0.3125rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  color: var(--ink-900);
+  background: var(--surface);
+}
+
+.day-calendar-trigger:hover:not(:disabled) {
+  border-color: var(--ink-500);
+  background: var(--surface);
+}
+
+.day-calendar-trigger-label {
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.day-calendar-trigger-value {
+  font-family: var(--font-numeric);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-calendar-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+/*
+ * react-day-picker ships its own variables; mapping the app's tokens onto them
+ * is less brittle than overriding its rules one by one.
+ */
+.day-calendar-panel .rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--primary-wash);
+  --rdp-day-height: 2.25rem;
+  --rdp-day-width: 2.25rem;
+  --rdp-day_button-height: 2.25rem;
+  --rdp-day_button-width: 2.25rem;
+  --rdp-day_button-border-radius: var(--radius-control);
+  --rdp-selected-border: 2px solid var(--primary);
+  --rdp-outline: 3px solid var(--focus-ring);
+  --rdp-outline-selected: 3px solid var(--focus-ring);
+  --rdp-today-color: var(--primary-ink);
+  --rdp-disabled-opacity: 0.3;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-calendar-panel .rdp-month_caption {
+  padding-bottom: var(--space-2xs);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.day-calendar-panel .rdp-weekday {
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.day-calendar-weekend:not(.rdp-selected) .rdp-day_button {
+  color: var(--warning);
+}
+
+/*
+ * A dot under a day it already has something recorded on. The point of the
+ * calendar is spotting the days that are still empty, so the mark has to
+ * survive being scanned quickly.
+ */
+.day-calendar-entered .rdp-day_button {
+  position: relative;
+  font-weight: 700;
+}
+
+.day-calendar-entered .rdp-day_button::after {
+  content: "";
+  position: absolute;
+  bottom: 0.3125rem;
+  left: 50%;
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background: var(--primary);
+  transform: translateX(-50%);
+}
+
+.day-calendar-entered.rdp-selected .rdp-day_button::after {
+  background: var(--surface);
 }

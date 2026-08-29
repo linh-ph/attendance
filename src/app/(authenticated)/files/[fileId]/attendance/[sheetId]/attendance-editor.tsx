@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useReducer, useState } from "react";
+import { DayCalendar } from "@/components/day-calendar";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { WorkBlockForm } from "@/components/work-block-form";
@@ -18,7 +19,6 @@ import { toPatches } from "./attendance-columns";
 import { INITIAL_STATE, reducer } from "./attendance-draft";
 import {
   conflictMessage,
-  dayOptionLabel,
   formatDayTitle,
   formatMonth,
   isWeekend,
@@ -287,21 +287,24 @@ export function AttendanceEditor({
             Previous day
           </button>
 
-          <div className="field">
-            <label htmlFor="attendance-day">Day</label>
-            <select
-              id="attendance-day"
-              className="field-control"
-              value={selectedDate}
-              onChange={(event) => dispatch({ type: "select-date", date: event.target.value })}
-            >
-              {view.days.map((day) => (
-                <option key={day.date} value={day.date}>
-                  {dayOptionLabel(day.date)}
-                </option>
-              ))}
-            </select>
-          </div>
+          <DayCalendar
+            month={view.month}
+            selected={selectedDate}
+            disabled={saving}
+            days={view.days.map((day) => ({
+              date: day.date,
+              // "Has an entry" is what a person scans a month for, so it means
+              // anything recorded, not just a clock time.
+              hasEntry:
+                day.statusCode !== null ||
+                day.clockIn !== null ||
+                day.clockOut !== null ||
+                day.notes.trim() !== "" ||
+                Object.values(day.slots).some((slot) => slot.trim() !== ""),
+              isWeekend: isWeekend(day.date),
+            }))}
+            onSelect={(date) => dispatch({ type: "select-date", date })}
+          />
 
           <button
             type="button"

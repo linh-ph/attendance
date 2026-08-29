@@ -70,7 +70,7 @@ test("the employee edits one day with both methods and saves it to Google Sheets
   await page.goto(ATTENDANCE_URL);
 
   await expect(page.getByRole("heading", { name: "Day summary" })).toBeVisible();
-  await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
+  await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-01/);
 
   await page.getByLabel("Status").selectOption({ label: "Office" });
   await page.getByLabel("Clock in").selectOption("09:00");
@@ -171,7 +171,7 @@ test("moving to another day never discards unsaved work silently", async ({ page
   await expect(page.getByText("You have unsaved changes on this day.")).toBeVisible();
 
   await page.getByRole("button", { name: "Keep editing" }).click();
-  await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
+  await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-01/);
   await expect(page.getByLabel("Notes")).toHaveValue(NOTES);
 });
 
@@ -186,7 +186,7 @@ test("moving to another day never discards unsaved work silently", async ({ page
 test("unsaved work survives a full page reload", async ({ page }) => {
   await page.goto(ATTENDANCE_URL);
 
-  await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
+  await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-01/);
   await page.getByLabel("Notes").fill(NOTES);
 
   // Wait for the draft to reach IndexedDB before throwing the page away.
@@ -210,6 +210,6 @@ test("unsaved work survives a full page reload", async ({ page }) => {
 
   await page.reload();
 
-  await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
+  await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-01/);
   await expect(page.getByLabel("Notes")).toHaveValue(NOTES);
 });

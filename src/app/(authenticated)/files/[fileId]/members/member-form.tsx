@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { MemberRows } from "@/components/member-rows";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import type { MemberSummary } from "@/lib/files/member-service";
 
 /**
@@ -231,7 +232,7 @@ export function MemberForm({ fileId, api = memberApiClient }: MemberFormProps) {
           </p>
         ) : null}
 
-        {members === null && loadError === null ? <p>Loading members…</p> : null}
+        {members === null && loadError === null ? <LoadingGhosts label="Loading members…" /> : null}
 
         {members === null ? null : (
           <MemberRows

@@ -23,7 +23,7 @@ export default async function ImportFilePage() {
   return (
     <main>
       <section aria-labelledby="import-title">
-        <p className="eyebrow">Google Sheets Attendance</p>
+        <p className="eyebrow">blended-asia</p>
         <h1 id="import-title">Import an Excel workbook</h1>
         <ImportWizard email={email} />
       </section>

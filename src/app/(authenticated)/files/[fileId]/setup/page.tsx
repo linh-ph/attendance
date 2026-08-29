@@ -30,7 +30,7 @@ export default async function SetupPage({ params }: SetupPageProps) {
   return (
     <main>
       <section aria-labelledby="setup-title">
-        <p className="eyebrow">Google Sheets Attendance</p>
+        <p className="eyebrow">blended-asia</p>
         <h1 id="setup-title">Set up this attendance file</h1>
         <LegacySetupWizard fileId={fileId} email={email} />
       </section>

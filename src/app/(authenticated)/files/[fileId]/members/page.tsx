@@ -27,7 +27,7 @@ export default async function MembersPage({ params }: MembersPageProps) {
   return (
     <main>
       <section aria-labelledby="members-title">
-        <p className="eyebrow">Google Sheets Attendance</p>
+        <p className="eyebrow">blended-asia</p>
         <h1 id="members-title">Manage members</h1>
         <MemberForm fileId={fileId} />
       </section>

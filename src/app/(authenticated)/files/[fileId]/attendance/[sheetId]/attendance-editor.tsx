@@ -4,6 +4,7 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { WorkBlockForm } from "@/components/work-block-form";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import { validateAttendanceDay } from "@/lib/attendance/validation";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
 import {
@@ -260,7 +261,7 @@ export function AttendanceEditor({
   if (view === null || draft === null || selectedDate === null) {
     return (
       <div className="attendance">
-        <p>Loading this timesheet…</p>
+        <LoadingGhosts label="Loading this timesheet…" />
       </div>
     );
   }

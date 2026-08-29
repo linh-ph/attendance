@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { GooglePicker } from "@/components/google-picker";
 import { MemberRows } from "@/components/member-rows";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import { readFolderPreference, type FolderPreference } from "@/lib/dashboard/folder-preference";
 import type { MemberSummary } from "@/lib/files/member-service";
 import type { MemberSetupProgress } from "@/lib/files/setup-service";
@@ -320,7 +321,7 @@ export function LegacySetupWizard({
   }
 
   if (folderState.status === "checking") {
-    return <p>Loading your dashboard folder…</p>;
+    return <LoadingGhosts label="Loading your dashboard folder…" />;
   }
 
   const { folder } = folderState;
@@ -362,7 +363,7 @@ export function LegacySetupWizard({
         )}
 
         {isConfirmed && inspection === null && loadError === null ? (
-          <p>Loading the sheets in this file…</p>
+          <LoadingGhosts label="Loading the sheets in this file…" />
         ) : null}
       </section>
 

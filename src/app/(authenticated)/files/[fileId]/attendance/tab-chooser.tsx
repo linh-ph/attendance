@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import Link from "next/link";
 import type { Timesheet } from "@/lib/discovery/file-discovery";
 
@@ -45,7 +46,7 @@ export function TabChooser({ fileId }: TabChooserProps) {
   }, [fileId]);
 
   if (state.status === "loading") {
-    return <p>Loading the tabs in this file…</p>;
+    return <LoadingGhosts label="Loading the tabs in this file…" />;
   }
 
   if (state.status === "failed") {

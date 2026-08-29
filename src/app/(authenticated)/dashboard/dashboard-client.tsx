@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { GooglePicker } from "@/components/google-picker";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import {
   clearFolderPreference,
   readFolderPreference,
@@ -413,7 +414,7 @@ export function DashboardClient({ email }: DashboardClientProps) {
   if (state.status === "loading") {
     return (
       <div className="dashboard">
-        <p>Loading your attendance files…</p>
+        <LoadingGhosts label="Loading your attendance files…" />
       </div>
     );
   }

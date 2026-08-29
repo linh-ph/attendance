@@ -13,6 +13,27 @@ describe("proxy boundary", () => {
     expect(authenticatedProxy).not.toHaveBeenCalled();
   });
 
+  it("serves a public static asset without evaluating Auth.js", async () => {
+    const authenticatedProxy = vi.fn();
+    const proxy = createProxy(authenticatedProxy);
+
+    // The sign-in screen's artwork is fetched before anyone has a session, and
+    // Next's image optimizer requests the source file over HTTP.
+    const response = await proxy(new NextRequest("https://attendance.test/meme.jpeg"));
+
+    expect(response.status).toBe(200);
+    expect(authenticatedProxy).not.toHaveBeenCalled();
+  });
+
+  it("still evaluates Auth.js for an API path that looks like a file", async () => {
+    const authenticatedProxy = vi.fn().mockResolvedValue(new Response("protected"));
+    const proxy = createProxy(authenticatedProxy);
+
+    await proxy(new NextRequest("https://attendance.test/api/dashboard/export.json"));
+
+    expect(authenticatedProxy).toHaveBeenCalledTimes(1);
+  });
+
   it("evaluates Auth.js only for protected paths", async () => {
     const authenticatedProxy = vi.fn().mockResolvedValue(new Response("protected"));
     const proxy = createProxy(authenticatedProxy);

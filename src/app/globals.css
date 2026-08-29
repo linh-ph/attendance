@@ -42,6 +42,28 @@ main {
   box-shadow: var(--shadow);
 }
 
+/* Sign-in screens: copy beside the artwork once there is room for both. */
+.hero-split {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  width: min(100%, 56rem);
+}
+
+@media (min-width: 48rem) {
+  .hero-split {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+.hero-art {
+  justify-self: center;
+  width: min(100%, 15rem);
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .eyebrow {
   margin: 0 0 var(--spacing);
   color: var(--primary);
@@ -54,7 +76,8 @@ h1 {
   letter-spacing: -0.05em;
 }
 
-.hero > p:not(.eyebrow) {
+.hero > p:not(.eyebrow),
+.hero-copy > p:not(.eyebrow) {
   max-width: 35rem;
   color: var(--muted-text);
   font-size: 1.125rem;

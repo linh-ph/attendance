@@ -223,6 +223,7 @@ interface DashboardBody {
 beforeEach(() => {
   vi.stubEnv("AUTH_SECRET", SECRET);
   vi.stubEnv("AUTH_URL", "");
+  vi.stubEnv("APP_DEBUG_ERRORS", "");
 });
 
 afterEach(() => {
@@ -326,6 +327,54 @@ describe("GET /api/dashboard", () => {
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ error: "Could not load your dashboard." });
     expect(text).not.toContain("quota");
+  });
+
+  it("returns a sanitized Google diagnostic only when debug errors are enabled", async () => {
+    const clientSecret = "google-client-secret-value";
+    const accessToken = "provider-access-token";
+    vi.stubEnv("APP_DEBUG_ERRORS", "1");
+    vi.stubEnv("AUTH_GOOGLE_SECRET", clientSecret);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    installFakes({
+      listError: new GoogleApiError("Google request failed: files.list shared candidates.", {
+        status: 403,
+        cause: {
+          message: `Request failed with Authorization: Bearer ${accessToken}`,
+          response: {
+            status: 403,
+            data: {
+              error: {
+                message: `Google Drive API is disabled; credential=${accessToken}; client_secret=${clientSecret}`,
+                status: "PERMISSION_DENIED",
+                errors: [{ reason: "accessNotConfigured" }],
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    const response = await GET(await signedRequest(`${BASE_URL}?folderId=${FOLDER_ID}`));
+
+    expect(response.status).toBe(502);
+    const text = await response.text();
+    const expectedDebug = {
+      name: "GoogleApiError",
+      message: "Google request failed: files.list shared candidates.",
+      status: 403,
+      providerMessage:
+        "Google Drive API is disabled; credential=[REDACTED]; client_secret=[REDACTED]",
+      providerStatus: "PERMISSION_DENIED",
+      providerReason: "accessNotConfigured",
+    };
+    expect(JSON.parse(text)).toEqual({
+      error: "Could not load your dashboard.",
+      debug: expectedDebug,
+    });
+    expect(consoleError).toHaveBeenCalledWith("Dashboard request failed.", expectedDebug);
+    expect(text).not.toContain(accessToken);
+    expect(text).not.toContain(clientSecret);
   });
 
   it("rejects a folder id that is not a usable string", async () => {

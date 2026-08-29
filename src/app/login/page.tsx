@@ -3,7 +3,7 @@ import { SignInButton } from "@/components/sign-in-button";
 
 export default function LoginPage() {
   return (
-    <main>
+    <main className="page-centered">
       <section className="hero hero-split" aria-labelledby="login-title">
         <div className="hero-copy">
           <p className="eyebrow">blended-asia</p>

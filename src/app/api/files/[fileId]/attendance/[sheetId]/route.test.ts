@@ -337,7 +337,12 @@ describe("GET /api/files/[fileId]/attendance/[sheetId]", () => {
     expect(text).not.toContain(SHEET_B_TITLE);
   });
 
-  it("returns 422 when the file still needs setup or repair", async () => {
+  /**
+   * An unconfigured file is no longer a 422: it opens on Google's own sharing.
+   * A configuration that exists but is broken is still refused — see the
+   * needs-repair case below.
+   */
+  it("opens a file that carries no configuration at all", async () => {
     stubAuthEnv();
     const fakes = createGateways({
       sheets: [
@@ -352,11 +357,8 @@ describe("GET /api/files/[fileId]/attendance/[sheetId]", () => {
       fakes,
     );
 
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual({
-      code: "needs-setup",
-      error: "This attendance file needs setup.",
-    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ role: "open", month: "2026-07" });
   });
 
   it("returns 502 for a Google transport failure", async () => {

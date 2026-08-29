@@ -10,6 +10,11 @@ import {
   type FolderPreference,
 } from "@/lib/dashboard/folder-preference";
 import type { DashboardSetupState, ManagedFile, Timesheet } from "@/lib/discovery/file-discovery";
+import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
+import type { RecentFile } from "@/lib/dashboard/local-records";
+import { OpenByLink } from "./open-by-link";
+import { RecentFiles } from "./recent-files";
+import type { GoogleErrorDiagnostic } from "@/lib/google/errors";
 
 /**
  * Role-aware dashboard.
@@ -32,14 +37,31 @@ interface DashboardResponse {
   folderError?: string;
 }
 
+interface DashboardErrorResponse {
+  error?: string;
+  debug?: GoogleErrorDiagnostic;
+}
+
 type LoadState =
   | { status: "loading" }
   | { status: "loaded"; data: DashboardResponse }
-  | { status: "failed"; message: string; canRetry: boolean };
+  | {
+      status: "failed";
+      message: string;
+      canRetry: boolean;
+      debug?: GoogleErrorDiagnostic;
+    };
 
 const SESSION_EXPIRED = "Your Google session expired. Sign in again to continue.";
 const LOAD_FAILED = "Could not load your dashboard.";
 const PICKER_MISMATCH = "Select this same file in Google Picker to start setup.";
+
+/**
+ * Shown when the manager picked a file this dashboard never listed for them:
+ * the pick proves no access, so setup must not be unlocked.
+ */
+const PICKER_NO_ACCESS =
+  "You do not have permission to set up that file. Pick a file you own from this folder.";
 
 const SETUP_STATE_LABELS: Record<DashboardSetupState, string> = {
   ready: "Ready",
@@ -96,15 +118,23 @@ function spreadsheetUrl(fileId: string, sheetId?: string): string {
 interface CardFactProps {
   label: string;
   value: string | null;
+  /** Months, counts, and timestamps get the tabular monospaced treatment. */
+  numeric?: boolean;
 }
 
-function CardFact({ label, value }: CardFactProps) {
+/**
+ * `numeric` opts a fact into the monospaced, tabular treatment. It is for
+ * months, counts, and timestamps — values that read as a column. Names and
+ * email addresses stay in the UI face, where they wrap on word boundaries
+ * instead of breaking mid-address.
+ */
+function CardFact({ label, value, numeric }: CardFactProps) {
   if (value === null) return null;
 
   return (
     <div className="card-fact">
       <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dd className={numeric ? "card-fact-numeric" : undefined}>{value}</dd>
     </div>
   );
 }
@@ -129,13 +159,14 @@ function ManagedCard({ file, isSetupUnlocked, pickerError, onSetupPicked }: Mana
       </p>
 
       <dl className="card-facts">
-        <CardFact label="Month" value={formatMonth(file.month)} />
+        <CardFact label="Month" value={formatMonth(file.month)} numeric />
         <CardFact label="Owner" value={file.ownerEmail} />
         <CardFact
           label="Members"
           value={file.memberCount === null ? null : `${file.memberCount} members`}
+          numeric
         />
-        <CardFact label="Modified" value={formatTimestamp(file.modifiedTime)} />
+        <CardFact label="Modified" value={formatTimestamp(file.modifiedTime)} numeric />
       </dl>
 
       {file.error ? (
@@ -191,26 +222,48 @@ function ManagedCard({ file, isSetupUnlocked, pickerError, onSetupPicked }: Mana
 
 function TimesheetCard({ timesheet }: { timesheet: Timesheet }) {
   return (
-    <li className="card" aria-label={`${timesheet.name} — ${timesheet.sheetTitle}`}>
+    /*
+      Several files can share a name and a tab title now that every reachable
+      file is listed, so the owner is part of the accessible name to keep each
+      card distinguishable.
+    */
+    <li
+      className="card"
+      aria-label={[timesheet.name, timesheet.sheetTitle, timesheet.ownerEmail]
+        .filter((part) => part !== null && part !== "")
+        .join(" — ")}
+    >
       <h3 className="card-title">{timesheet.name}</h3>
 
       <dl className="card-facts">
-        <CardFact label="Your tab" value={timesheet.sheetTitle} />
-        <CardFact label="Month" value={formatMonth(timesheet.month)} />
+        <CardFact
+          label="Your tab"
+          value={timesheet.sheetTitle ?? `${timesheet.tabs.length} tabs to choose from`}
+        />
+        <CardFact label="Month" value={formatMonth(timesheet.month)} numeric />
         <CardFact label="Owner" value={timesheet.ownerEmail} />
-        <CardFact label="Modified" value={formatTimestamp(timesheet.modifiedTime)} />
+        <CardFact label="Modified" value={formatTimestamp(timesheet.modifiedTime)} numeric />
       </dl>
 
       <div className="card-actions">
+        {/*
+          A configured file opens straight at the mapped tab. Without a
+          configuration there is nothing that says which tab is this person's,
+          so they choose it instead of the app guessing.
+        */}
         <a
           className="action action-primary"
-          href={`/files/${timesheet.id}/attendance/${timesheet.sheetId}`}
+          href={
+            timesheet.sheetId === null
+              ? `/files/${timesheet.id}/attendance`
+              : `/files/${timesheet.id}/attendance/${timesheet.sheetId}`
+          }
         >
-          Open timesheet
+          {timesheet.sheetId === null ? "Choose your tab" : "Open timesheet"}
         </a>
         <a
           className="action"
-          href={spreadsheetUrl(timesheet.id, timesheet.sheetId)}
+          href={spreadsheetUrl(timesheet.id, timesheet.sheetId ?? undefined)}
           target="_blank"
           rel="noreferrer noopener"
         >
@@ -239,9 +292,9 @@ async function fetchDashboard(folderId: string | null): Promise<LoadState> {
     return { status: "failed", message: SESSION_EXPIRED, canRetry: false };
   }
 
-  let body: DashboardResponse | null = null;
+  let body: (DashboardResponse & DashboardErrorResponse) | null = null;
   try {
-    body = (await response.json()) as DashboardResponse;
+    body = (await response.json()) as DashboardResponse & DashboardErrorResponse;
   } catch {
     body = null;
   }
@@ -252,7 +305,12 @@ async function fetchDashboard(folderId: string | null): Promise<LoadState> {
     return { status: "loaded", data: body };
   }
 
-  return { status: "failed", message: LOAD_FAILED, canRetry: true };
+  return {
+    status: "failed",
+    message: typeof body?.error === "string" ? body.error : LOAD_FAILED,
+    canRetry: true,
+    ...(body?.debug ? { debug: body.debug } : {}),
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -262,7 +320,9 @@ async function fetchDashboard(folderId: string | null): Promise<LoadState> {
 export function DashboardClient({ email }: DashboardClientProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [unlockedSetupFileId, setUnlockedSetupFileId] = useState<string | null>(null);
-  const [pickerErrorFileId, setPickerErrorFileId] = useState<string | null>(null);
+  const [pickerError, setPickerError] = useState<{ fileId: string; message: string } | null>(null);
+  const [recent, setRecent] = useState<RecentFile[]>([]);
+  const [store] = useState<LocalStore>(() => resolveLocalStore());
 
   /**
    * Reload from an event handler. Showing `loading` synchronously is correct
@@ -295,6 +355,26 @@ export function DashboardClient({ email }: DashboardClientProps) {
     };
   }, [email]);
 
+  /**
+   * Recently opened sheets come from browser-local storage, so they can only
+   * be read after mount. Same pattern as the load above: the state is set from
+   * the promise continuation and a superseded run is discarded.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    void store
+      .readRecent(email)
+      .catch(() => [] as RecentFile[])
+      .then((entries) => {
+        if (!cancelled) setRecent(entries);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [email, store]);
+
   const folderError = state.status === "loaded" ? (state.data.folderError ?? null) : null;
 
   // Runs after the message is committed to the DOM, never before.
@@ -307,7 +387,7 @@ export function DashboardClient({ email }: DashboardClientProps) {
   function selectFolder(folder: FolderPreference): void {
     writeFolderPreference(email, folder);
     setUnlockedSetupFileId(null);
-    setPickerErrorFileId(null);
+    setPickerError(null);
     reload(folder.id);
   }
 
@@ -315,41 +395,64 @@ export function DashboardClient({ email }: DashboardClientProps) {
     // The Picker grant must be for this same file; a different pick proves nothing.
     if (pickedId === fileId) {
       setUnlockedSetupFileId(fileId);
-      setPickerErrorFileId(null);
+      setPickerError(null);
       return;
     }
 
     setUnlockedSetupFileId(null);
-    setPickerErrorFileId(fileId);
+
+    // A pick outside this manager's own listing is a permission problem, not a
+    // mismatch, and deserves a message that says so.
+    const listed =
+      state.status === "loaded" &&
+      state.data.managed.some((candidate) => candidate.id === pickedId);
+
+    setPickerError({ fileId, message: listed ? PICKER_MISMATCH : PICKER_NO_ACCESS });
   }
 
   if (state.status === "loading") {
     return (
-      <main className="dashboard">
+      <div className="dashboard">
         <p>Loading your attendance files…</p>
-      </main>
+      </div>
     );
   }
 
   if (state.status === "failed") {
     return (
-      <main className="dashboard">
+      <div className="dashboard">
         <p role="alert" className="page-error">
           {state.message}
         </p>
+        {state.debug ? (
+          <pre aria-label="Debug error details" className="debug-error">
+            {JSON.stringify(state.debug, null, 2)}
+          </pre>
+        ) : null}
         {state.canRetry ? (
           <button type="button" onClick={() => reload(readFolderPreference(email)?.id ?? null)}>
             Retry
           </button>
         ) : null}
-      </main>
+      </div>
     );
   }
 
   const { folder, managed, timesheets } = state.data;
 
   return (
-    <main className="dashboard">
+    <div className="dashboard">
+      <section className="section" aria-labelledby="shortcut-heading">
+        <header className="section-header">
+          <h2 id="shortcut-heading">Open a file</h2>
+        </header>
+
+        <div className="open-file-panel">
+          <OpenByLink email={email} lists={{ managed, timesheets }} store={store} />
+          <RecentFiles entries={recent} />
+        </div>
+      </section>
+
       <section className="section" aria-labelledby="managed-heading">
         <header className="section-header">
           <h2 id="managed-heading">Managed attendance files</h2>
@@ -398,7 +501,7 @@ export function DashboardClient({ email }: DashboardClientProps) {
                 key={file.id}
                 file={file}
                 isSetupUnlocked={unlockedSetupFileId === file.id}
-                pickerError={pickerErrorFileId === file.id ? PICKER_MISMATCH : null}
+                pickerError={pickerError?.fileId === file.id ? pickerError.message : null}
                 onSetupPicked={confirmSetupFile}
               />
             ))}
@@ -421,6 +524,6 @@ export function DashboardClient({ email }: DashboardClientProps) {
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }

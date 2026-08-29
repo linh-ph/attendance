@@ -21,7 +21,7 @@ export const FILE_ACCESS_FIELDS =
   "id,name,mimeType,trashed,ownedByMe,owners(emailAddress),appProperties,capabilities(canEdit)";
 
 export const FILE_SUMMARY_FIELDS =
-  "nextPageToken,files(id,name,ownedByMe,sharedWithMe,owners(emailAddress),appProperties,modifiedTime)";
+  "nextPageToken,files(id,name,ownedByMe,sharedWithMeTime,owners(emailAddress),appProperties,modifiedTime)";
 
 export const CREATED_FILE_FIELDS = "id,name";
 
@@ -170,7 +170,7 @@ export interface DriveFileResource {
   mimeType?: string | null;
   trashed?: boolean | null;
   ownedByMe?: boolean | null;
-  sharedWithMe?: boolean | null;
+  sharedWithMeTime?: string | null;
   driveId?: string | null;
   modifiedTime?: string | null;
   appProperties?: Record<string, string> | null;
@@ -190,6 +190,12 @@ export interface DriveListParams {
   pageSize?: number;
   pageToken?: string;
   spaces?: string;
+  /**
+   * Both are required for shared-drive items to appear at all. Without them
+   * Drive silently omits every organization-owned file from the results.
+   */
+  supportsAllDrives?: boolean;
+  includeItemsFromAllDrives?: boolean;
 }
 
 export interface DriveCreateParams {

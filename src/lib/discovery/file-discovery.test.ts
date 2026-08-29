@@ -5,6 +5,7 @@ import { FolderUnavailableError, GoogleApiError } from "@/lib/google/errors";
 import type {
   AttendanceFileSummary,
   DriveGateway,
+  SheetsGateway,
   SpreadsheetSnapshot,
 } from "@/lib/google/types";
 import { createFileDiscovery } from "./file-discovery";
@@ -226,6 +227,7 @@ function defaultConfigs(): Map<string, ConfigReadResult | Error> {
 /* -------------------------------------------------------------------------- */
 
 interface Harness {
+  sheets: SheetsGateway;
   drive: DriveGateway;
   config: ConfigRepository;
   validateFolder: ReturnType<typeof vi.fn>;
@@ -296,9 +298,25 @@ function createHarness(
     updateSetupState: () => unsupported("config.updateSetupState"),
   };
 
+  const sheets = {
+    async getSpreadsheet(fileId: string): Promise<SpreadsheetSnapshot> {
+      return {
+        spreadsheetId: fileId,
+        sheets: [
+          { sheetId: 11, title: "Tab A", index: 0, hidden: false, protectedRanges: [] },
+          { sheetId: 22, title: "Tab B", index: 1, hidden: false, protectedRanges: [] },
+        ],
+      };
+    },
+    batchUpdate: () => unsupported("sheets.batchUpdate"),
+    getValues: () => unsupported("sheets.getValues"),
+    updateValues: () => unsupported("sheets.updateValues"),
+  } as unknown as SheetsGateway;
+
   return {
     drive,
     config,
+    sheets,
     validateFolder,
     listManagerFiles,
     listEmployeeCandidates,
@@ -368,7 +386,7 @@ describe("FileDiscovery.load — manager section", () => {
     expect(harness.validateFolder).not.toHaveBeenCalled();
     expect(harness.listManagerFiles).not.toHaveBeenCalled();
     // The employee section is unaffected by the missing folder.
-    expect(dashboard.timesheets.map((sheet) => sheet.id)).toEqual(["shared-mapped"]);
+    expect(dashboard.timesheets.map((sheet) => sheet.id)).toContain("shared-mapped");
   });
 
   it("reports an unavailable folder without listing files and still returns timesheets", async () => {
@@ -381,7 +399,7 @@ describe("FileDiscovery.load — manager section", () => {
     expect(dashboard.folder).toBeNull();
     expect(dashboard.folderError).toEqual({ reason: "not-found", message: "Folder unavailable." });
     expect(harness.listManagerFiles).not.toHaveBeenCalled();
-    expect(dashboard.timesheets.map((sheet) => sheet.id)).toEqual(["shared-mapped"]);
+    expect(dashboard.timesheets.map((sheet) => sheet.id)).toContain("shared-mapped");
   });
 
   it("returns the validated folder so the client can display its name", async () => {
@@ -438,47 +456,62 @@ describe("FileDiscovery.load — manager section", () => {
 /* -------------------------------------------------------------------------- */
 
 describe("FileDiscovery.load — employee section", () => {
-  it("includes only a shared in-domain file with exactly one valid mapping", async () => {
+  /**
+   * Every attendance file the account can reach is listed. Neither the owner's
+   * domain nor `sharedWithMe` filters any more, because a shared-drive file
+   * satisfies neither yet is exactly what people record hours in. Only the
+   * case-sensitive name marker still decides what counts as an attendance file.
+   */
+  it("lists every reachable attendance file, mapped or not", async () => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: EMPLOYEE });
 
-    expect(dashboard.timesheets).toEqual([
-      {
-        id: "shared-mapped",
-        name: MARKER_NAME,
-        ownerEmail: "owner@blended-asia.com",
-        month: "2026-07",
-        modifiedTime: "2026-07-29T01:02:03.000Z",
-        sheetId: "111",
-        sheetTitle: "Live 111",
-      },
+    expect(dashboard.timesheets.map((sheet) => sheet.id)).toEqual([
+      "shared-mapped",
+      "shared-unmapped",
+      "shared-duplicate",
+      "shared-missing-sheet",
+      "shared-unreadable",
+      "shared-external-owner",
+      "shared-not-shared",
     ]);
+  });
+
+  it("still resolves the mapped tab when a configuration names one", async () => {
+    const discovery = createFileDiscovery(createHarness());
+
+    const dashboard = await discovery.load({ actorEmail: EMPLOYEE });
+
+    expect(dashboard.timesheets[0]).toMatchObject({
+      id: "shared-mapped",
+      ownerEmail: "owner@blended-asia.com",
+      month: "2026-07",
+      sheetId: "111",
+      sheetTitle: "Live 111",
+    });
   });
 
   it.each([
     ["zero mappings", "shared-unmapped"],
     ["two mappings for the same actor", "shared-duplicate"],
     ["a mapped sheet that no longer exists", "shared-missing-sheet"],
-    ["an unreadable configuration", "shared-unreadable"],
-    ["an owner outside the workspace domain", "shared-external-owner"],
-    ["a name without the case-sensitive marker", "shared-wrong-name"],
-    ["a file Drive does not report as shared with me", "shared-not-shared"],
-  ])("excludes a shared file with %s", async (_description, excludedId) => {
+  ])("offers a tab choice instead of refusing when the file has %s", async (_case, fileId) => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: EMPLOYEE });
+    const timesheet = dashboard.timesheets.find((sheet) => sheet.id === fileId);
 
-    expect(dashboard.timesheets.map((sheet) => sheet.id)).not.toContain(excludedId);
+    expect(timesheet).toMatchObject({ sheetId: null, sheetTitle: null });
+    expect(timesheet?.tabs.length).toBeGreaterThan(0);
   });
 
-  it("compares the owner domain case-insensitively", async () => {
+  it("still excludes a name without the case-sensitive marker", async () => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: EMPLOYEE });
 
-    // `shared-mapped` is owned by `Owner@Blended-Asia.COM`.
-    expect(dashboard.timesheets.map((sheet) => sheet.id)).toContain("shared-mapped");
+    expect(dashboard.timesheets.map((sheet) => sheet.id)).not.toContain("shared-wrong-name");
   });
 
   it("normalizes the actor email before matching a mapping", async () => {
@@ -486,15 +519,16 @@ describe("FileDiscovery.load — employee section", () => {
 
     const dashboard = await discovery.load({ actorEmail: "  Employee@Blended-Asia.com  " });
 
-    expect(dashboard.timesheets.map((sheet) => sheet.sheetId)).toEqual(["111"]);
+    expect(dashboard.timesheets[0].sheetId).toBe("111");
   });
 
-  it("returns no timesheets for an actor with no mapping anywhere", async () => {
+  it("still lists the files for an actor mapped nowhere, with no tab preselected", async () => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: "stranger@blended-asia.com" });
 
-    expect(dashboard.timesheets).toEqual([]);
+    expect(dashboard.timesheets.length).toBeGreaterThan(0);
+    expect(dashboard.timesheets.every((sheet) => sheet.sheetId === null)).toBe(true);
   });
 });
 
@@ -509,8 +543,121 @@ describe("FileDiscovery.load — combined roles", () => {
     const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
 
     expect(dashboard.managed.map((file) => file.id)).toEqual(["direct-ready", "direct-legacy"]);
-    expect(dashboard.timesheets).toEqual([
+    expect(dashboard.timesheets).toContainEqual(
       expect.objectContaining({ id: "shared-mapped", sheetId: "222", sheetTitle: "Live 222" }),
-    ]);
+    );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Files without __APP_CONFIG                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Discovery dependencies where no candidate carries a configuration sheet. */
+function unconfiguredDeps(files: CorpusFile[], sheetsFail = false) {
+  const drive: DriveGateway = {
+    validateManagerFolder: () => unsupported("validateManagerFolder"),
+    listManagerFiles: async () => [],
+    listEmployeeCandidates: async () => files.map(toSummary),
+    getFileAccess: () => unsupported("getFileAccess"),
+    createSpreadsheetFile: () => unsupported("createSpreadsheetFile"),
+    convertXlsx: () => unsupported("convertXlsx"),
+    createWriterPermission: () => unsupported("createWriterPermission"),
+    updateAppProperties: () => unsupported("updateAppProperties"),
+  };
+
+  const config: ConfigRepository = {
+    async read(fileId) {
+      throw new ConfigMissingError(fileId);
+    },
+    initialize: () => unsupported("config.initialize"),
+    updateMemberProgress: () => unsupported("config.updateMemberProgress"),
+    updateSetupState: () => unsupported("config.updateSetupState"),
+  };
+
+  const sheets = {
+    async getSpreadsheet(fileId: string): Promise<SpreadsheetSnapshot> {
+      if (sheetsFail) throw new GoogleApiError("Google request failed: sheets.get.", { status: 403 });
+
+      return {
+        spreadsheetId: fileId,
+        sheets: [
+          { sheetId: 11, title: "KIEU THU QUYNH", index: 0, hidden: false, protectedRanges: [] },
+          { sheetId: 22, title: "NGUYEN PHAN LINH", index: 1, hidden: false, protectedRanges: [] },
+          { sheetId: 33, title: "__APP_CONFIG", index: 2, hidden: true, protectedRanges: [] },
+        ],
+      };
+    },
+    batchUpdate: () => unsupported("sheets.batchUpdate"),
+    getValues: () => unsupported("sheets.getValues"),
+    updateValues: () => unsupported("sheets.updateValues"),
+  } as unknown as SheetsGateway;
+
+  return { drive, config, sheets };
+}
+
+describe("attendance files that carry no app configuration", () => {
+  it("lists an unconfigured file and offers its visible tabs so the person can pick their own", async () => {
+    const discovery = createFileDiscovery(
+      unconfiguredDeps([
+        corpusFile({ id: "plain", name: "202607勤怠管理表", ownerEmail: "boss@example.com" }),
+      ]),
+    );
+
+    const { timesheets } = await discovery.load({ actorEmail: EMPLOYEE });
+
+    expect(timesheets).toHaveLength(1);
+    expect(timesheets[0]).toMatchObject({
+      id: "plain",
+      // No configuration means no mapping; the person chooses their own tab.
+      sheetId: null,
+      sheetTitle: null,
+      tabs: [
+        { sheetId: "11", title: "KIEU THU QUYNH" },
+        { sheetId: "22", title: "NGUYEN PHAN LINH" },
+      ],
+    });
+  });
+
+  it("never offers the hidden configuration sheet as a tab to record hours in", async () => {
+    const discovery = createFileDiscovery(
+      unconfiguredDeps([corpusFile({ id: "plain", name: "202607勤怠管理表" })]),
+    );
+
+    const { timesheets } = await discovery.load({ actorEmail: EMPLOYEE });
+
+    expect(timesheets[0].tabs.map((tab) => tab.title)).not.toContain("__APP_CONFIG");
+  });
+
+  it("does not require the owner to be in the workspace domain", async () => {
+    const discovery = createFileDiscovery(
+      unconfiguredDeps([
+        corpusFile({ id: "outside", name: "202607勤怠管理表", ownerEmail: "boss@example.com" }),
+      ]),
+    );
+
+    const { timesheets } = await discovery.load({ actorEmail: EMPLOYEE });
+
+    expect(timesheets.map((sheet) => sheet.id)).toEqual(["outside"]);
+  });
+
+  it("takes the month from the file name when there is no configuration to read", async () => {
+    const discovery = createFileDiscovery(
+      unconfiguredDeps([corpusFile({ id: "plain", name: "202607勤怠管理表" })]),
+    );
+
+    const { timesheets } = await discovery.load({ actorEmail: EMPLOYEE });
+
+    expect(timesheets[0].month).toBe("2026-07");
+  });
+
+  it("skips a file whose tabs cannot be read at all", async () => {
+    const discovery = createFileDiscovery(
+      unconfiguredDeps([corpusFile({ id: "plain", name: "202607勤怠管理表" })], true),
+    );
+
+    const { timesheets } = await discovery.load({ actorEmail: EMPLOYEE });
+
+    expect(timesheets).toEqual([]);
   });
 });

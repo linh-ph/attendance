@@ -59,6 +59,7 @@ export type EditorAction =
   | { type: "loaded"; view: AttendanceMonthView; today: string }
   | { type: "load-failed" }
   | { type: "select-date"; date: string }
+  | { type: "restore-draft"; day: AttendanceDay; baseline: AttendanceDay }
   | { type: "discard-changes" }
   | { type: "cancel-navigation" }
   | { type: "summary-change"; change: DaySummaryChange }
@@ -166,6 +167,22 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
 
     case "load-failed":
       return { ...state, view: null, loadError: LOAD_FAILED };
+
+    /**
+     * Re-applies unsaved edits held in browser-local storage.
+     *
+     * Restoring is refused unless the stored baseline still equals the row as
+     * just read from the sheet. If the sheet moved on while the draft sat in
+     * storage, the stored edits are dropped rather than replayed over newer
+     * data, so a stale draft can never silently overwrite someone else's save.
+     */
+    case "restore-draft": {
+      if (state.baseline === null || state.draft === null) return state;
+      if (state.draft.date !== action.day.date) return state;
+      if (JSON.stringify(state.baseline) !== JSON.stringify(action.baseline)) return state;
+
+      return { ...state, draft: action.day };
+    }
 
     case "select-date": {
       if (state.view === null || action.date === state.selectedDate) return state;

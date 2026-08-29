@@ -8,5 +8,6 @@ test-results
 .env
 .env.*
 !.env.example
+client_secret_google.json
 .brainstorm
 .worktrees

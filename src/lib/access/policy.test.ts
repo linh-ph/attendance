@@ -353,7 +353,13 @@ describe("authorizeFile employee path", () => {
 /* -------------------------------------------------------------------------- */
 
 describe("authorizeFile setup and repair states", () => {
-  it("maps a missing config sheet to NeedsSetupError", async () => {
+  /**
+   * A missing config sheet used to be `NeedsSetupError`. It no longer refuses:
+   * the file is opened on Google's own sharing instead. A configuration that
+   * exists but is broken is still an error, because that is a real fault
+   * rather than an absence.
+   */
+  it("opens a file with no config sheet instead of demanding setup", async () => {
     const deps = dependencies(
       driveAccess({ ownedByMe: false }),
       createFakeConfig(() => {
@@ -361,12 +367,9 @@ describe("authorizeFile setup and repair states", () => {
       }),
     );
 
-    const error = await authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A }).catch(
-      (caught: unknown) => caught,
-    );
-
-    expect(error).toBeInstanceOf(NeedsSetupError);
-    expect((error as NeedsSetupError).code).toBe("needs-setup");
+    await expect(
+      authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A }),
+    ).resolves.toMatchObject({ kind: "open" });
   });
 
   it("maps an unreadable config to NeedsRepairError", async () => {
@@ -451,5 +454,70 @@ describe("authorizeFile setup and repair states", () => {
     expect(error).toBeInstanceOf(AccessError);
     expect(isAccessError(error)).toBe(true);
     expect(isAccessError(new Error("other"))).toBe(false);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Files with no app configuration                                             */
+/* -------------------------------------------------------------------------- */
+
+describe("authorizeFile — files this app never configured", () => {
+  const noConfig = () =>
+    createFakeConfig(() => {
+      throw new ConfigMissingError("file-1");
+    });
+
+  it("lets a non-owner open a tab of a file Drive already let them read", async () => {
+    // A shared-drive month: nobody owns it, and it carries no configuration.
+    const deps = dependencies(
+      driveAccess({ ownedByMe: false, ownerEmail: null, appProperties: {} }),
+      noConfig(),
+    );
+
+    await expect(
+      authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A, requestedSheetId: "77" }),
+    ).resolves.toEqual({ kind: "open", email: EMPLOYEE_A, sheetId: "77" });
+  });
+
+  it("does not restrict which tab an unconfigured file may open", async () => {
+    const deps = dependencies(
+      driveAccess({ ownedByMe: false, ownerEmail: null, appProperties: {} }),
+      noConfig(),
+    );
+
+    const role = await authorizeFile(deps, {
+      fileId: "file-1",
+      actorEmail: EMPLOYEE_B,
+      requestedSheetId: "999",
+    });
+
+    expect(role).toMatchObject({ kind: "open", sheetId: "999" });
+  });
+
+  it("still refuses a trashed file", async () => {
+    const deps = dependencies(
+      driveAccess({ ownedByMe: false, ownerEmail: null, trashed: true }),
+      noConfig(),
+    );
+
+    await expect(
+      authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A }),
+    ).rejects.toThrow();
+  });
+
+  it("still refuses an actor with no verified email", async () => {
+    const deps = dependencies(driveAccess({ ownedByMe: false }), noConfig());
+
+    await expect(authorizeFile(deps, { fileId: "file-1", actorEmail: "   " })).rejects.toThrow();
+  });
+
+  it("keeps the mapped-employee restriction wherever a configuration does exist", async () => {
+    const config = createFakeConfig(readResult([memberA]));
+    const deps = dependencies(driveAccess({ ownedByMe: false }), config);
+
+    // memberA maps to sheet 123 only; another tab is still refused.
+    await expect(
+      authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A, requestedSheetId: "999" }),
+    ).rejects.toThrow();
   });
 });

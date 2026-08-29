@@ -4,6 +4,7 @@ import { createDriveGateway } from "./drive-gateway";
 import { FolderUnavailableError } from "./errors";
 import {
   FOLDER_MIME_TYPE,
+  FILE_SUMMARY_FIELDS,
   SPREADSHEET_MIME_TYPE,
   XLSX_MIME_TYPE,
   type DriveFileResource,
@@ -35,10 +36,20 @@ describe("validateManagerFolder", () => {
   });
 
   it.each([
+    ["a folder owned by somebody else", { ...writableFolder, ownedByMe: false }],
+    ["a Shared Drive folder", { ...writableFolder, driveId: "shared-drive-1" }],
+  ])("accepts %s that this account can still write to", async (_case, file) => {
+    const gateway = createDriveGateway(createFakeDriveClient({ file }));
+
+    await expect(gateway.validateManagerFolder("folder-1")).resolves.toEqual({
+      id: "folder-1",
+      name: "Attendance 2026",
+    });
+  });
+
+  it.each([
     ["a non-folder MIME type", { ...writableFolder, mimeType: SPREADSHEET_MIME_TYPE }],
     ["a trashed folder", { ...writableFolder, trashed: true }],
-    ["a folder owned by somebody else", { ...writableFolder, ownedByMe: false }],
-    ["any Shared Drive folder", { ...writableFolder, driveId: "shared-drive-1" }],
     [
       "a folder that cannot receive children",
       { ...writableFolder, capabilities: { canAddChildren: false } },
@@ -67,7 +78,7 @@ describe("validateManagerFolder", () => {
 });
 
 describe("listManagerFiles", () => {
-  it("queries direct children only, follows pagination, and post-filters by owner and name", async () => {
+  it("queries direct children only, follows pagination, and post-filters by name", async () => {
     const fakeDrive = createFakeDriveClient({
       listPages: [
         {
@@ -102,8 +113,10 @@ describe("listManagerFiles", () => {
     expect(fakeDrive.listCalls).toHaveLength(2); // nextPageToken was followed
     expect(fakeDrive.listCalls[1].pageToken).toBe("page-2");
 
-    expect(files.map((file) => file.id)).toEqual(["file-1", "file-5"]);
-    expect(files[1]).toEqual({
+    // file-3 is not owned by this account and is still listed: the folder's
+    // contents are shown, and Google decides what may be done with them.
+    expect(files.map((file) => file.id)).toEqual(["file-1", "file-3", "file-5"]);
+    expect(files[2]).toEqual({
       id: "file-5",
       name: "202608勤怠管理表",
       ownedByMe: true,
@@ -132,13 +145,13 @@ describe("listEmployeeCandidates", () => {
             {
               id: "file-1",
               name: "202607勤怠管理表",
-              sharedWithMe: true,
+              sharedWithMeTime: "2026-07-01T00:00:00Z",
               owners: [{ emailAddress: "Manager@Blended-Asia.com" }],
             },
           ],
           nextPageToken: "page-2",
         },
-        { files: [{ id: "file-2", name: "Team notes", sharedWithMe: true }] },
+        { files: [{ id: "file-2", name: "Team notes", sharedWithMeTime: "2026-07-01T00:00:00Z" }] },
       ],
     });
     const gateway = createDriveGateway(fakeDrive);
@@ -147,7 +160,8 @@ describe("listEmployeeCandidates", () => {
 
     expect(fakeDrive.listCalls[0].q).toContain(`mimeType = '${SPREADSHEET_MIME_TYPE}'`);
     expect(fakeDrive.listCalls[0].q).toContain("trashed = false");
-    expect(fakeDrive.listCalls[0].q).toContain("sharedWithMe = true");
+    expect(fakeDrive.listCalls[0].q).toContain("勤怠管理表");
+    expect(fakeDrive.listCalls[0].q).not.toContain("sharedWithMe");
     expect(fakeDrive.listCalls).toHaveLength(2);
 
     expect(files).toEqual([
@@ -295,5 +309,64 @@ describe("updateAppProperties", () => {
         fields: "id",
       },
     ]);
+  });
+});
+
+describe("shared-with-me field selection (Drive v3 contract)", () => {
+  it("does not request the non-existent `sharedWithMe` File field", () => {
+    // Drive v3 File has `sharedWithMeTime`; `sharedWithMe` is a query-only term.
+    // Requesting it makes files.list fail with 400 "Invalid field selection".
+    expect(FILE_SUMMARY_FIELDS).not.toMatch(/\bsharedWithMe\b(?!Time)/);
+    expect(FILE_SUMMARY_FIELDS).toContain("sharedWithMeTime");
+  });
+
+  it("derives sharedWithMe from the presence of sharedWithMeTime", async () => {
+    const fakeDrive = createFakeDriveClient({
+      listPages: [
+        {
+          files: [
+            { id: "shared", name: "202607勤怠管理表", sharedWithMeTime: "2026-07-01T00:00:00Z" },
+            { id: "own", name: "202608勤怠管理表" },
+          ],
+        },
+      ],
+    });
+    const gateway = createDriveGateway(fakeDrive);
+
+    const files = await gateway.listEmployeeCandidates();
+
+    expect(fakeDrive.listCalls[0].fields).toBe(FILE_SUMMARY_FIELDS);
+    expect(files.map((file) => [file.id, file.sharedWithMe])).toEqual([
+      ["shared", true],
+      ["own", false],
+    ]);
+  });
+});
+
+describe("shared drive visibility", () => {
+  it("asks Drive to include shared-drive items in every listing", async () => {
+    const fakeDrive = createFakeDriveClient({ listPages: [{ files: [] }] });
+    const gateway = createDriveGateway(fakeDrive);
+
+    await gateway.listEmployeeCandidates();
+    await gateway.listManagerFiles("folder-1");
+
+    // Without both flags Drive silently omits every shared-drive file.
+    for (const call of fakeDrive.listCalls) {
+      expect(call.supportsAllDrives).toBe(true);
+      expect(call.includeItemsFromAllDrives).toBe(true);
+    }
+  });
+
+  it("reads file access metadata for shared-drive files instead of 404ing", async () => {
+    const fakeDrive = createFakeDriveClient({
+      file: { id: "file-1", name: "202608勤怠管理表", mimeType: SPREADSHEET_MIME_TYPE },
+    });
+    const gateway = createDriveGateway(fakeDrive);
+
+    await gateway.getFileAccess("file-1");
+
+    // Google answers 404, not 403, when this flag is missing on a shared drive.
+    expect(fakeDrive.getCalls.at(-1)?.supportsAllDrives).toBe(true);
   });
 });

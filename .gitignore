@@ -14,5 +14,8 @@ test-results/
 .env.e2e
 !.env.example
 !.env.e2e.example
+
+# Local Google OAuth credential export
+client_secret_google.json
 .brainstorm/
 ~$*.xlsx

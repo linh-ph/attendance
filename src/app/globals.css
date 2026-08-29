@@ -1,17 +1,80 @@
+/**
+ * blended-asia Attendance — visual system.
+ *
+ * Direction: Swiss/International grid with a "time rail" motif. The product is
+ * timekeeping, so the design is built around time as the subject:
+ *
+ * - a strict left-aligned grid and wide-tracked micro-labels for structure;
+ * - a 3px accent rail down each card, reading as a timeline or punch-card edge,
+ *   coloured by what the card actually needs;
+ * - tabular numerals everywhere a time, count, or date appears, so columns of
+ *   hours line up instead of drifting.
+ *
+ * Two type roles, no webfont: the UI stack renders Japanese sheet names through
+ * the platform fallback, and a monospaced stack carries every number. That
+ * pairing is the deliberate choice — numeric alignment matters more here than a
+ * decorative display face, and it costs no network request.
+ *
+ * Motion is limited to transform/opacity so it stays on the compositor.
+ */
+
 :root {
-  --background: #f7f8fa;
+  /* Canvas and surfaces. A warm paper tone, not a cold default grey. */
+  --paper: #f4f5f3;
   --surface: #ffffff;
-  --text: #172033;
-  --muted-text: #64748b;
-  --border: #dbe1ea;
+  --surface-sunken: #eceee9;
+
+  /* Ink scale: deep navy-ink rather than pure black. */
+  --ink-900: #141b2b;
+  --ink-700: #3d4759;
+  --ink-500: #6b7688;
+
+  --border: #dfe2dc;
+  --border-strong: #c6cbc2;
+
   --primary: #2563eb;
-  --danger: #dc2626;
-  --warning: #d97706;
-  --success: #15803d;
+  --primary-ink: #1d4ed8;
+  --primary-wash: #e8efff;
+
+  /* Semantic states, each with a wash for pill backgrounds. */
+  --danger: #b42318;
+  --danger-wash: #fdecea;
+  --warning: #b54708;
+  --warning-wash: #fdf1e3;
+  --success: #1a7f52;
+  --success-wash: #e6f4ed;
+  --neutral-wash: #eceee9;
+
   --focus-ring: #93c5fd;
+
+  /* Non-uniform radius: containers read softer than the controls inside them. */
+  --radius: 0.875rem;
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+  --radius-pill: 999px;
+
+  /* Spacing rhythm. Deliberately not one value used everywhere. */
   --spacing: 1rem;
-  --radius: 0.75rem;
-  --shadow: 0 12px 30px rgb(23 32 51 / 12%);
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1.25rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+
+  --shadow-sm: 0 1px 2px rgb(20 27 43 / 6%);
+  --shadow-md: 0 4px 14px rgb(20 27 43 / 8%);
+  --shadow-lg: 0 18px 40px rgb(20 27 43 / 12%);
+  --shadow: var(--shadow-lg);
+
+  --font-ui:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    "Noto Sans JP", Arial, sans-serif;
+  --font-numeric:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration: 180ms;
 }
 
 * {
@@ -21,17 +84,133 @@
 body {
   min-height: 100vh;
   margin: 0;
-  color: var(--text);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--ink-900);
+  background: var(--paper);
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Every time, count, and date aligns in a column. */
+.card-fact dd,
+.folder-name,
+.open-by-link-row input {
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------------------- */
+/* App shell                                                                   */
+/* -------------------------------------------------------------------------- */
+
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) clamp(1rem, 4vw, 2.5rem);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.brand {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: baseline;
+  text-decoration: none;
+}
+
+.brand-mark {
+  color: var(--primary);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.brand-name {
+  color: var(--ink-500);
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.app-bar-spacer {
+  flex: 1;
+}
+
+.app-bar-user {
+  color: var(--ink-500);
+  font-size: 0.8125rem;
+}
+
+/* The sign-out control is secondary chrome, not a primary action. */
+.app-bar form {
+  margin: 0;
+}
+
+.app-bar button {
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  color: var(--ink-700);
+  background: var(--surface);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.app-bar button:hover {
+  color: var(--ink-900);
+  border-color: var(--ink-500);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page container                                                              */
+/* -------------------------------------------------------------------------- */
+
 main {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+  padding: var(--space-lg) clamp(1rem, 4vw, 2.5rem) var(--space-xl);
+}
+
+/* Sign-in and other single-card screens centre their hero instead. */
+.page-centered {
   display: grid;
   min-height: 100vh;
-  padding: calc(var(--spacing) * 1.5);
   place-items: center;
 }
+
+.eyebrow {
+  margin: 0 0 var(--space-2xs);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+/* The sign-in screen keeps its editorial display size. */
+.hero h1 {
+  font-size: clamp(2.25rem, 8vw, 4.5rem);
+  letter-spacing: -0.05em;
+}
+
+.page-lede {
+  max-width: 46ch;
+  margin: var(--space-xs) 0 0;
+  color: var(--ink-500);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sign-in hero                                                                */
+/* -------------------------------------------------------------------------- */
 
 .hero {
   width: min(100%, 42rem);
@@ -39,10 +218,9 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Sign-in screens: copy beside the artwork once there is room for both. */
 .hero-split {
   display: grid;
   gap: clamp(1.5rem, 4vw, 3rem);
@@ -64,49 +242,498 @@ main {
   border-radius: var(--radius);
 }
 
-.eyebrow {
-  margin: 0 0 var(--spacing);
-  color: var(--primary);
-  font-weight: 700;
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(2.25rem, 8vw, 4.5rem);
-  letter-spacing: -0.05em;
-}
-
 .hero > p:not(.eyebrow),
 .hero-copy > p:not(.eyebrow) {
   max-width: 35rem;
-  color: var(--muted-text);
+  color: var(--ink-500);
   font-size: 1.125rem;
   line-height: 1.6;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Controls                                                                    */
+/* -------------------------------------------------------------------------- */
+
 button {
-  margin-top: var(--spacing);
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 1rem;
   border: 0;
-  border-radius: calc(var(--radius) / 1.5);
+  border-radius: var(--radius-control);
   color: var(--surface);
   background: var(--primary);
   font: inherit;
-  font-weight: 700;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+button:hover {
+  background: var(--primary-ink);
+}
+
+button:active {
+  transform: translateY(1px);
 }
 
 button:focus-visible {
   outline: 3px solid var(--focus-ring);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
+.hero button,
+.hero-copy button {
+  margin-top: var(--space-md);
+  padding: 0.75rem 1.25rem;
+}
+
+/* Link-shaped actions inside cards. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink-700);
+  background: var(--surface);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.action:hover {
+  color: var(--ink-900);
+  border-color: var(--ink-500);
+  transform: translateY(-1px);
+}
+
+.action:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.action-primary {
+  color: var(--surface);
+  border-color: transparent;
+  background: var(--primary);
+}
+
+.action-primary:hover {
+  color: var(--surface);
+  border-color: transparent;
+  background: var(--primary-ink);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sections                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  margin-top: var(--space-lg);
+}
+
+.section-header {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border);
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.section-actions,
+.folder-control {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.folder-name {
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink-700);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.empty-state {
+  margin: 0;
+  padding: var(--space-md);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  color: var(--ink-500);
+  text-align: center;
+}
+
+.section-error,
+.page-error,
+.card-error,
+.google-picker-error,
+.open-by-link-error {
+  margin: var(--space-xs) 0 0;
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cards — the time rail                                                       */
+/* -------------------------------------------------------------------------- */
+
+.card-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 60rem) {
+  .card-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  overflow: hidden;
+  padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+/* The rail: a timeline edge that fills in on hover. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--border-strong);
+  transform-origin: top;
+  transition: transform var(--duration) var(--ease);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card:hover::before {
+  transform: scaleX(1.8);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+/* Status pill: colour carries the meaning, and the rail matches it. */
+.card-state {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0.1875rem 0.625rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.card-state-ready {
+  color: var(--success);
+  background: var(--success-wash);
+}
+
+.card-state-needs-setup {
+  color: var(--warning);
+  background: var(--warning-wash);
+}
+
+.card-state-needs-repair {
+  color: var(--danger);
+  background: var(--danger-wash);
+}
+
+.card-state-unknown {
+  color: var(--ink-500);
+  background: var(--neutral-wash);
+}
+
+.card:has(.card-state-ready)::before {
+  background: var(--success);
+}
+
+.card:has(.card-state-needs-setup)::before {
+  background: var(--warning);
+}
+
+.card:has(.card-state-needs-repair)::before {
+  background: var(--danger);
+}
+
+/* Facts as a labelled micro-grid, not a paragraph. */
+.card-facts {
+  display: grid;
+  gap: var(--space-sm) var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  margin: 0;
+}
+
+.card-fact dt {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.card-fact dd {
+  margin: 0.125rem 0 0;
+  color: var(--ink-900);
+  font-size: 0.875rem;
+  /* Wrap addresses on their own boundaries, never mid-word. */
+  overflow-wrap: anywhere;
+}
+
+/* Numeric facts carry the monospaced column treatment; names do not. */
+.card-fact-numeric {
+  font-family: var(--font-numeric);
+  overflow-wrap: normal;
+}
+
+.card-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: var(--space-xs);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Open a file — a wide inset band that breaks the card grid                   */
+/* -------------------------------------------------------------------------- */
+
+.open-file-panel {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface), var(--surface-sunken));
+  box-shadow: var(--shadow-sm);
+}
+
+.open-by-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.open-by-link label {
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.open-by-link-row {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.open-by-link-row input {
+  flex: 1 1 24rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: 0.9375rem;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.open-by-link-row input::placeholder {
+  color: var(--ink-500);
+}
+
+.open-by-link-row input:hover {
+  border-color: var(--ink-500);
+}
+
+.open-by-link-row input:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--primary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Recently opened                                                             */
+/* -------------------------------------------------------------------------- */
+
+.recent-files {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.recent-files-title {
+  margin: 0 0 var(--space-xs);
+  color: var(--ink-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.recent-files-list {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-files-list a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2xs);
+  padding: 0.3125rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-700);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  transition:
+    border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.recent-files-list a:hover {
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  transform: translateY(-1px);
+}
+
+.recent-files-list a:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.recent-files-tab {
+  color: var(--ink-500);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Picker + diagnostics                                                        */
+/* -------------------------------------------------------------------------- */
+
+.google-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+/*
+ * Picker buttons select or navigate; they never commit anything. Primary is
+ * reserved for the one creating action in a view, so these read as secondary
+ * and match the outline `.action` links they sit beside.
+ */
+.google-picker button {
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  color: var(--ink-700);
+  background: var(--surface);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.google-picker button:hover {
+  color: var(--ink-900);
+  border-color: var(--ink-500);
+  background: var(--surface);
+}
+
+.debug-error {
+  width: min(100%, 56rem);
+  max-height: 50vh;
+  margin: var(--space-md) 0 0;
+  padding: var(--spacing);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--danger);
+  font-family: var(--font-numeric);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive + motion preferences                                             */
+/* -------------------------------------------------------------------------- */
+
 @media (max-width: 32rem) {
-  main {
-    padding: var(--spacing);
+  .section-actions,
+  .folder-control {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+
+  .card:hover,
+  .action:hover,
+  .recent-files-list a:hover {
+    transform: none;
   }
 }

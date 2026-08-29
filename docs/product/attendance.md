@@ -160,6 +160,57 @@ justify a whole-row write. Same-cell concurrency is last-writer-wins in the
 first version and is disclosed in the UI when the source changed since load. A
 failed Save preserves the unsaved edits and offers Retry or Re-authenticate.
 
+Unsaved edits are also mirrored into this browser's `attendance-local`
+IndexedDB database, so they survive a reload, a dropped connection, or a closed
+tab. A stored draft carries the sheet row it was made against and is re-applied
+only onto an identical row: if the sheet changed while the draft sat in
+storage, the draft is discarded rather than replayed over the newer data. The
+record is removed as soon as the day is saved or the changes are discarded. The
+last loaded month is cached the same way so reopening a sheet renders before
+the network answers; the cache is only ever a head start and is replaced by the
+live read.
+
+Every browser-local record is keyed by the normalized signed-in email, so two
+accounts sharing a browser profile cannot see each other's. These records
+deliberately outlive sign-out, which means a shared machine keeps one person's
+work-hour drafts until that browser profile is cleared. Nothing stored locally
+is authoritative and no token or authorization result is ever kept there.
+
+## Files this app never configured
+
+An attendance file does not have to be set up before it can be used. Any file
+the signed-in account can reach through Drive is listed, including files in a
+Shared Drive, whoever owns them.
+
+Where a configuration exists it still takes the person straight to their own
+tab. Where it does not, the file offers its tab list and the person picks the
+one that holds their hours; the month comes from the file name and the status
+list from the workbook defaults. Choosing a tab is not an access decision —
+Google decides what the write may do, exactly as it does when the same person
+opens the file in Google Sheets.
+
+This app therefore adds no restriction of its own on who may edit which tab.
+That is a Google Sheets sharing concern; if per-tab isolation is wanted, it
+comes from protected ranges on the file.
+
+## Opening a file
+
+Besides the dashboard cards, a file can be opened by pasting its Google Sheets
+link, and the sheets opened most recently on this browser are offered as links.
+
+The link is a shortcut, not a way in. It resolves only against the files this
+dashboard already listed for the signed-in user — a listing the server computed
+after authorization — so a link to anything else reports plainly that the user
+has no permission for it, or is not set up for attendance yet, and navigates
+nowhere. Any `gid` in the link is discarded: an employee is always taken to the
+sheet the configuration maps them to, never to a tab named in a URL. The
+destination re-authorizes the request regardless.
+
+Choosing a legacy file in Google Picker to start setup is unchanged and still
+required: picking a file that this manager does not manage reports a permission
+problem rather than unlocking setup, and picking a different file they do
+manage still asks for that same file.
+
 ## Access
 
 Sign-in is Google OAuth. All Drive and Sheets calls run server-side under the

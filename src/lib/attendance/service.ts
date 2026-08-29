@@ -44,7 +44,7 @@ import {
   WORK_SLOT_COLUMNS,
   WORK_SLOT_LAST_COLUMN,
 } from "@/lib/workbook/contract";
-import { emptyDay, type AttendanceDay, type TimeSlot } from "./model";
+import { emptyDay, STATUS_OPTIONS, type AttendanceDay, type TimeSlot } from "./model";
 import { diffDay, type CellPatch } from "./range-mapper";
 import { TIME_SLOTS } from "./slots";
 import { calculateWorkHours, validateAttendanceDay, type ValidationIssue } from "./validation";
@@ -91,7 +91,7 @@ export interface AttendanceDependencies {
   config?: ConfigRepository;
 }
 
-export type AttendanceRole = "manager" | "employee";
+export type AttendanceRole = "manager" | "employee" | "open";
 
 export interface ReadAttendanceRequest {
   fileId: string;
@@ -326,6 +326,70 @@ function resolveManagerSheet(
   return { sheetId: sheet.sheetId, sheetTitle: sheet.title };
 }
 
+/** The status enum a file without a configuration falls back to. */
+const FALLBACK_STATUSES: ConfigStatus[] = STATUS_OPTIONS.map((status) => ({
+  code: status.code,
+  labelEn: status.labelEn,
+  sheetValue: status.sheetValue,
+}));
+
+/**
+ * The month a file with no configuration covers, taken from its Drive name:
+ * `202607勤怠管理表` is July 2026. It is the only source left once there is no
+ * configuration sheet to read it from.
+ */
+function monthFromName(name: string): string | null {
+  const match = /(\d{4})-?(\d{2})/.exec(name);
+  if (!match) return null;
+
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12 ? `${match[1]}-${match[2]}` : null;
+}
+
+/**
+ * The target for a file this app never configured.
+ *
+ * There is no roster to resolve against, so the requested tab is taken as
+ * given and the status list falls back to the workbook defaults. Google has
+ * already decided the person may open the file.
+ */
+async function resolveOpenTarget(
+  dependencies: AttendanceDependencies,
+  request: { fileId: string; sheetId: string },
+): Promise<AttendanceTarget> {
+  const [access, spreadsheet] = await Promise.all([
+    dependencies.drive.getFileAccess(request.fileId),
+    dependencies.sheets.getSpreadsheet(request.fileId),
+  ]);
+
+  const sheet = spreadsheet.sheets.find(
+    (candidate) => String(candidate.sheetId) === request.sheetId,
+  );
+  if (!sheet) throw new ForbiddenError("requested-sheet-not-found");
+
+  const month = monthFromName(access.name);
+  if (month === null) throw new NeedsRepairError("month-not-derivable");
+
+  const config: AppConfig = {
+    schemaVersion: 1,
+    setupState: "ready",
+    month,
+    ownerEmail: access.ownerEmail ?? "",
+    templateVersion: 1,
+    statuses: FALLBACK_STATUSES,
+    members: [],
+  };
+
+  return {
+    role: "open",
+    sheetId: sheet.sheetId,
+    sheetTitle: sheet.title,
+    config,
+    month,
+    dates: monthDates(month),
+  };
+}
+
 async function resolveTarget(
   dependencies: AttendanceDependencies,
   request: { fileId: string; actorEmail: string; sheetId: string },
@@ -338,6 +402,10 @@ async function resolveTarget(
     { drive: dependencies.drive, config: repository },
     { fileId: request.fileId, actorEmail: request.actorEmail, requestedSheetId: request.sheetId },
   );
+
+  if (role.kind === "open") {
+    return resolveOpenTarget(dependencies, request);
+  }
 
   const { config, spreadsheet } = await readConfig(repository, request.fileId);
   const resolved =

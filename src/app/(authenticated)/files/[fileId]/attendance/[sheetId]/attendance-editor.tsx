@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { WorkBlockForm } from "@/components/work-block-form";
 import { validateAttendanceDay } from "@/lib/attendance/validation";
+import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
 import {
   attendanceApiClient,
   issuesOf,
@@ -57,6 +58,10 @@ export interface AttendanceEditorProps {
   fileId: string;
   /** Numeric sheet ID from the route. */
   sheetId: string;
+  /** Normalized signed-in email; scopes every browser-local record. */
+  email: string;
+  /** Injected in tests; the browser resolves IndexedDB. */
+  store?: LocalStore;
   /** Injected in tests; the browser uses the Route Handler client. */
   api?: AttendanceApiClient;
   /** Injected in tests; defaults to the current UTC calendar date. */
@@ -66,9 +71,18 @@ export interface AttendanceEditorProps {
 export function AttendanceEditor({
   fileId,
   sheetId,
+  email,
+  store: injectedStore,
   api = attendanceApiClient,
   today = new Date().toISOString().slice(0, 10),
 }: AttendanceEditorProps) {
+  const [store] = useState<LocalStore>(() => injectedStore ?? resolveLocalStore());
+  /**
+   * The day whose stored draft has already been read back. This is state, not
+   * a ref, so the mirror effect below re-runs the moment the read finishes —
+   * otherwise a day edited before that read resolved would never be persisted.
+   */
+  const [restoredDate, setRestoredDate] = useState<string | null>(null);
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const { view, baseline, draft, selectedDate, saveState, pendingDate } = state;
 
@@ -80,10 +94,23 @@ export function AttendanceEditor({
   useEffect(() => {
     let cancelled = false;
 
+    // The cached month renders first so reopening a sheet is not a blank wait.
+    // It is only ever a head start: the network read below replaces it, and no
+    // save is ever built from it alone because the baseline is replaced too.
+    void store
+      .readMonth(email, fileId, sheetId)
+      .then((cached) => {
+        if (!cancelled && cached) dispatch({ type: "loaded", view: cached, today });
+      })
+      .catch(() => undefined);
+
     api
       .read(fileId, sheetId)
       .then((loaded) => {
-        if (!cancelled) dispatch({ type: "loaded", view: loaded, today });
+        if (cancelled) return;
+
+        dispatch({ type: "loaded", view: loaded, today });
+        void store.writeMonth(email, fileId, sheetId, loaded).catch(() => undefined);
       })
       .catch(() => {
         if (!cancelled) dispatch({ type: "load-failed" });
@@ -92,7 +119,7 @@ export function AttendanceEditor({
     return () => {
       cancelled = true;
     };
-  }, [api, fileId, sheetId, today, state.loadAttempt]);
+  }, [api, email, fileId, sheetId, store, today, state.loadAttempt]);
 
   const patches = useMemo(
     () => (view === null || baseline === null || draft === null
@@ -101,6 +128,60 @@ export function AttendanceEditor({
     [view, baseline, draft],
   );
   const dirty = patches.length > 0;
+
+  /**
+   * Restores unsaved edits for the day that just opened. The reducer refuses
+   * the restore unless the stored baseline still matches the row as read, so a
+   * draft made against an older version of the sheet is dropped, never
+   * replayed over newer data.
+   */
+  useEffect(() => {
+    if (selectedDate === null || baseline === null) return;
+
+    let cancelled = false;
+
+    void store
+      .readDraft(email, fileId, sheetId, selectedDate)
+      .then((stored) => {
+        if (cancelled) return;
+
+        if (stored) {
+          dispatch({ type: "restore-draft", day: stored.day, baseline: stored.baseline });
+        }
+
+        // Only now may the mirror below write or delete for this day.
+        setRestoredDate(selectedDate);
+      })
+      .catch(() => {
+        if (!cancelled) setRestoredDate(selectedDate);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [email, fileId, sheetId, selectedDate, baseline, store]);
+
+  /**
+   * Mirrors the open day into browser-local storage whenever it differs from
+   * the sheet, and removes the record once there is nothing unsaved left.
+   */
+  useEffect(() => {
+    if (selectedDate === null || draft === null || baseline === null) return;
+
+    // A freshly loaded day is not dirty yet. Clearing here before the restore
+    // above has read storage would delete the very draft it is about to
+    // recover, so the mirror stays inert until that read has finished.
+    if (restoredDate !== selectedDate) return;
+
+    if (!dirty) {
+      void store.clearDraft(email, fileId, sheetId, selectedDate).catch(() => undefined);
+      return;
+    }
+
+    void store
+      .writeDraft(email, fileId, sheetId, selectedDate, { day: draft, baseline })
+      .catch(() => undefined);
+  }, [email, fileId, sheetId, selectedDate, draft, baseline, dirty, restoredDate, store]);
 
   /** Browser-level navigation gets the same protection as day navigation. */
   useEffect(() => {

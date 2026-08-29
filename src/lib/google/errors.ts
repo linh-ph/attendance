@@ -1,5 +1,86 @@
 export type GoogleErrorCode = "folder-unavailable" | "file-unavailable" | "google-api-error";
 
+export interface GoogleErrorDiagnostic {
+  name: string;
+  message: string;
+  status: number | null;
+  providerMessage: string | null;
+  providerStatus: string | null;
+  providerReason: string | null;
+}
+
+const MAX_DIAGNOSTIC_LENGTH = 2_000;
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function redactExactSecrets(value: string, additionalSecrets: readonly string[]): string {
+  return [process.env.AUTH_SECRET, process.env.AUTH_GOOGLE_SECRET, ...additionalSecrets].reduce<string>(
+    (redacted, secret) =>
+      secret && secret.length >= 4 ? redacted.split(secret).join("[REDACTED]") : redacted,
+    value,
+  );
+}
+
+/** Keep provider diagnostics useful without returning credentials or request payloads. */
+function sanitizeDiagnosticText(
+  value: string | undefined,
+  additionalSecrets: readonly string[],
+): string | null {
+  if (!value) return null;
+
+  const redacted = redactExactSecrets(value.trim(), additionalSecrets)
+    .replace(/(Bearer\s+)[^\s;,]+/gi, "$1[REDACTED]")
+    .replace(
+      /(\b(?:access_token|refresh_token|client_secret)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s;,]+)/gi,
+      "$1[REDACTED]",
+    )
+    .replace(/(\bAuthorization\b\s*[:=]\s*)(?!Bearer\b)[^\s;,]+/gi, "$1[REDACTED]");
+
+  return redacted.length > MAX_DIAGNOSTIC_LENGTH
+    ? `${redacted.slice(0, MAX_DIAGNOSTIC_LENGTH)}…`
+    : redacted;
+}
+
+export function debugErrorsEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.APP_DEBUG_ERRORS === "1";
+}
+
+/** Extract only an allowlisted, sanitized subset of a Google/Gaxios failure. */
+export function toGoogleErrorDiagnostic(
+  error: unknown,
+  additionalSecrets: readonly string[] = [],
+): GoogleErrorDiagnostic {
+  const errorRecord = asRecord(error);
+  const cause = asRecord(errorRecord?.cause);
+  const response = asRecord(cause?.response);
+  const data = asRecord(response?.data);
+  const provider = asRecord(data?.error);
+  const providerErrors = Array.isArray(provider?.errors) ? provider.errors : [];
+  const providerDetails = Array.isArray(provider?.details) ? provider.details : [];
+  const firstProviderError = asRecord(providerErrors[0]);
+  const firstProviderDetail = asRecord(providerDetails[0]);
+  const sanitize = (value: unknown) => sanitizeDiagnosticText(asString(value), additionalSecrets);
+
+  return {
+    name: sanitize(errorRecord?.name) ?? "Error",
+    message: sanitize(errorRecord?.message) ?? "Unknown error.",
+    status: googleErrorStatus(error) ?? googleErrorStatus(errorRecord?.cause) ?? null,
+    providerMessage: sanitize(provider?.message) ?? sanitize(cause?.message),
+    providerStatus: sanitize(provider?.status),
+    providerReason: sanitize(firstProviderError?.reason) ?? sanitize(firstProviderDetail?.reason),
+  };
+}
+
 export class GoogleGatewayError extends Error {
   readonly code: GoogleErrorCode;
   readonly status?: number;

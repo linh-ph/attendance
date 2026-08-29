@@ -24,13 +24,19 @@ import {
   type ConfigReadResult,
   type ConfigRepository,
 } from "@/lib/config/repository";
-import { isAppConfigError, normalizeEmail, type AppConfig } from "@/lib/config/schema";
+import {
+  CONFIG_SHEET_TITLE,
+  isAppConfigError,
+  normalizeEmail,
+  type AppConfig,
+} from "@/lib/config/schema";
 import { FolderUnavailableError } from "@/lib/google/errors";
 import {
   ATTENDANCE_NAME_MARKER,
   type AttendanceFileSummary,
   type DriveFolder,
   type DriveGateway,
+  type SheetsGateway,
   type SheetSummary,
 } from "@/lib/google/types";
 
@@ -66,16 +72,27 @@ export interface ManagedFile {
   error: string | null;
 }
 
+export interface TimesheetTab {
+  /** Numeric Google sheet ID, returned as a string. */
+  sheetId: string;
+  title: string;
+}
+
 export interface Timesheet {
   id: string;
   name: string;
   ownerEmail: string | null;
   month: string | null;
   modifiedTime: string | null;
-  /** Numeric Google sheet ID, stored and returned as a string. */
-  sheetId: string;
-  /** The live sheet title; the ID remains the identity key. */
-  sheetTitle: string;
+  /**
+   * The tab a configuration maps to this person, or `null` when the file has
+   * no configuration. A null mapping is not a refusal: the person picks their
+   * own tab from `tabs`, and Google decides what that write may do.
+   */
+  sheetId: string | null;
+  sheetTitle: string | null;
+  /** Every visible tab, so an unmapped file can still be opened. */
+  tabs: TimesheetTab[];
 }
 
 /** `reason` is a server diagnostic and is never rendered to a user. */
@@ -105,6 +122,8 @@ export interface FileDiscovery {
 export interface FileDiscoveryDependencies {
   drive: DriveGateway;
   config: ConfigRepository;
+  /** Reads the tab list of a file that carries no configuration. */
+  sheets: SheetsGateway;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -113,6 +132,15 @@ export interface FileDiscoveryDependencies {
 
 function hasAttendanceName(name: string): boolean {
   return name.includes(ATTENDANCE_NAME_MARKER);
+}
+
+/** `202607勤怠管理表` carries its own month; the name is the only source left. */
+function monthFromName(name: string): string | null {
+  const match = /(\d{4})-?(\d{2})/.exec(name);
+  if (!match) return null;
+
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12 ? `${match[1]}-${match[2]}` : null;
 }
 
 function isInDomain(ownerEmail: string | null): boolean {
@@ -198,6 +226,28 @@ function toManagedFile(file: AttendanceFileSummary, outcome: ConfigOutcome): Man
  * appear in the employee section (zero or several mappings, an unmapped member
  * row, or a mapped sheet that no longer exists).
  */
+/** Visible, recordable tabs. The hidden configuration sheet is never one. */
+function toTabs(sheets: readonly SheetSummary[]): TimesheetTab[] {
+  return sheets
+    .filter((sheet) => sheet.title !== CONFIG_SHEET_TITLE && !sheet.hidden)
+    .map((sheet) => ({ sheetId: String(sheet.sheetId), title: sheet.title }));
+}
+
+function baseTimesheet(file: AttendanceFileSummary, month: string | null) {
+  return {
+    id: file.id,
+    name: file.name,
+    ownerEmail: file.ownerEmail === null ? null : normalizeEmail(file.ownerEmail),
+    month,
+    modifiedTime: file.modifiedTime,
+  };
+}
+
+/**
+ * A configured file still resolves the actor to their mapped tab, which keeps
+ * the familiar one-click path. A file with no configuration is not refused: it
+ * is returned with its tab list so the person opens whichever tab is theirs.
+ */
 function toTimesheet(
   file: AttendanceFileSummary,
   outcome: ConfigOutcome,
@@ -206,25 +256,23 @@ function toTimesheet(
   if (outcome.kind !== "config") return null;
 
   const { config, spreadsheet } = outcome.result;
+  const tabs = toTabs(spreadsheet.sheets);
   const matches = config.members.filter((member) => normalizeEmail(member.email) === actorEmail);
-  if (matches.length !== 1) return null;
 
-  const [member] = matches;
-  if (member.sheetId === null) return null;
+  if (matches.length === 1 && matches[0].sheetId !== null) {
+    // The sheet ID is the identity key; never fall back to matching by title.
+    const sheet = findSheet(spreadsheet.sheets, matches[0].sheetId);
+    if (sheet) {
+      return {
+        ...baseTimesheet(file, config.month),
+        sheetId: String(sheet.sheetId),
+        sheetTitle: sheet.title,
+        tabs,
+      };
+    }
+  }
 
-  // The sheet ID is the identity key; never fall back to matching by title.
-  const sheet = findSheet(spreadsheet.sheets, member.sheetId);
-  if (!sheet) return null;
-
-  return {
-    id: file.id,
-    name: file.name,
-    ownerEmail: file.ownerEmail === null ? null : normalizeEmail(file.ownerEmail),
-    month: config.month,
-    modifiedTime: file.modifiedTime,
-    sheetId: String(sheet.sheetId),
-    sheetTitle: sheet.title,
-  };
+  return { ...baseTimesheet(file, config.month), sheetId: null, sheetTitle: null, tabs };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -232,7 +280,7 @@ function toTimesheet(
 /* -------------------------------------------------------------------------- */
 
 export function createFileDiscovery(dependencies: FileDiscoveryDependencies): FileDiscovery {
-  const { drive, config } = dependencies;
+  const { drive, config, sheets } = dependencies;
 
   async function loadManaged(
     folderId: string,
@@ -251,15 +299,42 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
     return { folder, managed };
   }
 
+  /**
+   * Every attendance file this account can open.
+   *
+   * Neither `sharedWithMe` nor the owner's domain is required any more: a
+   * shared-drive file is owned by the organization and satisfies neither, yet
+   * is exactly the file people record hours in. Drive returning the file is
+   * the access decision.
+   */
   async function loadTimesheets(actorEmail: string): Promise<Timesheet[]> {
-    const candidates = (await drive.listEmployeeCandidates()).filter(
-      (file) => file.sharedWithMe && isInDomain(file.ownerEmail) && hasAttendanceName(file.name),
+    const candidates = (await drive.listEmployeeCandidates()).filter((file) =>
+      hasAttendanceName(file.name),
     );
 
     const timesheets: Timesheet[] = [];
     for (const file of candidates) {
-      const timesheet = toTimesheet(file, await readConfigOutcome(config, file.id), actorEmail);
-      if (timesheet) timesheets.push(timesheet);
+      const outcome = await readConfigOutcome(config, file.id);
+
+      if (outcome.kind === "config") {
+        const timesheet = toTimesheet(file, outcome, actorEmail);
+        if (timesheet) timesheets.push(timesheet);
+        continue;
+      }
+
+      // No configuration: read the tab list directly so the file is still
+      // openable. A file whose tabs cannot be read at all is skipped.
+      try {
+        const spreadsheet = await sheets.getSpreadsheet(file.id);
+        timesheets.push({
+          ...baseTimesheet(file, monthFromName(file.name)),
+          sheetId: null,
+          sheetTitle: null,
+          tabs: toTabs(spreadsheet.sheets),
+        });
+      } catch {
+        continue;
+      }
     }
 
     return timesheets;

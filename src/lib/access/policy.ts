@@ -78,7 +78,14 @@ export function isAccessError(value: unknown): value is AccessError {
 
 export type FileRole =
   | { kind: "manager"; email: string }
-  | { kind: "employee"; email: string; sheetId: string; sheetTitle: string };
+  | { kind: "employee"; email: string; sheetId: string; sheetTitle: string }
+  /**
+   * A file this app never configured. There is no mapping to restrict against,
+   * so Google's own sharing is the only boundary — which is the boundary the
+   * person already has when they open the file in Google Sheets. The requested
+   * tab is passed through unchanged.
+   */
+  | { kind: "open"; email: string; sheetId: string | null };
 
 export interface AccessDependencies {
   drive: DriveGateway;
@@ -171,8 +178,25 @@ export async function authorizeFile(
     return { kind: "manager", email: actorEmail };
   }
 
-  // Step 3: the protected mapping decides every non-owner request.
-  const { config, spreadsheet } = await readConfig(dependencies, request.fileId);
+  // Step 3: the protected mapping decides every non-owner request — when there
+  // is one. A file with no configuration is not refused: this app does not add
+  // an authorization layer on top of Google's sharing (see
+  // docs/decisions/2026-08-29-app-is-a-sheets-client.md).
+  let read: ConfigReadResult;
+  try {
+    read = await readConfig(dependencies, request.fileId);
+  } catch (error) {
+    if (error instanceof NeedsSetupError) {
+      return {
+        kind: "open",
+        email: actorEmail,
+        sheetId: request.requestedSheetId ?? null,
+      };
+    }
+    throw error;
+  }
+
+  const { config, spreadsheet } = read;
 
   const member = config.members.find((candidate) => candidate.email === actorEmail);
   if (!member) {

@@ -13,7 +13,7 @@ import { E2E_FIXTURE, EMPLOYEE_STORAGE_STATE, resetStore } from "../../playwrigh
 
 test.use({ storageState: EMPLOYEE_STORAGE_STATE });
 
-const TIMESHEET_LABEL = `${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle}`;
+const TIMESHEET_LABEL = `${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle} — ${E2E_FIXTURE.managerEmail}`;
 const ATTENDANCE_URL = `/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.employeeSheetId}`;
 const WORK_DESCRIPTION = "Sprint planning";
 const NOTES = "Reviewed the July timesheet";
@@ -22,31 +22,46 @@ test.beforeEach(async ({ page }) => {
   await resetStore(page.request);
 });
 
-test("the employee sees only shared, in-domain, mapped files and opens the mapped sheet", async ({
+/**
+ * Every attendance file the account can reach is listed, and the one that maps
+ * this person opens straight at their tab. The app no longer hides files it
+ * has no configuration for: Google's own sharing decides what is reachable,
+ * and the person picks their tab when nothing says which is theirs.
+ */
+test("the employee sees every reachable file and opens the mapped one at their tab", async ({
   page,
 }) => {
   await page.goto("/dashboard");
 
   const timesheets = page.getByRole("region", { name: "My timesheets" });
 
-  // Exactly one card: the out-of-domain owner and the file with no mapping for
-  // this employee are both excluded, even though all three share a file name.
-  await expect(timesheets.getByRole("listitem")).toHaveCount(1);
   await expect(timesheets.getByRole("listitem", { name: TIMESHEET_LABEL })).toBeVisible();
-  await expect(timesheets.getByText(E2E_FIXTURE.outsideOwnerEmail)).toHaveCount(0);
-  await expect(timesheets.getByText(E2E_FIXTURE.otherManagerEmail)).toHaveCount(0);
+  await expect(timesheets.getByRole("listitem").first()).toBeVisible();
 
   // An employee never sees a managed section with someone else's files in it.
   await expect(
     page.getByText("Select a dashboard folder to see the attendance files you manage."),
   ).toBeVisible();
 
-  await timesheets.getByRole("link", { name: "Open timesheet" }).click();
+  await timesheets.getByRole("link", { name: "Open timesheet" }).first().click();
 
   await expect(page).toHaveURL(new RegExp(`${ATTENDANCE_URL}$`));
   await expect(page.getByRole("heading", { name: "Timesheet", level: 1 })).toBeVisible();
   await expect(page.getByText("July 2026")).toBeVisible();
   await expect(page.getByText(E2E_FIXTURE.employeeSheetTitle)).toBeVisible();
+});
+
+test("a file with no mapping offers a tab choice instead of being hidden", async ({ page }) => {
+  await page.goto("/dashboard");
+
+  const timesheets = page.getByRole("region", { name: "My timesheets" });
+  const chooser = timesheets.getByRole("link", { name: "Choose your tab" }).first();
+
+  await expect(chooser).toBeVisible();
+  await chooser.click();
+
+  await expect(page.getByRole("heading", { name: "Choose your tab", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open this tab" }).first()).toBeVisible();
 });
 
 test("the employee edits one day with both methods and saves it to Google Sheets", async ({
@@ -156,6 +171,45 @@ test("moving to another day never discards unsaved work silently", async ({ page
   await expect(page.getByText("You have unsaved changes on this day.")).toBeVisible();
 
   await page.getByRole("button", { name: "Keep editing" }).click();
+  await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
+  await expect(page.getByLabel("Notes")).toHaveValue(NOTES);
+});
+
+/**
+ * The IndexedDB adapter itself, which only a real browser can exercise.
+ *
+ * The unit tests cover the key scoping, the recent-list rules, and the
+ * baseline guard against a fake store; what they cannot prove is that the real
+ * `attendance-local` database opens, writes, and reads back. That is what this
+ * spec is for.
+ */
+test("unsaved work survives a full page reload", async ({ page }) => {
+  await page.goto(ATTENDANCE_URL);
+
+  await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
+  await page.getByLabel("Notes").fill(NOTES);
+
+  // Wait for the draft to reach IndexedDB before throwing the page away.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<number>((resolve) => {
+            const open = indexedDB.open("attendance-local");
+            open.onsuccess = () => {
+              const db = open.result;
+              const count = db.transaction("drafts", "readonly").objectStore("drafts").count();
+              count.onsuccess = () => resolve(count.result);
+              count.onerror = () => resolve(-1);
+            };
+            open.onerror = () => resolve(-1);
+          }),
+      ),
+    )
+    .toBeGreaterThan(0);
+
+  await page.reload();
+
   await expect(page.getByLabel("Day", { exact: true })).toHaveValue("2026-07-01");
   await expect(page.getByLabel("Notes")).toHaveValue(NOTES);
 });

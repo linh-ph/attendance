@@ -402,20 +402,25 @@ describe("readAttendanceMonth", () => {
     expect(sheets.valueUpdates).toEqual([]);
   });
 
-  it("reports needs-setup when the file has never been configured", async () => {
+  /**
+   * A file this app never configured is opened rather than refused: the month
+   * comes from the Drive name and the status list from the workbook defaults.
+   */
+  it("opens a file that has never been configured", async () => {
     const sheets = createFakeSheets({
       sheets: [{ sheetId: 111, title: SHEET_A_TITLE, index: 0, hidden: false, protectedRanges: [] }],
       values: attendanceRanges(SHEET_A_TITLE),
     });
 
-    await expect(
-      readAttendanceMonth(
-        { drive: employeeDrive(), sheets },
-        { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
-      ),
-    ).rejects.toMatchObject({ code: "needs-setup" });
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
 
-    expect(attendanceValueReads(sheets)).toEqual([]);
+    expect(view.role).toBe("open");
+    expect(view.month).toBe("2026-07");
+    expect(view.sheetTitle).toBe(SHEET_A_TITLE);
+    expect(attendanceValueReads(sheets).length).toBeGreaterThan(0);
   });
 
   it("reports needs-repair for an unreadable configuration instead of falling back", async () => {

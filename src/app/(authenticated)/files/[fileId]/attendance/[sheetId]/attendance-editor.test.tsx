@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { emptyDay, type AttendanceDay, type TimeSlot } from "@/lib/attendance/model";
+import { createMemoryStore, createNullStore, type LocalStore } from "@/lib/dashboard/local-store";
 import type {
   AttendanceMonthView,
   AttendancePatch,
@@ -18,6 +19,7 @@ import {
 /* Fixtures                                                                    */
 /* -------------------------------------------------------------------------- */
 
+const EMAIL = "linh.np@blended-asia.com";
 const FILE_ID = "file-1";
 const SHEET_ID = "123";
 
@@ -117,11 +119,23 @@ function apiError(
   return Object.assign(error, extra);
 }
 
-async function mount(harness: Harness, today = "2026-07-15"): Promise<void> {
+async function mount(
+  harness: Harness,
+  today = "2026-07-15",
+  store: LocalStore = createMemoryStore(),
+): Promise<LocalStore> {
   render(
-    <AttendanceEditor fileId={FILE_ID} sheetId={SHEET_ID} api={harness.api} today={today} />,
+    <AttendanceEditor
+      fileId={FILE_ID}
+      sheetId={SHEET_ID}
+      email={EMAIL}
+      store={store}
+      api={harness.api}
+      today={today}
+    />,
   );
   await screen.findByRole("button", { name: "Save to Google Sheets" });
+  return store;
 }
 
 function setSelect(label: string, value: string): void {
@@ -480,6 +494,7 @@ describe("AttendanceEditor", () => {
       <AttendanceEditor
         fileId={FILE_ID}
         sheetId={SHEET_ID}
+      email="linh.np@blended-asia.com"
         api={harness.api}
         today="2026-07-15"
       />,
@@ -500,5 +515,74 @@ describe("AttendanceEditor", () => {
 
     expect(harness.saveCalls).toEqual([]);
     expect(screen.getByText("There are no changes to save.")).toBeInTheDocument();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Browser-local drafts                                                        */
+/* -------------------------------------------------------------------------- */
+
+describe("browser-local drafts", () => {
+  it("keeps an unsaved day in local storage and clears it once it is saved", async () => {
+    const harness = createApi();
+    const store = await mount(harness);
+
+    applyBlock("09:00", "12:00", "Spec work");
+
+    await waitFor(async () =>
+      expect(await store.readDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15")).not.toBe(null),
+    );
+
+    save();
+
+    await waitFor(async () =>
+      expect(await store.readDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15")).toBe(null),
+    );
+  });
+
+  it("restores unsaved work after the editor is remounted", async () => {
+    const store = createMemoryStore();
+    await mount(createApi(), "2026-07-15", store);
+
+    applyBlock("09:00", "12:00", "Spec work");
+    await waitFor(async () =>
+      expect(await store.readDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15")).not.toBe(null),
+    );
+
+    cleanup();
+    await mount(createApi(), "2026-07-15", store);
+
+    await waitFor(() => expect(screen.getByLabelText("Work description")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save to Google Sheets" })).toBeEnabled(),
+    );
+  });
+
+  it("drops a stored draft whose baseline no longer matches the sheet", async () => {
+    const store = createMemoryStore();
+
+    // A draft made against a row that no longer exists in the sheet as read.
+    await store.writeDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15", {
+      day: { ...emptyDay("2026-07-15"), notes: "stale draft" },
+      baseline: { ...emptyDay("2026-07-15"), notes: "someone else changed this" },
+    });
+
+    const harness = createApi();
+    await mount(harness, "2026-07-15", store);
+
+    // The stale note must never appear: the sheet moved on underneath it.
+    await waitFor(() =>
+      expect(screen.queryByDisplayValue("stale draft")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("works normally when the browser has no usable storage", async () => {
+    const harness = createApi();
+    await mount(harness, "2026-07-15", createNullStore());
+
+    applyBlock("09:00", "12:00", "Spec work");
+    save();
+
+    await waitFor(() => expect(patchesOf(harness).length).toBeGreaterThan(0));
   });
 });

@@ -23,8 +23,11 @@ export default async function DashboardPage() {
   return (
     <main>
       <section aria-labelledby="dashboard-title">
-        <p className="eyebrow">Google Sheets Attendance</p>
+        <p className="eyebrow">blended-asia</p>
         <h1 id="dashboard-title">Dashboard</h1>
+        <p className="page-lede">
+          Create and share the month, or open your own timesheet.
+        </p>
         <DashboardClient email={email} />
       </section>
     </main>

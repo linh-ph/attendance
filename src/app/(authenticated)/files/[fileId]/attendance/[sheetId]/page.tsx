@@ -31,7 +31,7 @@ export default async function AttendancePage({ params }: AttendancePageProps) {
       <section aria-labelledby="attendance-title">
         <p className="eyebrow">Google Sheets Attendance</p>
         <h1 id="attendance-title">Timesheet</h1>
-        <AttendanceEditor fileId={fileId} sheetId={sheetId} />
+        <AttendanceEditor fileId={fileId} sheetId={sheetId} email={session.user.email} />
       </section>
     </main>
   );

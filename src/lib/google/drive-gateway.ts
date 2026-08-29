@@ -50,7 +50,7 @@ function toFileSummary(file: DriveFileResource): AttendanceFileSummary | null {
     id: file.id,
     name: file.name,
     ownedByMe: file.ownedByMe === true,
-    sharedWithMe: file.sharedWithMe === true,
+    sharedWithMe: typeof file.sharedWithMeTime === "string" && file.sharedWithMeTime !== "",
     ownerEmail: ownerEmailOf(file),
     appProperties: file.appProperties ?? {},
     modifiedTime: file.modifiedTime ?? null,
@@ -60,8 +60,10 @@ function toFileSummary(file: DriveFileResource): AttendanceFileSummary | null {
 function assertWritableManagerFolder(folder: DriveFileResource): DriveFolder {
   if (folder.mimeType !== FOLDER_MIME_TYPE) throw new FolderUnavailableError("not-a-folder");
   if (folder.trashed === true) throw new FolderUnavailableError("trashed");
-  if (folder.ownedByMe !== true) throw new FolderUnavailableError("not-owned");
-  if (folder.driveId) throw new FolderUnavailableError("shared-drive");
+  // Ownership is deliberately not required. Shared Drive files belong to the
+  // organization and have no owner, and the app is a client over Google's own
+  // sharing rather than an authorization layer of its own. What still matters
+  // is whether this folder can actually receive a new monthly file.
   if (folder.capabilities?.canAddChildren !== true) {
     throw new FolderUnavailableError("not-writable");
   }
@@ -88,6 +90,8 @@ export function createDriveGateway(drive: DriveClient): DriveGateway {
         q: query,
         fields: FILE_SUMMARY_FIELDS,
         pageSize: DRIVE_PAGE_SIZE,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
         ...(pageToken ? { pageToken } : {}),
       });
 
@@ -130,7 +134,7 @@ export function createDriveGateway(drive: DriveClient): DriveGateway {
         const files = await listAllPages(query);
 
         return files
-          .filter((file) => file.ownedByMe === true && hasAttendanceName(file.name))
+          .filter((file) => hasAttendanceName(file.name))
           .map(toFileSummary)
           .filter((summary): summary is AttendanceFileSummary => summary !== null);
       } catch (error) {
@@ -138,11 +142,18 @@ export function createDriveGateway(drive: DriveClient): DriveGateway {
       }
     },
 
+    /**
+     * Every attendance spreadsheet this account can reach, wherever it lives.
+     *
+     * `sharedWithMe = true` used to scope this, but it is false for every
+     * shared-drive file, so organization-owned months were invisible. Access is
+     * decided by Drive: if the query returns a file, the account can open it.
+     */
     async listEmployeeCandidates() {
       const query = [
         `mimeType = '${SPREADSHEET_MIME_TYPE}'`,
         "trashed = false",
-        "sharedWithMe = true",
+        `name contains '${ATTENDANCE_NAME_MARKER}'`,
       ].join(" and ");
 
       try {
@@ -153,13 +164,17 @@ export function createDriveGateway(drive: DriveClient): DriveGateway {
           .map(toFileSummary)
           .filter((summary): summary is AttendanceFileSummary => summary !== null);
       } catch (error) {
-        throw normalizeGoogleError(error, "files.list shared candidates");
+        throw normalizeGoogleError(error, "files.list accessible candidates");
       }
     },
 
     async getFileAccess(fileId): Promise<DriveFileAccess> {
       try {
-        const { data } = await drive.files.get({ fileId, fields: FILE_ACCESS_FIELDS });
+        const { data } = await drive.files.get({
+          fileId,
+          fields: FILE_ACCESS_FIELDS,
+          supportsAllDrives: true,
+        });
 
         return {
           id: data.id ?? fileId,

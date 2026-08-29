@@ -129,6 +129,14 @@ Violating any of these is a product regression, not a style choice.
   validation and discovery filtering must never diverge, or a manager can make a
   file the dashboard never finds.
 
+**Shared Drives**
+- Every `files.list` passes `supportsAllDrives` **and**
+  `includeItemsFromAllDrives`, and every `files.get` passes `supportsAllDrives`.
+  Without them Drive answers 404 for a shared-drive file rather than 403, which
+  reads like a permission problem and is not one.
+- Employee discovery scans by the attendance name marker, not `sharedWithMe`:
+  that term is false for every shared-drive file.
+
 **Writes**
 - `ValuePatch.inputOption` defaults to `USER_ENTERED` so the `=F-G-E` contract
   works. Free text — column I notes and the J:AS slots — must be sent as `RAW`,
@@ -145,24 +153,48 @@ Violating any of these is a product regression, not a style choice.
 - Member `setupStatus` is exactly `pending` | `ready` | `invite-failed`. One
   vocabulary, three writers — do not invent a fourth value.
 - `ConfigMember.sheetId`/`sheetTitle`/`protectionId`/`permissionId` are nullable
-  so partial setup is recordable. A null mapping is `NeedsSetupError`, a stale
-  one `NeedsRepairError` — never a silent title-match fallback.
+  so partial setup is recordable. A stale mapping is `NeedsRepairError` — never
+  a silent title-match fallback. A file with no configuration at all is opened
+  on Google's own sharing instead (role `open`), and the person picks their tab.
+- `__APP_CONFIG` is optional metadata, not a gate. Where it exists it still
+  resolves a person straight to their tab; where it does not, the file is still
+  fully usable.
 - `initialize` refuses to overwrite an existing config sheet unless the caller
   passes `replaceExisting: true` (the import path's switch). `deleteSheet` is
   emitted on no other path.
 - A schema change increments `schemaVersion` and needs an explicit reader.
 
-**Authorization — every server mutation, no exceptions**
-1. normalized email from the verified server session (never a client-supplied one);
-2. current Drive ownership/access metadata;
-3. the protected mapping for the file;
-4. manager-or-employee authorization for the requested sheet;
-5. employee writes restricted to their mapped sheet and approved ranges.
+**Authorization — Google's sharing is the boundary**
 
-`authorizeFile` deliberately does **not** gate on the file-level `setupState`:
-spec 7.3 scopes the employee check to a valid mapping, the policy already
-rejects a stale mapping per member, and gating globally would lock a manager out
-of repairing their own file.
+Since [`docs/decisions/2026-08-29-app-is-a-sheets-client.md`](docs/decisions/2026-08-29-app-is-a-sheets-client.md)
+this app is a convenience client over Google Sheets, not an authorization layer
+of its own. It was measured: every real workbook has `protectedRanges: []`, so
+the old app-side check restricted only the people who used the app while the
+same edit stayed one click away in Google Sheets.
+
+Every server call still runs on the signed-in user's own Google credentials, so
+nobody can do anything Google would refuse. On top of that:
+
+1. the normalized email always comes from the verified server session, never
+   from the client;
+2. `authorizeFile` re-reads current Drive access on every request, never a
+   cached role;
+3. a file **with** a configuration keeps the mapped-employee restriction — an
+   employee still cannot address another member's mapped sheet;
+4. a file **without** a configuration returns role `open`: the requested tab is
+   taken as given, because there is no mapping to restrict against and Google
+   already decided the person may open the file;
+5. `ownedByMe` is **not** required anywhere. Shared Drive files are owned by the
+   organization and have no owner at all, and they are exactly the files people
+   record hours in.
+
+`authorizeFile` deliberately does **not** gate on the file-level `setupState`,
+and a missing config sheet is **not** a refusal — only a configuration that
+exists and is broken is (`NeedsRepairError`).
+
+Cross-tab editing is out of scope: it is a Google Sheets sharing concern. If
+per-tab isolation is ever wanted it comes from protected ranges on the file, not
+from this app.
 
 **Sheet creation vs. reconciliation**
 - `buildEmployeeSheetPlan` emits an `updateSheetProperties` request that shrinks
@@ -176,8 +208,21 @@ of repairing their own file.
   `NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER` are public.
 - The Picker token is short-lived, returned with `Cache-Control: private,
   no-store`, held in component memory only.
-- Browser storage holds only the selected folder ID/name keyed by normalized
-  email — never tokens or an authorization result.
+- Browser storage never holds a token or an authorization result. It holds the
+  selected folder ID/name in `localStorage`, and — in the `attendance-local`
+  IndexedDB database — unsaved day drafts, the last loaded month per sheet, and
+  recently opened sheets. Every record is keyed by normalized email so two
+  accounts sharing a browser profile cannot read each other's, and none of it
+  is authoritative: the server re-reads the sheet and re-authorizes every
+  request. These records deliberately **survive sign-out** (an explicit product
+  decision on 2026-08-29), so a shared machine keeps one user's work-hour
+  drafts until that profile is cleared.
+- A stored draft carries the baseline it was made against and is restored only
+  onto an identical baseline. If the sheet moved on, the draft is dropped
+  rather than replayed over newer data.
+- A pasted Google Sheets link is a shortcut, never an access path: it resolves
+  only against files the dashboard already listed, its `gid` is discarded so it
+  cannot address an unmapped tab, and the destination route re-authorizes.
 - `.env` and `.env.e2e` are gitignored; the `.example` files document names only.
 
 **Recovery**

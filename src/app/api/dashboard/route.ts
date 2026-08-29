@@ -3,6 +3,7 @@ import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/
 import { createConfigRepository } from "@/lib/config/repository";
 import { createFileDiscovery, type FolderError } from "@/lib/discovery/file-discovery";
 import { createGoogleGateways } from "@/lib/google/client";
+import { debugErrorsEnabled, toGoogleErrorDiagnostic } from "@/lib/google/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +35,11 @@ function folderErrorStatus(folderError: FolderError): number {
  * on every request, and a bad folder never suppresses the employee section.
  */
 export async function GET(request: Request): Promise<Response> {
+  let accessTokenForRedaction: string | undefined;
+
   try {
     const session = await requireGoogleSessionFromRequest(request);
+    accessTokenForRedaction = session.accessToken;
 
     const rawFolderId = new URL(request.url).searchParams.get("folderId");
     let folderId: string | null = null;
@@ -54,6 +58,7 @@ export async function GET(request: Request): Promise<Response> {
     const { drive, sheets } = createGoogleGateways(session.accessToken);
     const discovery = createFileDiscovery({
       drive,
+      sheets,
       config: createConfigRepository({ sheets, drive }),
     });
 
@@ -72,12 +77,22 @@ export async function GET(request: Request): Promise<Response> {
       },
     );
   } catch (error) {
-    return (
-      toApiErrorResponse(error) ??
-      Response.json(
-        { error: "Could not load your dashboard." },
-        { status: 502, headers: NO_STORE },
-      )
+    const authErrorResponse = toApiErrorResponse(error);
+    if (authErrorResponse) return authErrorResponse;
+
+    const debug = debugErrorsEnabled()
+      ? toGoogleErrorDiagnostic(error, accessTokenForRedaction ? [accessTokenForRedaction] : [])
+      : undefined;
+    if (debug) {
+      console.error("Dashboard request failed.", debug);
+    }
+
+    return Response.json(
+      {
+        error: "Could not load your dashboard.",
+        ...(debug ? { debug } : {}),
+      },
+      { status: 502, headers: NO_STORE },
     );
   }
 }

@@ -62,6 +62,7 @@ const TIMESHEET = {
   modifiedTime: "2026-07-29T01:02:03.000Z",
   sheetId: "222",
   sheetTitle: "Manager",
+  tabs: [{ sheetId: "222", title: "Manager" }],
 };
 
 function dashboardBody(overrides: Record<string, unknown> = {}) {
@@ -228,7 +229,24 @@ describe("DashboardClient — managed cards", () => {
     );
   });
 
-  it("refuses a picker selection that is not the same file", async () => {
+  it("refuses a picker selection that is another file this manager does manage", async () => {
+    storePreference();
+    picker.spreadsheet = { id: "ready-file", name: "202607勤怠管理表" };
+
+    render(<DashboardClient email={EMAIL} />);
+
+    const card = within(await screen.findByRole("listitem", { name: "202605勤怠管理表" }));
+    fireEvent.click(card.getByRole("button", { name: "Set up" }));
+
+    expect(
+      await card.findByText("Select this same file in Google Picker to start setup."),
+    ).toBeVisible();
+    expect(card.queryByRole("link", { name: "Continue setup" })).toBeNull();
+
+    picker.spreadsheet = { id: "legacy-file", name: "202605勤怠管理表" };
+  });
+
+  it("reports a permission problem when the picked file is not one this manager can set up", async () => {
     storePreference();
     picker.spreadsheet = { id: "another-file", name: "Another workbook" };
 
@@ -238,7 +256,9 @@ describe("DashboardClient — managed cards", () => {
     fireEvent.click(card.getByRole("button", { name: "Set up" }));
 
     expect(
-      await card.findByText("Select this same file in Google Picker to start setup."),
+      await card.findByText(
+        "You do not have permission to set up that file. Pick a file you own from this folder.",
+      ),
     ).toBeVisible();
     expect(card.queryByRole("link", { name: "Continue setup" })).toBeNull();
 
@@ -294,7 +314,9 @@ describe("DashboardClient — timesheets", () => {
     render(<DashboardClient email={EMAIL} />);
 
     const card = within(
-      await screen.findByRole("listitem", { name: "202607勤怠管理表 — Manager" }),
+      await screen.findByRole("listitem", {
+        name: "202607勤怠管理表 — Manager — owner@blended-asia.com",
+      }),
     );
 
     expect(card.getByRole("link", { name: "Open timesheet" })).toHaveAttribute(
@@ -376,5 +398,38 @@ describe("DashboardClient — unavailable folder", () => {
 
     expect(await screen.findByText("Could not load your dashboard.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    expect(screen.queryByLabelText("Debug error details")).toBeNull();
+  });
+
+  it("shows sanitized debug details returned by the dashboard API", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(502, {
+        error: "Could not load your dashboard.",
+        debug: {
+          name: "GoogleApiError",
+          message: "Google request failed: files.list shared candidates.",
+          status: 403,
+          providerMessage: "Google Drive API is disabled.",
+          providerStatus: "PERMISSION_DENIED",
+          providerReason: "accessNotConfigured",
+        },
+      }),
+    );
+
+    render(<DashboardClient email={EMAIL} />);
+
+    expect(await screen.findByText("Could not load your dashboard.")).toBeVisible();
+    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
+      "Google request failed: files.list shared candidates.",
+    );
+    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
+      "Google Drive API is disabled.",
+    );
+    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
+      "PERMISSION_DENIED",
+    );
+    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
+      "accessNotConfigured",
+    );
   });
 });

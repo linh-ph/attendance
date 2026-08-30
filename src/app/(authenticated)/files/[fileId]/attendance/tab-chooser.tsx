@@ -1,29 +1,43 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LoadingGhosts } from "@/components/loading-ghosts";
 import Link from "next/link";
+import { matchTabForEmail } from "@/lib/attendance/tab-match";
 import type { Timesheet } from "@/lib/discovery/file-discovery";
 
 /**
- * Lists the tabs of one file so the person can open their own.
+ * Opens this person's tab in a file that carries no configuration.
  *
- * The list is whatever `/api/dashboard` already returned for this account, so
- * it shows exactly the files and tabs Google lets them reach. Choosing a tab
- * is not an access decision: the attendance route re-authorizes every read and
- * write behind it.
+ * The tab list is whatever `/api/dashboard` already returned for this account,
+ * so it holds exactly the files and tabs Google lets them reach. When the
+ * signed-in address resolves to exactly one of those tabs the browser goes
+ * straight there; when it resolves to none, or to more than one, the list is
+ * shown and the person picks.
+ *
+ * Neither path is an access decision: the attendance route re-authorizes every
+ * read and write behind it, so the worst a wrong match could do is open a tab
+ * Google was already willing to hand over. That is still worth avoiding, which
+ * is why an ambiguous address opens nothing.
  */
 
 type LoadState =
   | { status: "loading" }
+  | { status: "opening" }
   | { status: "loaded"; timesheet: Timesheet | null }
   | { status: "failed" };
 
 export interface TabChooserProps {
   fileId: string;
+  /** The signed-in address, from the server session. */
+  email: string;
+  /** False when `?choose=1` asked for the list regardless of any match. */
+  autoOpen: boolean;
 }
 
-export function TabChooser({ fileId }: TabChooserProps) {
+export function TabChooser({ fileId, email, autoOpen }: TabChooserProps) {
+  const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
@@ -33,7 +47,18 @@ export function TabChooser({ fileId }: TabChooserProps) {
       .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
       .then((body: { timesheets?: Timesheet[] }) => {
         if (cancelled) return;
+
         const timesheet = (body.timesheets ?? []).find((sheet) => sheet.id === fileId) ?? null;
+        const match = autoOpen && timesheet ? matchTabForEmail(email, timesheet.tabs) : null;
+
+        if (match) {
+          // `replace`, not `push`: going back should leave this file, not
+          // return to a page that would immediately forward again.
+          setState({ status: "opening" });
+          router.replace(`/files/${fileId}/attendance/${match.sheetId}`);
+          return;
+        }
+
         setState({ status: "loaded", timesheet });
       })
       .catch(() => {
@@ -43,10 +68,14 @@ export function TabChooser({ fileId }: TabChooserProps) {
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+  }, [fileId, email, autoOpen, router]);
 
   if (state.status === "loading") {
     return <LoadingGhosts label="Loading the tabs in this file…" />;
+  }
+
+  if (state.status === "opening") {
+    return <LoadingGhosts label="Opening your timesheet…" />;
   }
 
   if (state.status === "failed") {

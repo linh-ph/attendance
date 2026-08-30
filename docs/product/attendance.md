@@ -183,11 +183,21 @@ the signed-in account can reach through Drive is listed, including files in a
 Shared Drive, whoever owns them.
 
 Where a configuration exists it still takes the person straight to their own
-tab. Where it does not, the file offers its tab list and the person picks the
-one that holds their hours; the month comes from the file name and the status
-list from the workbook defaults. Choosing a tab is not an access decision —
-Google decides what the write may do, exactly as it does when the same person
-opens the file in Google Sheets.
+tab. Where it does not, the app reads the tab from the signed-in address: the
+tabs are titled with employees' full names and the work address is built from
+that same name, so `linh.np@blended-asia.com` resolves to `NGUYEN PHAN LINH`
+and the timesheet opens without a further step. Two spellings are understood —
+given name plus the initials before it (`linh.np`), and the whole name in any
+order (`nguyen.phan.linh`).
+
+An address that names no tab, or more than one, opens nothing: the file offers
+its tab list and the person picks the one that holds their hours. Appending
+`?choose=1` to the file's attendance URL always shows that list, for anyone
+whose tab is not the one their address spells. The month comes from the file
+name and the status list from the workbook defaults.
+
+Neither path is an access decision — Google decides what the write may do,
+exactly as it does when the same person opens the file in Google Sheets.
 
 This app therefore adds no restriction of its own on who may edit which tab.
 That is a Google Sheets sharing concern; if per-tab isolation is wanted, it

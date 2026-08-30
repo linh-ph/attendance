@@ -18,7 +18,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      {/*
+       * Extensions edit `<body>` before React hydrates — a password manager or
+       * a colour picker adds its own attribute there — and React reports that
+       * as a hydration mismatch the app cannot fix. Suppressing it on this one
+       * element keeps the warning meaningful everywhere else: it does not
+       * cascade to children, so a real mismatch inside the app still shows.
+       */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

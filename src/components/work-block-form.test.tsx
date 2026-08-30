@@ -49,6 +49,29 @@ describe("WorkBlockForm", () => {
     expect(endOptions.at(-1)).toBe("24:00");
   });
 
+  /**
+   * The standard working day, so the common case needs no dropdown at all: type
+   * the description and apply. `17:00` is a half-open end, so the block covers
+   * up to and including the 16:30 slot and stops there.
+   */
+  it("opens on the standard working day, 08:00 to 17:00", () => {
+    renderForm();
+
+    expect(screen.getByLabelText("Start")).toHaveValue("08:00");
+    expect(screen.getByLabelText("End")).toHaveValue("17:00");
+  });
+
+  it("applies the default block when only a description is typed", () => {
+    const { applied } = renderForm();
+
+    fireEvent.change(screen.getByLabelText("Work description"), {
+      target: { value: "Client report" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply work block" }));
+
+    expect(applied).toEqual([{ start: "08:00", end: "17:00", description: "Client report" }]);
+  });
+
   it("applies a half-open block straight away when no slot is overwritten", () => {
     const { applied } = renderForm();
 

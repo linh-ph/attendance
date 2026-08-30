@@ -22,8 +22,13 @@ const NO_WRITABLE_SLOT = "Choose a range with at least one editable slot.";
 const END_BOUNDARIES: readonly string[] = [...TIME_SLOTS.slice(1), "24:00"];
 const BOUNDARIES: readonly string[] = [...TIME_SLOTS, "24:00"];
 
-const DEFAULT_START = "09:00";
-const DEFAULT_END = "18:00";
+/**
+ * The standard working day. `17:00` is the half-open end of the block, so it
+ * covers through the 16:30 slot and stops there, and the lunch hour is skipped
+ * by `applyWorkBlock` rather than by these bounds.
+ */
+const DEFAULT_START = "08:00";
+const DEFAULT_END = "17:00";
 
 interface PendingReplacement {
   block: WorkBlock;

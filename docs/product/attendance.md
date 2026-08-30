@@ -148,7 +148,9 @@ in sync: a timeline of 30-minute slots, and a work-block editor whose start and
 end accept `:00` and `:30` boundaries over a half-open interval `[start, end)` —
 09:00–10:00 writes 09:00 and 09:30 but not 10:00. Applying a block writes the
 same description into every covered non-lunch slot, and an overlapping block
-must show which cells it will replace before it is applied.
+must show which cells it will replace before it is applied. The block opens on
+the standard working day, 08:00 to 17:00, so the ordinary case needs only a
+description.
 
 The page also carries status, clock in, clock out, break, calculated work hours,
 the lunch control, daily notes, dirty-state indication, and an explicit

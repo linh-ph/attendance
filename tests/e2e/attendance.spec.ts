@@ -166,9 +166,19 @@ test("moving to another day never discards unsaved work silently", async ({ page
   await expect(page.getByRole("heading", { name: "Day summary" })).toBeVisible();
 
   await page.getByLabel("Notes").fill(NOTES);
+
+  // Scrolled to the foot of the month, as anyone filling in a timeline is. The
+  // day buttons are sticky and stay reachable; the warning they raise is not,
+  // so this is the position that once left it off-screen entirely.
+  await page.getByRole("button", { name: "Save to Google Sheets" }).scrollIntoViewIfNeeded();
   await page.getByRole("button", { name: "Next day" }).click();
 
-  await expect(page.getByText("You have unsaved changes on this day.")).toBeVisible();
+  const warning = page.getByText("You have unsaved changes on this day.");
+  await expect(warning).toBeVisible();
+  // `toBeVisible` passes on an element scrolled out of the window, which is
+  // exactly how this went unnoticed. The person has to be able to see it.
+  await expect(warning).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Keep editing" })).toBeFocused();
 
   await page.getByRole("button", { name: "Keep editing" }).click();
   await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-01/);

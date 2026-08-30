@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { DayCalendar } from "@/components/day-calendar";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
@@ -86,6 +86,25 @@ export function AttendanceEditor({
   const [restoredDate, setRestoredDate] = useState<string | null>(null);
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const { view, baseline, draft, selectedDate, saveState, pendingDate } = state;
+
+  const keepEditingRef = useRef<HTMLButtonElement | null>(null);
+
+  /*
+   * The day buttons sit in a sticky header and stay on screen however far the
+   * month is scrolled; the warning they raise does not. Without this, pressing
+   * Next day part-way down a month blocks the move with a message nobody can
+   * see, and the button reads as broken. Focus goes to Keep editing rather than
+   * Discard so a reflex Enter cannot throw the work away.
+   */
+  useEffect(() => {
+    if (pendingDate === null) return;
+
+    const button = keepEditingRef.current;
+    if (!button) return;
+
+    button.scrollIntoView({ block: "center" });
+    button.focus();
+  }, [pendingDate]);
 
   /**
    * Loads the configured month once per attempt. State is set from the promise
@@ -338,6 +357,7 @@ export function AttendanceEditor({
             <button
               type="button"
               className="action action-primary"
+              ref={keepEditingRef}
               onClick={() => dispatch({ type: "cancel-navigation" })}
             >
               Keep editing

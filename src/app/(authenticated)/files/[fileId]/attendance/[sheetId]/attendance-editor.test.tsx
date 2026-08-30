@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { emptyDay, type AttendanceDay, type TimeSlot } from "@/lib/attendance/model";
 import { createMemoryStore, createNullStore, type LocalStore } from "@/lib/dashboard/local-store";
@@ -475,6 +475,48 @@ describe("AttendanceEditor", () => {
 
     expect(screen.getByText("Monday, July 20, 2026")).toBeInTheDocument();
     expect(screen.getByLabelText("Notes")).toHaveValue("");
+  });
+
+  /**
+   * The day buttons live in a sticky header, so they stay on screen however far
+   * the month is scrolled. The warning they raise does not: it sits in the
+   * normal flow underneath. Someone who scrolls down, then presses Next day,
+   * gets a warning they cannot see and a button that looks broken — which is
+   * exactly what was reported. Bringing it into view is the whole fix.
+   */
+  it("brings the blocked-navigation warning into view", async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+
+    await mount(createApi());
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+
+    expect(screen.getByText("You have unsaved changes on this day.")).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    scrollIntoView.mockRestore();
+  });
+
+  it("moves focus to the warning, so it is announced and not merely drawn", async () => {
+    await mount(createApi());
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+
+    // Keep editing, not Discard: the safe answer takes the focus, so a stray
+    // Enter cannot throw the work away.
+    expect(screen.getByRole("button", { name: "Keep editing" })).toHaveFocus();
+  });
+
+  it("raises the same warning from the day buttons as from the calendar", async () => {
+    await mount(createApi());
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(screen.getByText("Thursday, July 16, 2026")).toBeInTheDocument();
   });
 
   it("keeps editing the same day when the navigation warning is dismissed", async () => {

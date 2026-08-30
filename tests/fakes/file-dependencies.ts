@@ -376,6 +376,9 @@ export function createFileDependenciesFake(
   /* ---------------------------------------------------------------------- */
 
   const drive: DriveGateway = {
+    async listPeople(): Promise<never[]> {
+      return [];
+    },
     async validateManagerFolder(folderId: string): Promise<DriveFolder> {
       events.push(`validate-folder:${folderId}`);
       if (options.folderError) throw options.folderError;

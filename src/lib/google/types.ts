@@ -25,6 +25,15 @@ export const FILE_SUMMARY_FIELDS =
 
 export const CREATED_FILE_FIELDS = "id,name";
 
+/**
+ * Who else can reach a file. `emailAddress` is only ever populated for `user`
+ * and `group` grants, and only when the caller is allowed to see the sharing
+ * list at all — a viewer on a file whose sharing is hidden gets nothing back,
+ * which is a legitimate empty answer rather than an error.
+ */
+export const FILE_PEOPLE_FIELDS =
+  "nextPageToken,permissions(id,type,role,emailAddress,displayName)";
+
 export const SPREADSHEET_SNAPSHOT_FIELDS =
   "spreadsheetId,sheets(properties(sheetId,title,index,hidden),protectedRanges(protectedRangeId,range(sheetId)))";
 
@@ -142,11 +151,20 @@ export interface ValuePatch extends ValueRangePayload {
 /* Gateway interfaces                                                          */
 /* -------------------------------------------------------------------------- */
 
+/** One person Drive reports as having access to a file. */
+export interface DrivePerson {
+  email: string;
+  role: string;
+  /** Drive supplies this for directory accounts; it is absent often enough to be optional. */
+  displayName: string | null;
+}
+
 export interface DriveGateway {
   validateManagerFolder(folderId: string): Promise<DriveFolder>;
   listManagerFiles(folderId: string): Promise<AttendanceFileSummary[]>;
   listEmployeeCandidates(): Promise<AttendanceFileSummary[]>;
   getFileAccess(fileId: string): Promise<DriveFileAccess>;
+  listPeople(fileId: string): Promise<DrivePerson[]>;
   createSpreadsheetFile(input: CreateDriveSpreadsheetInput): Promise<CreatedDriveFile>;
   convertXlsx(input: ConvertXlsxInput): Promise<CreatedDriveFile>;
   createWriterPermission(fileId: string, email: string): Promise<string>;
@@ -176,6 +194,27 @@ export interface DriveFileResource {
   appProperties?: Record<string, string> | null;
   owners?: { emailAddress?: string | null }[] | null;
   capabilities?: { canAddChildren?: boolean | null; canEdit?: boolean | null } | null;
+}
+
+export interface DrivePermissionResource {
+  id?: string | null;
+  type?: string | null;
+  role?: string | null;
+  emailAddress?: string | null;
+  displayName?: string | null;
+}
+
+export interface DrivePermissionListResource {
+  permissions?: DrivePermissionResource[] | null;
+  nextPageToken?: string | null;
+}
+
+export interface DrivePermissionListParams {
+  fileId: string;
+  fields: string;
+  pageSize?: number;
+  pageToken?: string;
+  supportsAllDrives?: boolean;
 }
 
 export interface DriveGetParams {
@@ -233,6 +272,7 @@ export interface DriveClient {
   };
   permissions: {
     create(params: DrivePermissionCreateParams): Promise<{ data: { id?: string | null } }>;
+    list(params: DrivePermissionListParams): Promise<{ data: DrivePermissionListResource }>;
   };
 }
 

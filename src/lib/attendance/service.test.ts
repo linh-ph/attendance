@@ -237,6 +237,9 @@ function createFakeDrive(access: Partial<DriveFileAccess>): DriveGateway {
         ...access,
       };
     },
+    async listPeople(): Promise<never[]> {
+      return [];
+    },
     async validateManagerFolder(): Promise<DriveFolder> {
       throw new Error("not-used");
     },

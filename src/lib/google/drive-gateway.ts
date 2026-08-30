@@ -8,6 +8,7 @@ import {
   CREATED_FILE_FIELDS,
   DRIVE_PAGE_SIZE,
   FILE_ACCESS_FIELDS,
+  FILE_PEOPLE_FIELDS,
   FILE_SUMMARY_FIELDS,
   FOLDER_METADATA_FIELDS,
   FOLDER_MIME_TYPE,
@@ -22,6 +23,7 @@ import {
   type DriveFileResource,
   type DriveFolder,
   type DriveGateway,
+  type DrivePerson,
 } from "./types";
 
 function escapeQueryValue(value: string): string {
@@ -188,6 +190,53 @@ export function createDriveGateway(drive: DriveClient): DriveGateway {
         };
       } catch (error) {
         throw normalizeGoogleError(error, "files.get access");
+      }
+    },
+
+    /**
+     * Everyone Drive says can reach this file.
+     *
+     * Only `user` grants become people: `anyone` and `domain` name nobody, and
+     * a `group` address is a mailing list that cannot own a timesheet tab. An
+     * account that may open a file but not see its sharing gets an empty list
+     * back from Drive, which is an answer, not a failure — the caller treats it
+     * as "nothing to offer" rather than an error.
+     */
+    async listPeople(fileId): Promise<DrivePerson[]> {
+      try {
+        const people: DrivePerson[] = [];
+        let pageToken: string | undefined;
+
+        do {
+          const { data } = await drive.permissions.list({
+            fileId,
+            fields: FILE_PEOPLE_FIELDS,
+            pageSize: DRIVE_PAGE_SIZE,
+            pageToken,
+            supportsAllDrives: true,
+          });
+
+          for (const permission of data.permissions ?? []) {
+            if (permission.type !== "user") continue;
+
+            const email = normalizeEmail(permission.emailAddress);
+            if (email === null) continue;
+
+            const displayName = permission.displayName?.trim();
+
+            people.push({
+              email,
+              role: permission.role ?? "",
+              displayName: displayName === undefined || displayName === "" ? null : displayName,
+            });
+          }
+
+          pageToken = data.nextPageToken ?? undefined;
+        } while (pageToken !== undefined);
+
+        return people;
+      } catch (error) {
+        throw normalizeGoogleError(error, "permissions.list");
       }
     },
 

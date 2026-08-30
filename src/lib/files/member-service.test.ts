@@ -167,6 +167,9 @@ function createFakeGoogle(options: FakeGoogleOptions = {}): FakeGoogle {
     async updateAppProperties(fileId, properties) {
       events.push(`set-app-properties:${fileId}:${JSON.stringify(properties)}`);
     },
+    async listPeople() {
+      return [];
+    },
   };
 
   const sheetsGateway: SheetsGateway = {

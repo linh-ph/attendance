@@ -63,6 +63,10 @@ export function createDriveClient(accessToken: string): DriveClient {
         drive.permissions.create(params) as unknown as ReturnType<
           DriveClient["permissions"]["create"]
         >,
+      list: (params) =>
+        drive.permissions.list(params) as unknown as ReturnType<
+          DriveClient["permissions"]["list"]
+        >,
     },
   };
 }

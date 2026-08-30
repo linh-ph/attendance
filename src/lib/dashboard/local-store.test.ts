@@ -75,6 +75,67 @@ describe("local store contract", () => {
   });
 });
 
+describe("roster", () => {
+  it("keeps members per signed-in account, so a shared profile never mixes them", async () => {
+    const store = createMemoryStore();
+
+    await store.addMember("linh.np@blended-asia.com", {
+      email: "han.tg@blended-asia.com",
+      displayName: "THAI GIA HAN",
+    });
+
+    expect(await store.readMembers("linh.np@blended-asia.com")).toEqual([
+      { email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" },
+    ]);
+    expect(await store.readMembers("someone.else@blended-asia.com")).toEqual([]);
+  });
+
+  it("treats the address as the identity, so a corrected name replaces the row", async () => {
+    const store = createMemoryStore();
+
+    await store.addMember("linh.np@blended-asia.com", {
+      email: "han.tg@blended-asia.com",
+      displayName: "HAN",
+    });
+    const roster = await store.addMember("linh.np@blended-asia.com", {
+      email: "han.tg@blended-asia.com",
+      displayName: "THAI GIA HAN",
+    });
+
+    expect(roster).toEqual([{ email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" }]);
+  });
+
+  it("orders by name, so the list reads the same on every visit", async () => {
+    const store = createMemoryStore();
+    const owner = "linh.np@blended-asia.com";
+
+    await store.addMember(owner, { email: "thao.nht@blended-asia.com", displayName: "NGUYEN HO TRONG THAO" });
+    await store.addMember(owner, { email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" });
+    const roster = await store.addMember(owner, {
+      email: "hieu.ntn@blended-asia.com",
+      displayName: "NGUYEN THI NHU HIEU",
+    });
+
+    expect(roster.map((member) => member.displayName)).toEqual([
+      "NGUYEN HO TRONG THAO",
+      "NGUYEN THI NHU HIEU",
+      "THAI GIA HAN",
+    ]);
+  });
+
+  it("removes one member and leaves the rest", async () => {
+    const store = createMemoryStore();
+    const owner = "linh.np@blended-asia.com";
+
+    await store.addMember(owner, { email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" });
+    await store.addMember(owner, { email: "hieu.ntn@blended-asia.com", displayName: "HIEU" });
+
+    expect(await store.removeMember(owner, "han.tg@blended-asia.com")).toEqual([
+      { email: "hieu.ntn@blended-asia.com", displayName: "HIEU" },
+    ]);
+  });
+});
+
 describe("null store", () => {
   it("accepts every write and reports nothing, so the editor still works without storage", async () => {
     const store = createNullStore();

@@ -125,6 +125,7 @@ function createFakeDrive(): FakeDrive {
     createSpreadsheetFile: unused("createSpreadsheetFile") as unknown as () => Promise<CreatedDriveFile>,
     convertXlsx: unused("convertXlsx") as unknown as () => Promise<CreatedDriveFile>,
     createWriterPermission: unused("createWriterPermission") as unknown as () => Promise<string>,
+    listPeople: unused("listPeople") as unknown as () => Promise<never[]>,
     async updateAppProperties(_fileId, properties): Promise<void> {
       events.push(`updateAppProperties:${Object.keys(properties).join(",")}`);
       appPropertyWrites.push({ ...properties });

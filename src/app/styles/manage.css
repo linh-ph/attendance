@@ -247,6 +247,39 @@
 }
 
 /* -------------------------------------------------------------------------- */
+/* Member roster shortcut                                                      */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Set apart from the member rows below it: this is a shelf of shortcuts, not
+ * another form, so it reads as a lighter surface with its own quiet heading.
+ */
+.roster-picker {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.roster-picker-title {
+  margin: 0 0 var(--space-xs);
+  color: var(--ink-500);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.roster-picker-list {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Legacy mapping                                                              */
 /* -------------------------------------------------------------------------- */
 

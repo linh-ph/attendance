@@ -199,6 +199,7 @@ function installFakes(options: { folderError?: Error; listError?: Error } = {}):
     createSpreadsheetFile: () => unsupported("createSpreadsheetFile"),
     convertXlsx: () => unsupported("convertXlsx"),
     createWriterPermission: () => unsupported("createWriterPermission"),
+    listPeople: () => unsupported("listPeople"),
     updateAppProperties: () => unsupported("updateAppProperties"),
   };
 

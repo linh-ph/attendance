@@ -211,6 +211,9 @@ function createGateways(options: {
         canEdit: true,
       };
     },
+    async listPeople(): Promise<never[]> {
+      return [];
+    },
     async validateManagerFolder(): Promise<DriveFolder> {
       throw new Error("not-used");
     },

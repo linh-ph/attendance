@@ -175,6 +175,23 @@ last loaded month is cached the same way so reopening a sheet renders before
 the network answers; the cache is only ever a head start and is replaced by the
 live read.
 
+The browser also keeps a **member roster** — colleagues with a name and an
+address — so creating next month's file does not mean retyping them. `Members`
+on the dashboard manages it: type one, remove one, or import from Drive.
+
+The import is the only part that asks Google anything. Listing a Workspace needs
+the Admin SDK and an administrator, which this app has neither of; instead
+`permissions.list` reports who else can reach each attendance file the signed-in
+account can already open, and those people are offered as suggestions. Only
+`user` grants become people — `anyone` and `domain` name nobody, and a group
+address cannot own a tab — and a file whose sharing list cannot be read is
+skipped rather than failing the import. Nothing is added until it is chosen.
+
+At the Members step of `Create a monthly file`, the roster appears as
+shortcuts: choosing one fills a member row that can still be edited or removed,
+and anyone already on the draft stops being offered. The roster suggests; it
+grants nothing, and every file operation is authorized on its own.
+
 Every browser-local record is keyed by the normalized signed-in email, so two
 accounts sharing a browser profile cannot see each other's. These records
 deliberately outlive sign-out, which means a shared machine keeps one person's

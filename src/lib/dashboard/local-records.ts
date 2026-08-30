@@ -30,6 +30,18 @@ export interface RecentFile {
   openedAt: string;
 }
 
+/**
+ * One colleague kept in this browser's roster, so a file can be created without
+ * retyping the same addresses every month.
+ *
+ * The address is the identity and is stored normalized. `displayName` becomes
+ * the employee tab title, so it is kept exactly as it was typed.
+ */
+export interface StoredMember {
+  email: string;
+  displayName: string;
+}
+
 export interface DraftRecord {
   /** Normalized email; kept in the value so a mis-scoped read is detectable. */
   email: string;
@@ -71,6 +83,38 @@ export function monthCacheKey(email: string, fileId: string, sheetId: string): s
 
 export function recentKey(email: string): string {
   return scopeKey(email);
+}
+
+export function memberKey(email: string): string {
+  return scopeKey(email);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roster                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Returns a new list holding `member`, ordered by name. The address is the
+ * identity, so adding the same person again with a corrected name updates that
+ * name instead of duplicating the row. The input list is never mutated.
+ */
+export function addStoredMember(
+  list: readonly StoredMember[],
+  member: StoredMember,
+): StoredMember[] {
+  const withoutMember = list.filter((candidate) => candidate.email !== member.email);
+
+  return [...withoutMember, member].sort(
+    (left, right) =>
+      left.displayName.localeCompare(right.displayName) || left.email.localeCompare(right.email),
+  );
+}
+
+export function removeStoredMember(
+  list: readonly StoredMember[],
+  email: string,
+): StoredMember[] {
+  return list.filter((candidate) => candidate.email !== email);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -119,6 +163,12 @@ export function isRecentFile(value: unknown): value is RecentFile {
     typeof value.sheetTitle === "string" &&
     isNonEmptyString(value.openedAt)
   );
+}
+
+export function isStoredMember(value: unknown): value is StoredMember {
+  if (!isRecord(value)) return false;
+
+  return isNonEmptyString(value.email) && typeof value.displayName === "string";
 }
 
 export function isDraftRecord(value: unknown): value is DraftRecord {

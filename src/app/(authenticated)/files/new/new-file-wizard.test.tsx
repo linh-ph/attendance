@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { folderPreferenceKey } from "@/lib/dashboard/folder-preference";
+import { createMemoryStore, type LocalStore } from "@/lib/dashboard/local-store";
 import type { MemberSetupProgress } from "@/lib/files/setup-service";
 import { NewFileWizard, type CreateFileResponse, type CreateWizardApi } from "./new-file-wizard";
 
@@ -277,6 +278,86 @@ describe("NewFileWizard — file details validation", () => {
 
     expect(screen.getByText("Select the attendance month.")).toBeVisible();
     expect(screen.queryByLabelText("Employee name 1")).toBeNull();
+  });
+});
+
+describe("NewFileWizard — the browser member roster", () => {
+  async function reachMembersWith(store: LocalStore): Promise<void> {
+    rememberFolder();
+    const harness = createHarness();
+    render(
+      <NewFileWizard
+        email={EMAIL}
+        api={harness.api}
+        navigate={harness.navigate}
+        store={store}
+      />,
+    );
+    await screen.findByText(REMEMBERED_FOLDER.name);
+    typeDetails();
+    click("Continue to members");
+  }
+
+  async function rosterOf(members: { email: string; displayName: string }[]): Promise<LocalStore> {
+    const store = createMemoryStore();
+    for (const member of members) await store.addMember(EMAIL, member);
+    return store;
+  }
+
+  it("fills the first blank row from the roster instead of appending to it", async () => {
+    await reachMembersWith(
+      await rosterOf([{ email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" }]),
+    );
+
+    await screen.findByRole("button", { name: "THAI GIA HAN · han.tg@blended-asia.com" });
+    click("THAI GIA HAN · han.tg@blended-asia.com");
+
+    expect(screen.getByLabelText("Employee name 1")).toHaveValue("THAI GIA HAN");
+    expect(screen.getByLabelText("Employee email 1")).toHaveValue("han.tg@blended-asia.com");
+    // The starting row was empty, so nothing was appended behind it.
+    expect(screen.queryByLabelText("Employee name 2")).toBeNull();
+  });
+
+  it("stops offering somebody once they are on the draft", async () => {
+    await reachMembersWith(
+      await rosterOf([
+        { email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" },
+        { email: "hieu.ntn@blended-asia.com", displayName: "NGUYEN THI NHU HIEU" },
+      ]),
+    );
+
+    await screen.findByRole("button", { name: "THAI GIA HAN · han.tg@blended-asia.com" });
+    click("THAI GIA HAN · han.tg@blended-asia.com");
+
+    expect(
+      screen.queryByRole("button", { name: "THAI GIA HAN · han.tg@blended-asia.com" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "NGUYEN THI NHU HIEU · hieu.ntn@blended-asia.com" }),
+    ).toBeVisible();
+  });
+
+  it("adds a second person to a new row, leaving the first alone", async () => {
+    await reachMembersWith(
+      await rosterOf([
+        { email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" },
+        { email: "hieu.ntn@blended-asia.com", displayName: "NGUYEN THI NHU HIEU" },
+      ]),
+    );
+
+    await screen.findByRole("button", { name: "THAI GIA HAN · han.tg@blended-asia.com" });
+    click("THAI GIA HAN · han.tg@blended-asia.com");
+    click("NGUYEN THI NHU HIEU · hieu.ntn@blended-asia.com");
+
+    expect(screen.getByLabelText("Employee name 1")).toHaveValue("THAI GIA HAN");
+    expect(screen.getByLabelText("Employee name 2")).toHaveValue("NGUYEN THI NHU HIEU");
+  });
+
+  it("shows no shortcut shelf at all when the roster is empty", async () => {
+    await reachMembersWith(createMemoryStore());
+
+    await screen.findByLabelText("Employee name 1");
+    expect(screen.queryByText("Add from your members")).toBeNull();
   });
 });
 

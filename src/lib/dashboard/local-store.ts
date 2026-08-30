@@ -22,20 +22,27 @@ import type { AttendanceDay } from "@/lib/attendance/model";
 import type { AttendanceMonthView } from "@/lib/attendance/service";
 import {
   addRecentFile,
+  addStoredMember,
   draftKey,
   isDraftRecord,
   isMonthCacheRecord,
   isRecentFile,
+  isStoredMember,
+  memberKey,
   monthCacheKey,
   recentKey,
+  removeStoredMember,
   type RecentFile,
+  type StoredMember,
 } from "./local-records";
 
 export const DB_NAME = "attendance-local";
-export const DB_VERSION = 1;
+// Raised for the roster store; `onupgradeneeded` only runs when this changes.
+export const DB_VERSION = 2;
 export const DRAFT_STORE = "drafts";
 export const MONTH_STORE = "months";
 export const RECENT_STORE = "recent";
+export const MEMBER_STORE = "members";
 
 export interface StoredDraft {
   day: AttendanceDay;
@@ -66,6 +73,9 @@ export interface LocalStore {
   ): Promise<void>;
   readRecent(email: string): Promise<RecentFile[]>;
   addRecent(email: string, entry: RecentFile): Promise<RecentFile[]>;
+  readMembers(email: string): Promise<StoredMember[]>;
+  addMember(email: string, member: StoredMember): Promise<StoredMember[]>;
+  removeMember(email: string, memberEmail: string): Promise<StoredMember[]>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -80,6 +90,7 @@ export function createMemoryStore(): LocalStore {
   const drafts = new Map<string, StoredDraft>();
   const months = new Map<string, AttendanceMonthView>();
   const recents = new Map<string, RecentFile[]>();
+  const members = new Map<string, StoredMember[]>();
 
   return {
     async readDraft(email, fileId, sheetId, date) {
@@ -106,6 +117,21 @@ export function createMemoryStore(): LocalStore {
       recents.set(key, next);
       return next;
     },
+    async readMembers(email) {
+      return members.get(memberKey(email)) ?? [];
+    },
+    async addMember(email, member) {
+      const key = memberKey(email);
+      const next = addStoredMember(members.get(key) ?? [], member);
+      members.set(key, next);
+      return next;
+    },
+    async removeMember(email, memberEmail) {
+      const key = memberKey(email);
+      const next = removeStoredMember(members.get(key) ?? [], memberEmail);
+      members.set(key, next);
+      return next;
+    },
   };
 }
 
@@ -127,6 +153,15 @@ export function createNullStore(): LocalStore {
     async addRecent(_email, entry) {
       return [entry];
     },
+    async readMembers() {
+      return [];
+    },
+    async addMember(_email, member) {
+      return [member];
+    },
+    async removeMember() {
+      return [];
+    },
   };
 }
 
@@ -147,7 +182,7 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result;
-      for (const name of [DRAFT_STORE, MONTH_STORE, RECENT_STORE]) {
+      for (const name of [DRAFT_STORE, MONTH_STORE, RECENT_STORE, MEMBER_STORE]) {
         if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
       }
     };
@@ -279,7 +314,45 @@ export function createIndexedDbStore(factory: IDBFactory): LocalStore {
 
       return next;
     },
+
+    async readMembers(email) {
+      const stored = await withStore<unknown>(
+        connect,
+        MEMBER_STORE,
+        "readonly",
+        (store) => store.get(memberKey(email)),
+        null,
+      );
+
+      return Array.isArray(stored) ? stored.filter(isStoredMember) : [];
+    },
+
+    async addMember(email, member) {
+      const next = addStoredMember(await this.readMembers(email), member);
+      await writeMembers(connect, email, next);
+      return next;
+    },
+
+    async removeMember(email, memberEmail) {
+      const next = removeStoredMember(await this.readMembers(email), memberEmail);
+      await writeMembers(connect, email, next);
+      return next;
+    },
   };
+}
+
+function writeMembers(
+  connect: () => Promise<IDBDatabase | null>,
+  email: string,
+  members: readonly StoredMember[],
+): Promise<void> {
+  return withStore(
+    connect,
+    MEMBER_STORE,
+    "readwrite",
+    (store) => store.put([...members], memberKey(email)),
+    undefined,
+  );
 }
 
 /** The store the browser uses, or a null store when IndexedDB is absent. */

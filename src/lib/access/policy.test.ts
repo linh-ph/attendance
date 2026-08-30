@@ -134,6 +134,7 @@ function createFakeDrive(access: DriveFileAccess): FakeDrive {
     createSpreadsheetFile: unused("createSpreadsheetFile") as unknown as () => Promise<CreatedDriveFile>,
     convertXlsx: unused("convertXlsx") as unknown as () => Promise<CreatedDriveFile>,
     createWriterPermission: unused("createWriterPermission") as unknown as () => Promise<string>,
+    listPeople: unused("listPeople") as unknown as () => Promise<never[]>,
     updateAppProperties: unused("updateAppProperties") as unknown as () => Promise<void>,
   };
 }

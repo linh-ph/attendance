@@ -370,3 +370,75 @@ describe("shared drive visibility", () => {
     expect(fakeDrive.getCalls.at(-1)?.supportsAllDrives).toBe(true);
   });
 });
+
+describe("listPeople", () => {
+  it("returns the user grants, normalized, and asks Drive for shared-drive support", async () => {
+    const fakeDrive = createFakeDriveClient({
+      permissions: [
+        {
+          id: "p1",
+          type: "user",
+          role: "writer",
+          emailAddress: "Linh.NP@Blended-Asia.com",
+          displayName: "NGUYEN PHAN LINH",
+        },
+        { id: "p2", type: "user", role: "owner", emailAddress: "quynh.kt@blended-asia.com" },
+      ],
+    });
+    const gateway = createDriveGateway(fakeDrive);
+
+    await expect(gateway.listPeople("file-1")).resolves.toEqual([
+      { email: "linh.np@blended-asia.com", role: "writer", displayName: "NGUYEN PHAN LINH" },
+      { email: "quynh.kt@blended-asia.com", role: "owner", displayName: null },
+    ]);
+
+    expect(fakeDrive.permissionListCalls[0].fileId).toBe("file-1");
+    expect(fakeDrive.permissionListCalls[0].supportsAllDrives).toBe(true);
+    expect(fakeDrive.permissionListCalls[0].fields).toBe(
+      "nextPageToken,permissions(id,type,role,emailAddress,displayName)",
+    );
+  });
+
+  it("drops grants that name no person", async () => {
+    const gateway = createDriveGateway(
+      createFakeDriveClient({
+        permissions: [
+          { id: "p1", type: "anyone", role: "reader" },
+          { id: "p2", type: "domain", role: "reader", emailAddress: null },
+          { id: "p3", type: "group", role: "writer", emailAddress: "team@blended-asia.com" },
+          { id: "p4", type: "user", role: "writer", emailAddress: "linh.np@blended-asia.com" },
+        ],
+      }),
+    );
+
+    // A group address is not a person and cannot own a timesheet tab.
+    await expect(gateway.listPeople("file-1")).resolves.toEqual([
+      { email: "linh.np@blended-asia.com", role: "writer", displayName: null },
+    ]);
+  });
+
+  it("follows the pages, because a shared drive can grant far more than one page", async () => {
+    const fakeDrive = createFakeDriveClient({
+      permissionPages: [
+        {
+          permissions: [{ type: "user", role: "writer", emailAddress: "one@blended-asia.com" }],
+          nextPageToken: "1",
+        },
+        { permissions: [{ type: "user", role: "reader", emailAddress: "two@blended-asia.com" }] },
+      ],
+    });
+    const gateway = createDriveGateway(fakeDrive);
+
+    await expect(gateway.listPeople("file-1")).resolves.toEqual([
+      { email: "one@blended-asia.com", role: "writer", displayName: null },
+      { email: "two@blended-asia.com", role: "reader", displayName: null },
+    ]);
+    expect(fakeDrive.permissionListCalls).toHaveLength(2);
+  });
+
+  it("reports an empty sharing list rather than failing", async () => {
+    const gateway = createDriveGateway(createFakeDriveClient({ permissions: [] }));
+
+    await expect(gateway.listPeople("file-1")).resolves.toEqual([]);
+  });
+});

@@ -20,6 +20,8 @@ import {
   writeFolderPreference,
   type FolderPreference,
 } from "@/lib/dashboard/folder-preference";
+import { RosterPicker } from "@/components/roster-picker";
+import type { LocalStore } from "@/lib/dashboard/local-store";
 import type { MemberSummary } from "@/lib/files/member-service";
 import type { CreateFileInput } from "@/lib/files/schemas";
 import type { MemberSetupProgress } from "@/lib/files/setup-service";
@@ -144,6 +146,7 @@ type WizardAction =
   | { type: "folder-rejected"; failure: ApiFailure }
   | { type: "member-changed"; id: string; patch: Partial<Omit<DraftMember, "id">> }
   | { type: "member-added" }
+  | { type: "member-filled"; displayName: string; email: string }
   | { type: "member-removed"; id: string }
   | { type: "advance" }
   | { type: "back" }
@@ -302,6 +305,33 @@ function reduce(state: WizardState, action: WizardAction): WizardState {
         nextMemberId: state.nextMemberId + 1,
       };
 
+    /*
+     * A member chosen from the browser roster. It fills the first blank row
+     * rather than always appending, so picking two people from a fresh wizard
+     * does not leave the empty starting row behind for the roster validation to
+     * reject.
+     */
+    case "member-filled": {
+      const filled: DraftMember = {
+        id: `member-${state.nextMemberId}`,
+        displayName: action.displayName,
+        email: action.email,
+      };
+
+      const blank = state.members.findIndex(
+        (member) => member.displayName.trim() === "" && member.email.trim() === "",
+      );
+
+      return {
+        ...state,
+        members:
+          blank === -1
+            ? [...state.members, filled]
+            : state.members.map((member, index) => (index === blank ? filled : member)),
+        nextMemberId: state.nextMemberId + 1,
+      };
+    }
+
     case "member-removed":
       return { ...state, members: state.members.filter((member) => member.id !== action.id) };
 
@@ -369,17 +399,20 @@ function defaultNavigate(href: string): void {
 /* -------------------------------------------------------------------------- */
 
 export interface NewFileWizardProps {
-  /** Normalized signed-in email; scopes the remembered folder only. */
+  /** Normalized signed-in email; scopes the remembered folder and the roster. */
   email: string;
   /** Injected in tests; the browser uses the fetch client by default. */
   api?: CreateWizardApi;
   navigate?: (href: string) => void;
+  /** Injected in tests; the browser resolves IndexedDB for the member roster. */
+  store?: LocalStore;
 }
 
 export function NewFileWizard({
   email,
   api = createWizardApi,
   navigate = defaultNavigate,
+  store,
 }: NewFileWizardProps) {
   const [state, dispatch] = useReducer(reduce, undefined, createInitialState);
 
@@ -527,6 +560,19 @@ export function NewFileWizard({
     return (
       <section className="section step" aria-labelledby="members-heading">
         <h2 id="members-heading">Members</h2>
+
+        <RosterPicker
+          email={email}
+          store={store}
+          taken={state.members.map((member) => member.email.trim().toLowerCase())}
+          onPick={(member) =>
+            dispatch({
+              type: "member-filled",
+              displayName: member.displayName,
+              email: member.email,
+            })
+          }
+        />
 
         <MemberInputs
           members={state.members}

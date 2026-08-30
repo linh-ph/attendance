@@ -476,6 +476,11 @@ export function DashboardClient({ email }: DashboardClientProps) {
             <Link className="action" href="/files/import">
               Import workbook
             </Link>
+            {/* The browser's own roster, which the create wizard offers as
+                shortcuts. It belongs beside the wizards that consume it. */}
+            <Link className="action" href="/members">
+              Members
+            </Link>
           </div>
         </header>
 

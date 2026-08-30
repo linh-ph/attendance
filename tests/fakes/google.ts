@@ -5,6 +5,9 @@ import type {
   DriveGetParams,
   DriveListParams,
   DrivePermissionCreateParams,
+  DrivePermissionListParams,
+  DrivePermissionListResource,
+  DrivePermissionResource,
   DriveUpdateParams,
   SheetReplyResource,
   SheetsClient,
@@ -27,6 +30,10 @@ export interface FakeDriveOptions {
   listPages?: FakeDriveListPage[];
   createdFile?: DriveFileResource;
   permissionId?: string | null;
+  /** A single page of sharing grants. */
+  permissions?: DrivePermissionResource[];
+  /** Successive pages, when the paging itself is what is under test. */
+  permissionPages?: DrivePermissionListResource[];
 }
 
 export interface FakeDriveClient extends DriveClient {
@@ -35,6 +42,7 @@ export interface FakeDriveClient extends DriveClient {
   createCalls: DriveCreateParams[];
   updateCalls: DriveUpdateParams[];
   permissionCalls: DrivePermissionCreateParams[];
+  permissionListCalls: DrivePermissionListParams[];
 }
 
 export function createFakeDriveClient(options: FakeDriveOptions = {}): FakeDriveClient {
@@ -43,6 +51,7 @@ export function createFakeDriveClient(options: FakeDriveOptions = {}): FakeDrive
   const createCalls: DriveCreateParams[] = [];
   const updateCalls: DriveUpdateParams[] = [];
   const permissionCalls: DrivePermissionCreateParams[] = [];
+  const permissionListCalls: DrivePermissionListParams[] = [];
   const listPages = options.listPages ?? [];
 
   return {
@@ -51,6 +60,7 @@ export function createFakeDriveClient(options: FakeDriveOptions = {}): FakeDrive
     createCalls,
     updateCalls,
     permissionCalls,
+    permissionListCalls,
     files: {
       async get(params) {
         getCalls.push(params);
@@ -79,6 +89,12 @@ export function createFakeDriveClient(options: FakeDriveOptions = {}): FakeDrive
       async create(params) {
         permissionCalls.push(params);
         return { data: { id: options.permissionId ?? `permission-${permissionCalls.length}` } };
+      },
+      async list(params) {
+        permissionListCalls.push(params);
+        const pages = options.permissionPages ?? [{ permissions: options.permissions ?? [] }];
+        const index = params.pageToken === undefined ? 0 : Number(params.pageToken);
+        return { data: pages[index] ?? { permissions: [] } };
       },
     },
   };

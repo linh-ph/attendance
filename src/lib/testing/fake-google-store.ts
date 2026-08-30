@@ -146,6 +146,22 @@ function createFakeDriveGateway(store: FakeGoogleStore, actorEmail: string): Dri
   }
 
   return {
+    /**
+     * The owner writes the file, everyone it is shared with can edit it. That is
+     * all the deterministic world models about sharing, and it is enough for the
+     * directory: the browser test needs real addresses back, in a stable order.
+     */
+    async listPeople(fileId) {
+      const file = requireFile(fileId);
+
+      return [
+        { email: file.ownerEmail, role: "owner", displayName: null },
+        ...[...file.sharedWith]
+          .sort()
+          .map((email) => ({ email, role: "writer", displayName: null })),
+      ];
+    },
+
     async validateManagerFolder(folderId) {
       const folder = store.folders.get(folderId);
 

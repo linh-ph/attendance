@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { emptyDay, type AttendanceDay, type TimeSlot } from "@/lib/attendance/model";
 import { createMemoryStore, createNullStore, type LocalStore } from "@/lib/dashboard/local-store";
@@ -462,72 +462,55 @@ describe("AttendanceEditor", () => {
     expect(screen.queryByText("Unsaved changes")).toBeNull();
   });
 
-  it("warns before leaving a day that has unsaved changes", async () => {
-    await mount(createApi());
-
-    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
-    pickDay("2026-07-20");
-
-    expect(screen.getByText("You have unsaved changes on this day.")).toBeInTheDocument();
-    expect(screen.getByText("Wednesday, July 15, 2026")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-
-    expect(screen.getByText("Monday, July 20, 2026")).toBeInTheDocument();
-    expect(screen.getByLabelText("Notes")).toHaveValue("");
-  });
-
   /**
-   * The day buttons live in a sticky header, so they stay on screen however far
-   * the month is scrolled. The warning they raise does not: it sits in the
-   * normal flow underneath. Someone who scrolls down, then presses Next day,
-   * gets a warning they cannot see and a button that looks broken — which is
-   * exactly what was reported. Bringing it into view is the whole fix.
+   * Moving day used to stop on a warning and wait for Discard or Keep editing.
+   * It no longer does, and it does not need to: every edit is mirrored into
+   * `attendance-local` under its own date before the move, so the day that is
+   * left behind is still there to come back to. "Unsaved" here means unsaved
+   * to Google Sheets, which is what the badge beside Save reports.
    */
-  it("brings the blocked-navigation warning into view", async () => {
-    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-
-    await mount(createApi());
-
-    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
-    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
-
-    expect(screen.getByText("You have unsaved changes on this day.")).toBeInTheDocument();
-    expect(scrollIntoView).toHaveBeenCalled();
-
-    scrollIntoView.mockRestore();
-  });
-
-  it("moves focus to the warning, so it is announced and not merely drawn", async () => {
-    await mount(createApi());
-
-    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
-    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
-
-    // Keep editing, not Discard: the safe answer takes the focus, so a stray
-    // Enter cannot throw the work away.
-    expect(screen.getByRole("button", { name: "Keep editing" })).toHaveFocus();
-  });
-
-  it("raises the same warning from the day buttons as from the calendar", async () => {
-    await mount(createApi());
+  it("moves to another day with unsaved work, without stopping to ask", async () => {
+    const store = createMemoryStore();
+    await mount(createApi(), "2026-07-15", store);
 
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
     fireEvent.click(screen.getByRole("button", { name: "Next day" }));
-    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
 
     expect(screen.getByText("Thursday, July 16, 2026")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep editing" })).toBeNull();
   });
 
-  it("keeps editing the same day when the navigation warning is dismissed", async () => {
-    await mount(createApi());
+  it("leaves the unsaved day in browser storage when it moves on", async () => {
+    const store = createMemoryStore();
+    await mount(createApi(), "2026-07-15", store);
 
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
-    pickDay("2026-07-20");
-    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    await waitFor(async () =>
+      expect(await store.readDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15")).not.toBe(null),
+    );
 
-    expect(screen.getByText("Wednesday, July 15, 2026")).toBeInTheDocument();
-    expect(screen.getByLabelText("Notes")).toHaveValue("New note");
+    pickDay("2026-07-20");
+
+    expect(screen.getByText("Monday, July 20, 2026")).toBeInTheDocument();
+    expect(await store.readDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15")).not.toBe(null);
+  });
+
+  it("brings the unsaved work back when that day is opened again", async () => {
+    const store = createMemoryStore();
+    await mount(createApi(), "2026-07-15", store);
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "New note" } });
+    await waitFor(async () =>
+      expect(await store.readDraft(EMAIL, FILE_ID, SHEET_ID, "2026-07-15")).not.toBe(null),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+    expect(screen.getByLabelText("Notes")).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Notes")).toHaveValue("New note"));
   });
 
   it("navigates freely once the day is clean", async () => {

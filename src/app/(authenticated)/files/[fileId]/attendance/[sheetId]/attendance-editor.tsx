@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { DayCalendar } from "@/components/day-calendar";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
@@ -26,7 +26,6 @@ import {
   NO_CHANGES,
   SAVE_FAILED,
   SESSION_EXPIRED,
-  UNSAVED_CHANGES,
 } from "./attendance-labels";
 
 export { attendanceApiClient } from "./attendance-api";
@@ -85,26 +84,7 @@ export function AttendanceEditor({
    */
   const [restoredDate, setRestoredDate] = useState<string | null>(null);
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
-  const { view, baseline, draft, selectedDate, saveState, pendingDate } = state;
-
-  const keepEditingRef = useRef<HTMLButtonElement | null>(null);
-
-  /*
-   * The day buttons sit in a sticky header and stay on screen however far the
-   * month is scrolled; the warning they raise does not. Without this, pressing
-   * Next day part-way down a month blocks the move with a message nobody can
-   * see, and the button reads as broken. Focus goes to Keep editing rather than
-   * Discard so a reflex Enter cannot throw the work away.
-   */
-  useEffect(() => {
-    if (pendingDate === null) return;
-
-    const button = keepEditingRef.current;
-    if (!button) return;
-
-    button.scrollIntoView({ block: "center" });
-    button.focus();
-  }, [pendingDate]);
+  const { view, baseline, draft, selectedDate, saveState } = state;
 
   /**
    * Loads the configured month once per attempt. State is set from the promise
@@ -342,29 +322,6 @@ export function AttendanceEditor({
         </p>
         {isWeekend(selectedDate) ? <p className="day-weekend">Weekend</p> : null}
       </header>
-
-      {pendingDate === null ? null : (
-        <div className="navigation-warning">
-          <p role="alert">{UNSAVED_CHANGES}</p>
-          <div className="navigation-warning-actions">
-            <button
-              type="button"
-              className="action"
-              onClick={() => dispatch({ type: "discard-changes" })}
-            >
-              Discard changes
-            </button>
-            <button
-              type="button"
-              className="action action-primary"
-              ref={keepEditingRef}
-              onClick={() => dispatch({ type: "cancel-navigation" })}
-            >
-              Keep editing
-            </button>
-          </div>
-        </div>
-      )}
 
       <section className="section section-summary" aria-labelledby="day-summary-heading">
         <h3 id="day-summary-heading">Day summary</h3>

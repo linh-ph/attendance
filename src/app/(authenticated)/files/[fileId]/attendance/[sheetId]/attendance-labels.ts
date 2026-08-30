@@ -25,7 +25,6 @@ export const LOAD_FAILED = "Could not load this timesheet.";
 export const SAVE_FAILED = "Could not save this day to Google Sheets.";
 export const SESSION_EXPIRED = "Your Google session expired. Sign in again to continue.";
 export const NO_CHANGES = "There are no changes to save.";
-export const UNSAVED_CHANGES = "You have unsaved changes on this day.";
 
 const ISSUE_MESSAGES: Record<ValidationIssueCode, string> = {
   "invalid-boundary": "Use 30-minute time boundaries for clock and break values.",

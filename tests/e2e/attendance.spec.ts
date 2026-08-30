@@ -161,26 +161,27 @@ test("an invalid day is refused before it leaves the browser", async ({ page }) 
   await expect(page.getByText("Saved to Google Sheets.")).toHaveCount(0);
 });
 
-test("moving to another day never discards unsaved work silently", async ({ page }) => {
+/**
+ * Moving day with unsaved work goes through, and the work is still there on the
+ * way back. Only the real browser can prove the round trip, because what holds
+ * the day in between is the real `attendance-local` database.
+ */
+test("moving to another day keeps the unsaved work and does not stop to ask", async ({ page }) => {
   await page.goto(ATTENDANCE_URL);
   await expect(page.getByRole("heading", { name: "Day summary" })).toBeVisible();
 
   await page.getByLabel("Notes").fill(NOTES);
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
 
-  // Scrolled to the foot of the month, as anyone filling in a timeline is. The
-  // day buttons are sticky and stay reachable; the warning they raise is not,
-  // so this is the position that once left it off-screen entirely.
-  await page.getByRole("button", { name: "Save to Google Sheets" }).scrollIntoViewIfNeeded();
   await page.getByRole("button", { name: "Next day" }).click();
 
-  const warning = page.getByText("You have unsaved changes on this day.");
-  await expect(warning).toBeVisible();
-  // `toBeVisible` passes on an element scrolled out of the window, which is
-  // exactly how this went unnoticed. The person has to be able to see it.
-  await expect(warning).toBeInViewport();
-  await expect(page.getByRole("button", { name: "Keep editing" })).toBeFocused();
+  await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-02/);
+  await expect(page.getByRole("button", { name: "Keep editing" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Discard changes" })).toHaveCount(0);
+  await expect(page.getByLabel("Notes")).toHaveValue("");
 
-  await page.getByRole("button", { name: "Keep editing" }).click();
+  await page.getByRole("button", { name: "Previous day" }).click();
+
   await expect(page.getByRole("button", { name: /^Choose day/ })).toHaveText(/2026-07-01/);
   await expect(page.getByLabel("Notes")).toHaveValue(NOTES);
 });

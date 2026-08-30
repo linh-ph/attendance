@@ -162,7 +162,10 @@ failed Save preserves the unsaved edits and offers Retry or Re-authenticate.
 
 Unsaved edits are also mirrored into this browser's `attendance-local`
 IndexedDB database, so they survive a reload, a dropped connection, or a closed
-tab. A stored draft carries the sheet row it was made against and is re-applied
+tab. Because every edit is mirrored under its own date before anything else
+happens, moving between days never stops to ask: the day being left is already
+in storage and is restored when it is opened again. "Unsaved" means unsaved to
+Google Sheets, which the badge beside Save reports. A stored draft carries the sheet row it was made against and is re-applied
 only onto an identical row: if the sheet changed while the draft sat in
 storage, the draft is discarded rather than replayed over the newer data. The
 record is removed as soon as the day is saved or the changes are discarded. The

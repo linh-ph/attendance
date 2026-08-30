@@ -26,7 +26,6 @@ import {
   type WorkBlock,
 } from "@/lib/attendance/slots";
 import { calculateWorkHours } from "@/lib/attendance/validation";
-import { toPatches } from "./attendance-columns";
 import { LOAD_FAILED } from "./attendance-labels";
 
 /* -------------------------------------------------------------------------- */
@@ -49,8 +48,6 @@ export interface EditorState {
   /** The day exactly as the sheet was read; every patch baseline comes from it. */
   baseline: AttendanceDay | null;
   draft: AttendanceDay | null;
-  /** A day the user asked for while the current one still has unsaved edits. */
-  pendingDate: string | null;
   saveState: SaveState;
 }
 
@@ -60,8 +57,6 @@ export type EditorAction =
   | { type: "load-failed" }
   | { type: "select-date"; date: string }
   | { type: "restore-draft"; day: AttendanceDay; baseline: AttendanceDay }
-  | { type: "discard-changes" }
-  | { type: "cancel-navigation" }
   | { type: "summary-change"; change: DaySummaryChange }
   | { type: "slot-change"; slot: TimeSlot; value: string }
   | { type: "work-block"; block: WorkBlock }
@@ -77,7 +72,6 @@ export const INITIAL_STATE: EditorState = {
   selectedDate: null,
   baseline: null,
   draft: null,
-  pendingDate: null,
   saveState: { status: "idle" },
 };
 
@@ -144,7 +138,6 @@ function openDay(state: EditorState, view: AttendanceMonthView, date: string): E
     selectedDate: date,
     baseline: day,
     draft: withWorkHours(day),
-    pendingDate: null,
     saveState: { status: "idle" },
   };
 }
@@ -184,20 +177,17 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, draft: action.day };
     }
 
-    case "select-date": {
-      if (state.view === null || action.date === state.selectedDate) return state;
-      // Never abandon unsaved work silently.
-      if (isDirty(state)) return { ...state, pendingDate: action.date };
-      return openDay(state, state.view, action.date);
-    }
-
-    case "discard-changes":
-      return state.view === null || state.pendingDate === null
+    /*
+      * Moving day never blocks on unsaved work, because moving day cannot lose
+      * any: the open day is mirrored into `attendance-local` on every edit and
+      * keyed by its own date, so an unsaved day is still there when it is
+      * opened again. What is unsaved is unsaved *to Google Sheets*, and the
+      * badge beside Save says so.
+      */
+    case "select-date":
+      return state.view === null || action.date === state.selectedDate
         ? state
-        : openDay(state, state.view, state.pendingDate);
-
-    case "cancel-navigation":
-      return { ...state, pendingDate: null };
+        : openDay(state, state.view, action.date);
 
     case "summary-change":
       return state.draft === null || state.baseline === null
@@ -258,7 +248,3 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
   }
 }
 
-function isDirty(state: EditorState): boolean {
-  if (state.view === null || state.baseline === null || state.draft === null) return false;
-  return toPatches(state.baseline, state.draft, state.view.statuses).length > 0;
-}

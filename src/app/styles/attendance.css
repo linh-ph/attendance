@@ -28,7 +28,6 @@
   /* The header and the save bar span both columns. */
   .attendance-header,
   .attendance-actions,
-  .navigation-warning,
   .form-error,
   .conflict-disclosure {
     grid-column: 1 / -1;
@@ -476,23 +475,11 @@
   list-style-position: inside;
 }
 
-.form-error-actions,
-.navigation-warning-actions {
+.form-error-actions {
   display: flex;
   gap: var(--space-xs);
   flex-wrap: wrap;
   margin-top: var(--space-xs);
-}
-
-.navigation-warning {
-  padding: var(--space-sm) var(--space-md);
-  border-left: 3px solid var(--warning);
-  border-radius: var(--radius-control);
-  background: var(--warning-wash);
-}
-
-.navigation-warning p {
-  margin: 0;
 }
 
 .conflict-disclosure {

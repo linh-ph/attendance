@@ -20,7 +20,6 @@ import {
   type SetupServiceDependencies,
 } from "./setup-contracts";
 
-const EMPLOYEE_PROTECTION_DESCRIPTION = "Attendance employee sheet";
 
 export const DEFAULT_STATUSES: ConfigStatus[] = STATUS_OPTIONS.map((status) => ({
   code: status.code,
@@ -63,34 +62,11 @@ export function toProgress(member: ConfigMember): MemberSetupProgress {
   };
 }
 
-function buildEmployeeProtectionRequest(
-  sheetId: number,
-  ownerEmail: string,
-  memberEmail: string,
-): SheetRequest {
-  return {
-    addProtectedRange: {
-      protectedRange: {
-        range: { sheetId },
-        description: EMPLOYEE_PROTECTION_DESCRIPTION,
-        warningOnly: false,
-        requestingUserCanEdit: false,
-        editors: { users: [ownerEmail, memberEmail], groups: [], domainUsersCanEdit: false },
-      },
-    },
-  };
-}
-
 /* -------------------------------------------------------------------------- */
 /* Factory                                                                     */
 /* -------------------------------------------------------------------------- */
 
 export interface SetupSteps {
-  protectEmployeeTabs(
-    fileId: string,
-    tabs: readonly EmployeeTab[],
-    ownerEmail: string,
-  ): Promise<void>;
   finishSetup(
     fileId: string,
     fileName: string,
@@ -101,33 +77,6 @@ export interface SetupSteps {
 
 export function createSetupSteps(dependencies: SetupServiceDependencies): SetupSteps {
   const { drive, config, sheets } = dependencies;
-
-  async function protectEmployeeTabs(
-    fileId: string,
-    tabs: readonly EmployeeTab[],
-    ownerEmail: string,
-  ): Promise<void> {
-    if (tabs.length === 0) return;
-
-    const { replies } = await sheets.batchUpdate(
-      fileId,
-      tabs.map((tab) => buildEmployeeProtectionRequest(tab.sheetId, ownerEmail, tab.email)),
-    );
-    const added = replies.flatMap((reply) =>
-      reply.addProtectedRange ? [reply.addProtectedRange] : [],
-    );
-
-    if (added.length !== tabs.length) {
-      throw new SetupError("setup-incomplete", "Google did not return every sheet protection.");
-    }
-
-    for (const [index, tab] of tabs.entries()) {
-      await config.updateMemberProgress(fileId, {
-        email: tab.email,
-        protectionId: added[index].protectedRangeId,
-      });
-    }
-  }
 
   /** Serialized: Drive does not support concurrent permission changes on a file. */
   async function inviteMembers(
@@ -207,5 +156,5 @@ export function createSetupSteps(dependencies: SetupServiceDependencies): SetupS
     };
   }
 
-  return { protectEmployeeTabs, finishSetup };
+  return { finishSetup };
 }

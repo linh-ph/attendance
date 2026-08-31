@@ -30,6 +30,8 @@ import {
   WORK_SLOT_COLUMNS,
   WORK_SLOT_FIRST_COLUMN,
   WORK_SLOT_LAST_COLUMN,
+  COLUMN_WIDTHS,
+  TEMPLATE_FONT_FAMILY,
   WORK_SLOT_FIRST_COLUMN_INDEX,
   WORK_SLOT_LAST_COLUMN_INDEX,
   buildWorkHoursFormula,
@@ -445,6 +447,42 @@ function buildDataRequests(sheetId: number, rows: readonly TemplateRow[]): Sheet
   ];
 }
 
+/**
+ * The look of the supplied workbook, applied to a tab this app creates.
+ *
+ * Two things only, because that is all the reference file actually carries:
+ * Arial everywhere, and its column widths. It uses no fills and no borders, so
+ * neither is invented here — a created tab should be recognisable as the same
+ * document, not a redesign of it.
+ *
+ * The font is set across the whole grid rather than per range so a row added
+ * later inherits it, and `fields` names exactly the one property being written
+ * so nothing else about a cell's format is touched.
+ */
+function buildStyleRequests(sheetId: number, gridSize: GridSize): SheetRequest[] {
+  return [
+    {
+      repeatCell: {
+        range: gridRange(sheetId, 0, gridSize.rowCount, 0, gridSize.columnCount),
+        cell: { userEnteredFormat: { textFormat: { fontFamily: TEMPLATE_FONT_FAMILY } } },
+        fields: "userEnteredFormat.textFormat.fontFamily",
+      },
+    },
+    ...COLUMN_WIDTHS.map((width) => ({
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: "COLUMNS",
+          startIndex: width.firstColumn - 1,
+          endIndex: width.lastColumn,
+        },
+        properties: { pixelSize: width.pixels },
+        fields: "pixelSize",
+      },
+    })),
+  ];
+}
+
 function buildFormatRequests(sheetId: number, rows: readonly TemplateRow[]): SheetRequest[] {
   const firstRowIndex = DATA_START_ROW - 1;
   const lastRowIndex = firstRowIndex + rows.length;
@@ -502,6 +540,7 @@ export function buildEmployeeSheetPlan(input: EmployeeSheetPlanInput): EmployeeS
           "gridProperties.rowCount,gridProperties.columnCount,gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
       },
     },
+    ...buildStyleRequests(sheetId, gridSize),
     ...buildHeaderRequests(sheetId),
     ...buildDataRequests(sheetId, rows),
     ...buildFormatRequests(sheetId, rows),

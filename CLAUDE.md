@@ -168,6 +168,10 @@ Violating any of these is a product regression, not a style choice.
   so partial setup is recordable. A stale mapping is `NeedsRepairError` — never
   a silent title-match fallback. A file with no configuration at all is opened
   on Google's own sharing instead (role `open`), and the person picks their tab.
+- `protectionId` is now always `null`: **employee tabs are created open**. No
+  setup path adds a protected range to one, and `authorizeFile` does not ask for
+  one — the field stays in the schema so files created before this still read.
+  Only the hidden `__APP_CONFIG` sheet keeps its owner-only protection.
 - `__APP_CONFIG` is optional metadata, not a gate. Where it exists it still
   resolves a person straight to their tab; where it does not, the file is still
   fully usable.

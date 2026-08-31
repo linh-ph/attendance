@@ -142,7 +142,6 @@ const MEMBER_NOT_FOUND = "This email is not a member of this file.";
 const TEMPLATE_UNSUPPORTED =
   "This file was built by a different version of the attendance template.";
 
-const EMPLOYEE_PROTECTION_DESCRIPTION = "Attendance employee sheet";
 
 /** Same shape the configuration parser accepts, so a stored row round-trips. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -187,24 +186,6 @@ function buildRequestedTitle(displayName: string): string {
     }
     throw error;
   }
-}
-
-function buildEmployeeProtectionRequest(
-  sheetId: number,
-  ownerEmail: string,
-  memberEmail: string,
-): SheetRequest {
-  return {
-    addProtectedRange: {
-      protectedRange: {
-        range: { sheetId },
-        description: EMPLOYEE_PROTECTION_DESCRIPTION,
-        warningOnly: false,
-        requestingUserCanEdit: false,
-        editors: { users: [ownerEmail, memberEmail], groups: [], domainUsersCanEdit: false },
-      },
-    },
-  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -268,29 +249,6 @@ export function createMemberService(dependencies: MemberServiceDependencies): Me
   ): Promise<void> {
     const plan = buildEmployeeSheetPlan({ sheetId, month, statuses });
     await sheets.batchUpdate(fileId, [...plan.requests]);
-  }
-
-  async function protectEmployeeTab(
-    fileId: string,
-    sheetId: number,
-    ownerEmail: string,
-    memberEmail: string,
-  ): Promise<number> {
-    const { replies } = await sheets.batchUpdate(fileId, [
-      buildEmployeeProtectionRequest(sheetId, ownerEmail, memberEmail),
-    ]);
-    const added = replies.find(
-      (reply) => reply.addProtectedRange !== undefined,
-    )?.addProtectedRange;
-
-    if (!added) {
-      throw new MemberServiceError(
-        "member-setup-incomplete",
-        "Google did not return the employee sheet protection.",
-      );
-    }
-
-    return added.protectedRangeId;
   }
 
   /**
@@ -370,16 +328,15 @@ export function createMemberService(dependencies: MemberServiceDependencies): Me
 
       const sheetId = await createEmployeeTab(input.fileId, title);
       await applyTemplate(input.fileId, sheetId, stored.month, stored.statuses);
-      const protectionId = await protectEmployeeTab(input.fileId, sheetId, ownerEmail, email);
 
-      // One write: a member row is only meaningful once its tab is templated
-      // and protected, so a resume never replays the template onto it.
+      // One write: a member row is only meaningful once its tab is templated,
+      // so a resume never replays the template onto it. The tab itself is left
+      // open — see `docs/decisions/2026-08-29-app-is-a-sheets-client.md`.
       await config.updateMemberProgress(input.fileId, {
         email,
         displayName,
         sheetId: String(sheetId),
         sheetTitle: title,
-        protectionId: String(protectionId),
         setupStatus: "pending",
       });
 

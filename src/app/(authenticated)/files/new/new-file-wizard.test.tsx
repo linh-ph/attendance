@@ -281,6 +281,37 @@ describe("NewFileWizard — file details validation", () => {
   });
 });
 
+describe("NewFileWizard — the creator's own tab", () => {
+  /*
+   * Whoever creates the file records hours in it too. Until now they had to
+   * type themselves in, and a file created without that step simply had no tab
+   * for its author.
+   */
+  it("opens the roster with the creator's own address already in it", async () => {
+    rememberFolder();
+    renderWizard();
+    await screen.findByText(REMEMBERED_FOLDER.name);
+    typeDetails();
+    click("Continue to members");
+
+    expect(screen.getByLabelText("Employee email 1")).toHaveValue(EMAIL);
+    expect(screen.getByLabelText("Employee name 1")).toHaveValue("");
+  });
+
+  it("lets a manager who keeps no timesheet remove that row", async () => {
+    rememberFolder();
+    renderWizard();
+    await screen.findByText(REMEMBERED_FOLDER.name);
+    typeDetails();
+    click("Continue to members");
+
+    click("Add employee");
+    click("Remove employee 1");
+
+    expect(screen.getByLabelText("Employee email 1")).toHaveValue("");
+  });
+});
+
 describe("NewFileWizard — the browser member roster", () => {
   async function reachMembersWith(store: LocalStore): Promise<void> {
     rememberFolder();
@@ -304,18 +335,24 @@ describe("NewFileWizard — the browser member roster", () => {
     return store;
   }
 
-  it("fills the first blank row from the roster instead of appending to it", async () => {
+  /*
+   * Row one belongs to the person creating the file — it opens carrying their
+   * own address — so a colleague chosen from the roster lands in a row of their
+   * own rather than overwriting the author.
+   */
+  it("adds a roster member after the creator's own row", async () => {
     await reachMembersWith(
       await rosterOf([{ email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" }]),
     );
 
+    expect(screen.getByLabelText("Employee email 1")).toHaveValue(EMAIL);
+
     await screen.findByRole("button", { name: "THAI GIA HAN · han.tg@blended-asia.com" });
     click("THAI GIA HAN · han.tg@blended-asia.com");
 
-    expect(screen.getByLabelText("Employee name 1")).toHaveValue("THAI GIA HAN");
-    expect(screen.getByLabelText("Employee email 1")).toHaveValue("han.tg@blended-asia.com");
-    // The starting row was empty, so nothing was appended behind it.
-    expect(screen.queryByLabelText("Employee name 2")).toBeNull();
+    expect(screen.getByLabelText("Employee email 1")).toHaveValue(EMAIL);
+    expect(screen.getByLabelText("Employee name 2")).toHaveValue("THAI GIA HAN");
+    expect(screen.getByLabelText("Employee email 2")).toHaveValue("han.tg@blended-asia.com");
   });
 
   it("stops offering somebody once they are on the draft", async () => {
@@ -349,8 +386,8 @@ describe("NewFileWizard — the browser member roster", () => {
     click("THAI GIA HAN · han.tg@blended-asia.com");
     click("NGUYEN THI NHU HIEU · hieu.ntn@blended-asia.com");
 
-    expect(screen.getByLabelText("Employee name 1")).toHaveValue("THAI GIA HAN");
-    expect(screen.getByLabelText("Employee name 2")).toHaveValue("NGUYEN THI NHU HIEU");
+    expect(screen.getByLabelText("Employee name 2")).toHaveValue("THAI GIA HAN");
+    expect(screen.getByLabelText("Employee name 3")).toHaveValue("NGUYEN THI NHU HIEU");
   });
 
   it("shows no shortcut shelf at all when the roster is empty", async () => {

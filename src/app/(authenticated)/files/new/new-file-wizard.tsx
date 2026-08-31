@@ -158,7 +158,14 @@ function draftMember(id: number): DraftMember {
   return { id: `member-${id}`, displayName: "", email: "" };
 }
 
-function createInitialState(): WizardState {
+/**
+ * The person creating the file records hours in it too, so the roster opens
+ * with their own address already in it — until now they had to type themselves
+ * in, and a file created without that step simply had no tab for its author.
+ * The row is an ordinary one: the name is theirs to fill in, and it can be
+ * removed by a manager who does not keep a timesheet.
+ */
+function createInitialState(ownerEmail: string): WizardState {
   return {
     stage: "details",
     fileName: "",
@@ -166,7 +173,7 @@ function createInitialState(): WizardState {
     folder: null,
     folderFailure: null,
     detailErrors: {},
-    members: [draftMember(1)],
+    members: [{ ...draftMember(1), email: ownerEmail }],
     memberErrors: {},
     rosterError: null,
     nextMemberId: 2,
@@ -414,7 +421,7 @@ export function NewFileWizard({
   navigate = defaultNavigate,
   store,
 }: NewFileWizardProps) {
-  const [state, dispatch] = useReducer(reduce, undefined, createInitialState);
+  const [state, dispatch] = useReducer(reduce, email, createInitialState);
 
   /**
    * The remembered folder lives in browser storage, so it can only be read

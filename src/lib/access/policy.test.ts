@@ -415,7 +415,13 @@ describe("authorizeFile setup and repair states", () => {
     ).rejects.toBeInstanceOf(NeedsRepairError);
   });
 
-  it("treats a mapped sheet with no recorded protection as NeedsRepairError", async () => {
+  /*
+   * Tabs are created open. A protected range is not evidence of anything this
+   * app decides, and every real workbook was measured with none at all, so
+   * demanding one only ever refused the people using the app while the same
+   * edit stayed available in Google Sheets itself.
+   */
+  it("opens a mapped sheet that records no protection", async () => {
     const deps = dependencies(
       driveAccess({ ownedByMe: false }),
       createFakeConfig(readResult([{ ...memberA, protectionId: null }])),
@@ -423,10 +429,10 @@ describe("authorizeFile setup and repair states", () => {
 
     await expect(
       authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A }),
-    ).rejects.toBeInstanceOf(NeedsRepairError);
+    ).resolves.toMatchObject({ kind: "employee", email: EMPLOYEE_A, sheetId: "123" });
   });
 
-  it("treats a recorded protection that is missing from the live sheet as NeedsRepairError", async () => {
+  it("opens a mapped sheet that carries no protected range at all", async () => {
     const unprotected = defaultSheets.map((entry) =>
       entry.sheetId === 123 ? { ...entry, protectedRanges: [] } : entry,
     );
@@ -437,7 +443,7 @@ describe("authorizeFile setup and repair states", () => {
 
     await expect(
       authorizeFile(deps, { fileId: "file-1", actorEmail: EMPLOYEE_A }),
-    ).rejects.toBeInstanceOf(NeedsRepairError);
+    ).resolves.toMatchObject({ kind: "employee", email: EMPLOYEE_A, sheetId: "123" });
   });
 
   it("exposes a shared access-error base and type guard", async () => {

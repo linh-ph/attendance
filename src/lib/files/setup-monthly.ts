@@ -5,11 +5,15 @@
  * 2. create the spreadsheet under the manager's own OAuth identity;
  * 3. record `pending` so a half-configured file is still discoverable;
  * 4. create the employee tabs and the protected `__APP_CONFIG` tab;
- * 5. add protections;
- * 6. invite one unique employee email at a time — Drive does not support
+ * 5. invite one unique employee email at a time — Drive does not support
  *    concurrent permission changes on one file;
- * 7. keep individual invitation failures next to their member;
- * 8. mark `ready` only when every step succeeded.
+ * 6. keep individual invitation failures next to their member;
+ * 7. mark `ready` only when every step succeeded.
+ *
+ * Employee tabs are created **open**: no protected range is added to them. The
+ * hidden `__APP_CONFIG` tab keeps its owner-only protection, because it is
+ * app metadata rather than somebody's timesheet. See
+ * `docs/decisions/2026-08-29-app-is-a-sheets-client.md`.
  *
  * A created file is never deleted as rollback (section 9.2). A failed attempt
  * returns the file ID, the revalidated folder, and per-member progress so the
@@ -98,7 +102,7 @@ export function createMonthlySetup(
   steps: SetupSteps,
 ): MonthlySetup {
   const { drive, sheets, config } = dependencies;
-  const { protectEmployeeTabs, finishSetup } = steps;
+  const { finishSetup } = steps;
 
   /**
    * Adds one tab per member and removes the tabs Drive created with the file,
@@ -180,8 +184,6 @@ export function createMonthlySetup(
       })),
     });
 
-    await protectEmployeeTabs(file.id, tabs, ownerEmail);
-
     return await finishSetup(file.id, file.name, folder, planned);
   }
 
@@ -245,18 +247,6 @@ export function createMonthlySetup(
         });
       }
     }
-
-    const unprotected = planned.flatMap((member) => {
-      const created = createdTabs.find((tab) => tab.email === member.email);
-      if (created) return [created];
-
-      const stored = byEmail.get(member.email);
-      if (!stored || stored.sheetId === null || stored.protectionId !== null) return [];
-
-      return [{ ...member, sheetId: Number(stored.sheetId) }];
-    });
-
-    await protectEmployeeTabs(fileId, unprotected, ownerEmail);
 
     return await finishSetup(fileId, request.fileName, folder, planned);
   }

@@ -145,17 +145,19 @@ function resolveEmployeeSheet(member: ConfigMember, sheets: SheetSummary[]): She
     throw new NeedsRepairError("member-sheet-missing");
   }
 
-  if (member.protectionId === null) {
-    throw new NeedsRepairError("member-protection-not-recorded");
-  }
-
-  const hasProtection = sheet.protectedRanges.some(
-    (range) => String(range.protectedRangeId) === member.protectionId,
-  );
-  if (!hasProtection) {
-    throw new NeedsRepairError("member-protection-missing");
-  }
-
+  /*
+   * A protected range is deliberately not required here.
+   *
+   * Tabs are created open — see `docs/decisions/2026-08-29-app-is-a-sheets-client.md`:
+   * this app is a convenience client over Google Sheets, not an authorization
+   * layer of its own, and every real workbook was measured with
+   * `protectedRanges: []`. Demanding one only ever refused the people using the
+   * app while the same edit stayed one click away in Google Sheets itself.
+   *
+   * What still holds: the request runs on the signed-in user's own Google
+   * credentials, and a configured file still resolves this person to their own
+   * mapped tab rather than any tab named in a URL.
+   */
   return sheet;
 }
 

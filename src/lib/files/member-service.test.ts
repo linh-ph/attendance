@@ -294,7 +294,7 @@ function createService(fake: FakeGoogle): MemberService {
 /* -------------------------------------------------------------------------- */
 
 describe("memberService.addMember", () => {
-  it("creates one employee sheet, template, protection, config row, and writer permission", async () => {
+  it("creates one open employee sheet, template, config row, and writer permission", async () => {
     const fakeGoogle = createFakeGoogle();
     const service = createService(fakeGoogle);
 
@@ -308,7 +308,6 @@ describe("memberService.addMember", () => {
     expect(fakeGoogle.events).toEqual([
       "add-sheet:New Person",
       `apply-template:${NEXT_SHEET_ID}:rows=34`,
-      `protect-sheet:${NEXT_SHEET_ID}:${MANAGER}|${NEW_MEMBER}`,
       `write-member:${NEW_MEMBER}:pending`,
       `invite:${NEW_MEMBER}`,
       `write-member:${NEW_MEMBER}:ready`,
@@ -333,7 +332,7 @@ describe("memberService.addMember", () => {
       email: NEW_MEMBER,
       sheetId: String(NEXT_SHEET_ID),
       sheetTitle: "New Person",
-      protectionId: String(NEXT_PROTECTION_ID),
+      protectionId: null,
       permissionId: `perm-${NEW_MEMBER}`,
       setupStatus: "ready",
     });
@@ -476,7 +475,7 @@ describe("memberService.addMember", () => {
     expect(fakeGoogle.events).toEqual([]);
   });
 
-  it("retains the created sheet and protection when the invitation fails", async () => {
+  it("retains the created sheet when the invitation fails", async () => {
     const fakeGoogle = createFakeGoogle({ failInvitations: [NEW_MEMBER] });
     const service = createService(fakeGoogle);
 
@@ -490,7 +489,6 @@ describe("memberService.addMember", () => {
     expect(fakeGoogle.events).toEqual([
       "add-sheet:New Person",
       `apply-template:${NEXT_SHEET_ID}:rows=34`,
-      `protect-sheet:${NEXT_SHEET_ID}:${MANAGER}|${NEW_MEMBER}`,
       `write-member:${NEW_MEMBER}:pending`,
       `invite:${NEW_MEMBER}`,
       `write-member:${NEW_MEMBER}:invite-failed`,
@@ -505,7 +503,8 @@ describe("memberService.addMember", () => {
       setupStatus: "invite-failed",
       invitationSent: false,
     });
-    expect(fakeGoogle.members().at(-1)?.protectionId).toBe(String(NEXT_PROTECTION_ID));
+    // The tab is left open, so nothing records a protection for it.
+    expect(fakeGoogle.members().at(-1)?.protectionId).toBe(null);
   });
 });
 

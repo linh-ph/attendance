@@ -152,6 +152,13 @@ must show which cells it will replace before it is applied. The block opens on
 the standard working day, 08:00 to 17:00, so the ordinary case needs only a
 description.
 
+A created tab is laid out like the workbook the team already keeps: Arial, the
+reference file's column widths, and the first three rows and two columns frozen.
+That file uses no fills and no borders, so neither is invented here. Tabs are
+created **open** — no protected range is added to an employee sheet, and the
+person creating a file gets a tab of their own, because whoever sets the month
+up records hours in it too.
+
 The page also carries status, clock in, clock out, break, calculated work hours,
 the lunch control, daily notes, dirty-state indication, and an explicit
 `Save to Google Sheets` action.

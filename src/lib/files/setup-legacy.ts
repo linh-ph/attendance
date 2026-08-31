@@ -148,7 +148,7 @@ export function createLegacySetup(
   steps: SetupSteps,
 ): LegacySetup {
   const { drive, sheets, config } = dependencies;
-  const { protectEmployeeTabs, finishSetup } = steps;
+  const { finishSetup } = steps;
 
   /**
    * The legacy-file guard (section 7.3 plus section 5.3).
@@ -240,8 +240,6 @@ export function createLegacySetup(
       // An `__APP_CONFIG` this app did not write is never trusted, only replaced.
       replaceExisting: true,
     });
-
-    await protectEmployeeTabs(fileId, tabs, ownerEmail);
   }
 
   /**
@@ -281,10 +279,6 @@ export function createLegacySetup(
       });
     }
 
-    const unprotected = tabs.filter(
-      (tab) => (byEmail.get(tab.email)?.protectionId ?? null) === null,
-    );
-    await protectEmployeeTabs(fileId, unprotected, ownerEmail);
   }
 
   return {

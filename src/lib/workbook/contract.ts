@@ -9,6 +9,35 @@ export const DATA_START_ROW = 4;
 
 export const FROZEN_PANE = { rows: 3, columns: 2 } as const;
 
+/**
+ * The look of the supplied `202607勤怠管理表` workbook, so a file this app
+ * creates is laid out like the ones the team already keeps.
+ *
+ * Read off that workbook rather than invented: Arial throughout, no fills and
+ * no borders, and these column widths. The widths are stored in pixels because
+ * that is what the Sheets API takes; the source measurements are Excel's
+ * character units, converted with `round(width * 7) + 5`.
+ */
+export const TEMPLATE_FONT_FAMILY = "Arial";
+
+export interface ColumnWidth {
+  /** 1-based, inclusive. */
+  firstColumn: number;
+  lastColumn: number;
+  pixels: number;
+}
+
+export const COLUMN_WIDTHS: readonly ColumnWidth[] = [
+  { firstColumn: 1, lastColumn: 1, pixels: 65 }, // A 日付
+  { firstColumn: 2, lastColumn: 2, pixels: 52 }, // B 曜日
+  { firstColumn: 3, lastColumn: 3, pixels: 47 }, // C 営業日
+  { firstColumn: 4, lastColumn: 4, pixels: 72 }, // D ステータス
+  { firstColumn: 5, lastColumn: 7, pixels: 31 }, // E 出勤, F 退勤, G 休憩
+  { firstColumn: 8, lastColumn: 8, pixels: 58 }, // H 労働時間
+  { firstColumn: 9, lastColumn: 9, pixels: 194 }, // I 備考
+  { firstColumn: 10, lastColumn: 45, pixels: 34 }, // J:AS the 30-minute slots
+];
+
 export type ReferenceColumnKey =
   | "date"
   | "weekday"

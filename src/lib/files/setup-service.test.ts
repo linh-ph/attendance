@@ -77,7 +77,7 @@ describe("SetupService.create", () => {
           email: EMPLOYEE_A,
           sheetId: "1",
           sheetTitle: "Employee A",
-          protectionId: "2",
+          protectionId: null,
           permissionId: "permission-1",
           setupStatus: "ready",
           error: null,
@@ -87,7 +87,7 @@ describe("SetupService.create", () => {
           email: EMPLOYEE_B,
           sheetId: "2",
           sheetTitle: "Employee B",
-          protectionId: "3",
+          protectionId: null,
           permissionId: "permission-2",
           setupStatus: "ready",
           error: null,
@@ -124,16 +124,17 @@ describe("SetupService.create", () => {
     expect(config.statuses.map((status) => status.sheetValue)).toEqual(["出社", "欠勤"]);
   });
 
-  it("protects every employee tab for the owner and only that member", async () => {
+  /*
+   * Employee tabs are created open. Only the hidden `__APP_CONFIG` sheet keeps
+   * its owner-only protection, because it is app metadata rather than anybody's
+   * timesheet.
+   */
+  it("protects the configuration sheet and leaves every employee tab open", async () => {
     const fake = createFileDependenciesFake();
 
     await serviceFor(fake).create({ ownerEmail: OWNER_EMAIL, request: validRequest });
 
-    expect(fake.addedProtections).toEqual([
-      { sheetId: 3, editors: [OWNER_EMAIL] },
-      { sheetId: 1, editors: [OWNER_EMAIL, EMPLOYEE_A] },
-      { sheetId: 2, editors: [OWNER_EMAIL, EMPLOYEE_B] },
-    ]);
+    expect(fake.addedProtections).toEqual([{ sheetId: 3, editors: [OWNER_EMAIL] }]);
   });
 
   it("rejects duplicate member emails before any Google mutation", async () => {
@@ -221,7 +222,7 @@ describe("SetupService.create", () => {
     expect(result.members[0]).toMatchObject({
       email: EMPLOYEE_A,
       sheetId: "1",
-      protectionId: "2",
+      protectionId: null,
       permissionId: "permission-1",
       setupStatus: "ready",
       error: null,
@@ -229,7 +230,7 @@ describe("SetupService.create", () => {
     expect(result.members[1]).toMatchObject({
       email: EMPLOYEE_B,
       sheetId: "2",
-      protectionId: "3",
+      protectionId: null,
       permissionId: null,
       setupStatus: "invite-failed",
       error: MEMBER_INVITE_FAILED_MESSAGE,
@@ -509,7 +510,7 @@ describe("SetupService.configureExisting", () => {
           email: EMPLOYEE_A,
           sheetId: String(sheetIds.get(SHEET_A)),
           sheetTitle: SHEET_A,
-          protectionId: "2",
+          protectionId: null,
           permissionId: "permission-1",
           setupStatus: "ready",
           error: null,
@@ -519,7 +520,7 @@ describe("SetupService.configureExisting", () => {
           email: EMPLOYEE_B,
           sheetId: String(sheetIds.get(SHEET_B)),
           sheetTitle: SHEET_B,
-          protectionId: "3",
+          protectionId: null,
           permissionId: "permission-2",
           setupStatus: "ready",
           error: null,
@@ -554,7 +555,7 @@ describe("SetupService.configureExisting", () => {
     });
   });
 
-  it("stores the live sheet titles and protects each tab for the owner and its member", async () => {
+  it("stores the live sheet titles and leaves the adopted tabs open", async () => {
     const fake = createFileDependenciesFake();
     const sheetIds = await seedLegacyFile(fake);
 
@@ -567,8 +568,6 @@ describe("SetupService.configureExisting", () => {
     expect(config.members.map((member) => member.sheetTitle)).toEqual([SHEET_A, SHEET_B]);
     expect(fake.addedProtections.map((protection) => protection.editors)).toEqual([
       [OWNER_EMAIL],
-      [OWNER_EMAIL, EMPLOYEE_A],
-      [OWNER_EMAIL, EMPLOYEE_B],
     ]);
   });
 

@@ -85,8 +85,6 @@ export type ImportMemberSetupStatus = (typeof IMPORT_MEMBER_SETUP_STATUSES)[numb
 export const IMPORT_MEMBER_INVITE_FAILED_MESSAGE =
   "Could not share this file with this member.";
 
-const EMPLOYEE_PROTECTION_DESCRIPTION = "Attendance employee sheet";
-
 export interface ImportMemberProgress {
   displayName: string;
   email: string;
@@ -232,24 +230,6 @@ function toProgress(member: ConfigMember): ImportMemberProgress {
   };
 }
 
-function buildEmployeeProtectionRequest(
-  sheetId: number,
-  ownerEmail: string,
-  memberEmail: string,
-): SheetRequest {
-  return {
-    addProtectedRange: {
-      protectedRange: {
-        range: { sheetId },
-        description: EMPLOYEE_PROTECTION_DESCRIPTION,
-        warningOnly: false,
-        requestingUserCanEdit: false,
-        editors: { users: [ownerEmail, memberEmail], groups: [], domainUsersCanEdit: false },
-      },
-    },
-  };
-}
-
 /** Resolves each mapped tab to the numeric sheet ID Google assigned it. */
 function resolveTabs(
   snapshot: SpreadsheetSnapshot,
@@ -281,33 +261,6 @@ function resolveTabs(
 
 export function createImportService(dependencies: ImportServiceDependencies): ImportService {
   const { drive, sheets, config } = dependencies;
-
-  async function protectEmployeeTabs(
-    fileId: string,
-    tabs: readonly EmployeeTab[],
-    ownerEmail: string,
-  ): Promise<void> {
-    if (tabs.length === 0) return;
-
-    const { replies } = await sheets.batchUpdate(
-      fileId,
-      tabs.map((tab) => buildEmployeeProtectionRequest(tab.sheetId, ownerEmail, tab.email)),
-    );
-    const added = replies.flatMap((reply) =>
-      reply.addProtectedRange ? [reply.addProtectedRange] : [],
-    );
-
-    if (added.length !== tabs.length) {
-      throw new ImportError("setup-incomplete", "Google did not return every sheet protection.");
-    }
-
-    for (const [index, tab] of tabs.entries()) {
-      await config.updateMemberProgress(fileId, {
-        email: tab.email,
-        protectionId: added[index].protectedRangeId,
-      });
-    }
-  }
 
   /** Serialized: Drive does not support concurrent permission changes on a file. */
   async function inviteMembers(
@@ -428,8 +381,6 @@ export function createImportService(dependencies: ImportServiceDependencies): Im
       replaceExisting: true,
     });
 
-    await protectEmployeeTabs(file.id, tabs, ownerEmail);
-
     return await finishSetup(file.id, file.name, folder, planned);
   }
 
@@ -475,9 +426,6 @@ export function createImportService(dependencies: ImportServiceDependencies): Im
         setupStatus: "pending",
       });
     }
-
-    const unprotected = tabs.filter((tab) => (byEmail.get(tab.email)?.protectionId ?? null) === null);
-    await protectEmployeeTabs(fileId, unprotected, ownerEmail);
 
     return await finishSetup(fileId, request.fileName, folder, planned);
   }

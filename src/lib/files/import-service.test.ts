@@ -259,7 +259,7 @@ describe("ImportService.importWorkbook save", () => {
           email: EMPLOYEE_A,
           sheetId: "1",
           sheetTitle: "Employee A",
-          protectionId: "2",
+          protectionId: null,
           permissionId: "permission-1",
           setupStatus: "ready",
           error: null,
@@ -269,7 +269,7 @@ describe("ImportService.importWorkbook save", () => {
           email: EMPLOYEE_B,
           sheetId: "2",
           sheetTitle: "Employee B",
-          protectionId: "3",
+          protectionId: null,
           permissionId: "permission-2",
           setupStatus: "ready",
           error: null,
@@ -336,11 +336,8 @@ describe("ImportService.importWorkbook save", () => {
     const { config } = await fake.config.read(CONVERTED_FILE_ID);
     expect(config.setupState).toBe("ready");
     expect(config.ownerEmail).toBe(OWNER_EMAIL);
-    expect(fake.addedProtections).toEqual([
-      { sheetId: 3, editors: [OWNER_EMAIL] },
-      { sheetId: 1, editors: [OWNER_EMAIL, EMPLOYEE_A] },
-      { sheetId: 2, editors: [OWNER_EMAIL, EMPLOYEE_B] },
-    ]);
+    // Adopted tabs are left open; only `__APP_CONFIG` is protected.
+    expect(fake.addedProtections).toEqual([{ sheetId: 3, editors: [OWNER_EMAIL] }]);
   });
 });
 
@@ -405,7 +402,7 @@ describe("ImportService.importWorkbook partial failure", () => {
     ]);
     // The completed member keeps its permission; only the failed email is retried.
     expect(fake.invitedEmails).toEqual([EMPLOYEE_A, EMPLOYEE_B, EMPLOYEE_B]);
-    expect(fake.addedProtections).toHaveLength(3);
+    expect(fake.addedProtections).toHaveLength(1);
   });
 
   it("refuses to resume a file that has no attendance configuration", async () => {

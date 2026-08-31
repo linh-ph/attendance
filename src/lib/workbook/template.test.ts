@@ -178,6 +178,47 @@ describe("buildEmployeeSheetPlan batch requests", () => {
     }
   });
 
+  /*
+   * Read off the supplied `202607勤怠管理表` workbook, so a created tab is
+   * recognisable as the same document. That workbook uses no fills and no
+   * borders, so neither is invented here.
+   */
+  it("sets Arial across the sheet, naming only the font in fields", () => {
+    const template = plan();
+    const font = requestsOfKind(template.requests, "repeatCell").find((request) =>
+      JSON.stringify(request).includes("fontFamily"),
+    );
+
+    expect(font).toBeDefined();
+    expect(font?.repeatCell).toMatchObject({
+      cell: { userEnteredFormat: { textFormat: { fontFamily: "Arial" } } },
+      fields: "userEnteredFormat.textFormat.fontFamily",
+    });
+  });
+
+  it("gives every column the reference workbook's width", () => {
+    const template = plan();
+    const widths = requestsOfKind(template.requests, "updateDimensionProperties").map(
+      (request) =>
+        request.updateDimensionProperties as {
+          range: { dimension: string; startIndex: number; endIndex: number };
+          properties: { pixelSize: number };
+        },
+    );
+
+    expect(widths.every((width) => width.range.dimension === "COLUMNS")).toBe(true);
+    // A is the date column; J:AS are the 36 half-hour slots, sized as one run.
+    expect(widths[0]).toMatchObject({
+      range: { startIndex: 0, endIndex: 1 },
+      properties: { pixelSize: 65 },
+    });
+    expect(widths.at(-1)).toMatchObject({
+      range: { startIndex: 9, endIndex: 45 },
+      properties: { pixelSize: 34 },
+    });
+    expect(widths).toHaveLength(8);
+  });
+
   it("freezes the first three rows and the first two columns", () => {
     const template = plan();
     const [freeze] = requestsOfKind(template.requests, "updateSheetProperties");

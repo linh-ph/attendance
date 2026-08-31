@@ -3,7 +3,14 @@
 Date: 2026-08-31
 
 Status: Active. Published by task **F1** of
-[`docs/plans/active/2026-08-31-attendance-ui-redesign.md`](../plans/active/2026-08-31-attendance-ui-redesign.md).
+[`docs/plans/active/2026-08-31-attendance-ui-redesign.md`](../plans/active/2026-08-31-attendance-ui-redesign.md),
+and refreshed with the Wave 1 additions from **F2** (AppShell), **F5**
+(SyncStatus / ErrorNotice / state gallery) and **F6** (WizardShell).
+
+Wave 2 agents: read the **Component entry points** section before you read the
+class lists. Most of what Wave 1 built is consumed as a React component, not as
+a CSS class, and reaching past the component for its classes is how two screens
+end up with two different versions of the same thing.
 
 ## How to use this document
 
@@ -282,7 +289,7 @@ Weight: `--weight-medium` 500, `--weight-semibold` 600, `--weight-bold` 700,
 | --- | --- | --- |
 | `--content-max` | `72rem` | `main` width cap |
 | `--reading-max` | `46ch` | Prose measure |
-| `--app-bar-height` | `3.75rem` | A 44 px target plus its surround. The day editor's sticky header offsets by this |
+| `--app-bar-height` | `3.75rem` | A 44 px target plus its surround. The day editor's sticky header offsets by this. **F2 re-declares it as `0rem` on the wide shell — see below** |
 | `--sidebar-width` | `15rem` | Desktop shell (F2) |
 | `--bottom-nav-height` | `3.875rem` | Mobile shell (F2) |
 | `--touch-target` | `2.75rem` / 44px | WCAG 2.2 pointer minimum |
@@ -292,6 +299,25 @@ Weight: `--weight-medium` 500, `--weight-semibold` 600, `--weight-bold` 700,
 
 `--z-sticky` 5 · `--z-app-bar` 10 · `--z-popover` 20 · `--z-sheet` 40 ·
 `--z-toast` 60. Do not write a raw `z-index`.
+
+### Shell overrides — read the tokens, never hard-code a bar height
+
+F2 re-points two of these tokens by viewport, because the compact shell and the
+wide shell are different chrome, not the same chrome resized. A screen that
+reads the tokens gets both layouts for free; a screen that hard-codes a pixel
+height is wrong on one of them.
+
+- **`--app-bar-height` is re-declared as `0rem`** on `main` inside the
+  `min-width: 64rem` block. The sticky brand bar exists **only on the compact
+  shell** — the wide shell puts navigation in the sidebar, so there is no top
+  bar to clear. Anything that offsets from the top of the page must use
+  `var(--app-bar-height)` and will then correctly collapse to `0` on desktop.
+  The day editor's `.attendance-header` already does exactly this.
+- **`.app-main .sticky-actions` is lifted** by `--bottom-nav-height` plus
+  `--safe-bottom` on the compact shell, so a sticky Save row clears the mobile
+  bottom navigation and the home indicator. Use `.sticky-actions`, or
+  `PageShell`'s `footer` slot, and this is already handled. **Do not add your
+  own bottom offset on top of it** — you will double the gap on a phone.
 
 ## Primitives
 
@@ -431,20 +457,89 @@ the skeleton sweep. Anything with a resting position that the collapse would
 strand must set that position explicitly — the ghosts in `states.css` are the
 worked example.
 
+## Component entry points
+
+Wave 1 shipped three component systems. **Import the component; do not rebuild
+it from its classes.** The class lists further down exist so you can read the
+CSS, not so you can hand-assemble a second copy of a shell, a status line, or a
+wizard.
+
+### Page slots — `src/components/app-shell/page-shell.tsx`
+
+`PageShell` is how a screen gets its frame. It renders the page's **only**
+`<main>` and its **only** `<h1>`, so:
+
+- sections inside `children` start at `<h2>`, never `<h1>`;
+- do not add your own `<main>` — there is exactly one per page, and `AppShell`
+  exports `MAIN_CONTENT_ID` for anything that needs to address it (the skip
+  link already does);
+- a slot you do not supply is **omitted from the DOM** rather than rendered
+  empty, so an unused header action or status area costs nothing;
+- the `footer` slot is the place for Save / Back / Continue rows. It is
+  already lifted clear of the mobile bottom navigation and the home indicator
+  — do not add your own offset on top of it.
+
+Slot classes: `.page-header` `.page-heading` `.page-status`
+`.page-header-actions` `.page-content` `.page-footer`. `.page` and
+`.app-nav-icon` exist in the markup as hooks and carry no rule.
+
+### Sync and system states — `@/components/sync-status`
+
+Import from `@/components/sync-status`, **except `ErrorNotice`, which is in
+`@/components/api-error-notice`**.
+
+- `SyncStatus` is the **only** place the eight sync words from spec §5.4 exist.
+  Do not write `Synced`, `Saved locally`, `Syncing`, `Offline`,
+  `Needs attention`, `Remote changes detected`, `Local storage unavailable`, or
+  `Saved to Google Sheets · local cache unavailable` into a screen by hand — a
+  ninth phrasing is a product regression, not a wording preference.
+- `StateNotice` covers the fourteen required system states from spec §8.2.
+  Reach for it before inventing an empty or error block.
+- `ErrorNotice` takes a route's `debug` field through its **`diagnostic` prop**.
+  Pass it through; never render a provider diagnostic by hand. The sanitized
+  `GoogleErrorDiagnostic` envelope is the only shape allowed in the browser,
+  and it is absent entirely when `APP_DEBUG_ERRORS` is off.
+
+### Wizard shell — `@/components/wizard-shell`
+
+Import from `@/components/wizard-shell` **only** — never from a file inside it.
+The directory's internals are F6's to rearrange; the index is the contract.
+
+`WizardShell` owns steps, the rail, sticky actions, the review summary, and the
+recovery slots. A feature wizard owns its data and validation and nothing else.
+
 ## Per-surface class inventory
 
 What each surface sheet contains today. A surface's owner extends its own file
 and nothing else.
 
-**`states.css`** (F5) — `.section-error` `.page-error` `.card-error`
-`.google-picker-error` `.open-by-link-error` `.form-status` `.form-error`
-`.api-error` `.debug-error` `.loading-ghosts` `.loading-ghosts-label`
-`.ghost-scene` `.ghost-scene-replaced` `.ghost-canvas` `.ghost` `.ghost-drift`
-`.ghost-bob` `.ghost-turn` `.ghost-body` `.ghost-eyes`. Keyframes:
-`ghost-drift`, `ghost-bob`, `ghost-turn`, `ghost-blink`.
+**`states.css`** (F5) — inline text: `.section-error` `.page-error`
+`.card-error` `.google-picker-error` `.open-by-link-error` `.form-status`
+`.form-error`. Error notice: `.api-error` `.api-error-title`
+`.api-error-detail` `.api-error-page` `.api-error-section` `.api-error-card`.
+Sync line: `.sync-status` `.sync-status-detail` `.sync-status-meta`. System
+states: `.state-notice` and its modifiers, `.state-skeleton`. Debug
+disclosure: `.debug-error` `.debug-error-disclosure` `.debug-error-label`
+`.debug-error-badge` `.debug-error-row` `.debug-error-note`. Waiting scene:
+`.loading-ghosts` `.loading-ghosts-label` `.ghost-scene`
+`.ghost-scene-replaced` `.ghost-canvas` `.ghost` `.ghost-drift` `.ghost-bob`
+`.ghost-turn` `.ghost-body` `.ghost-eyes`. Keyframes: `ghost-drift`,
+`ghost-bob`, `ghost-turn`, `ghost-blink`.
 
-**`shell.css`** (F2) — `.app-bar` `.app-bar-spacer` `.app-bar-user` `.brand`
-`.brand-mark` `.brand-name`, plus the `main` container rule.
+These are the internals of `SyncStatus`, `StateNotice` and `ErrorNotice` —
+consume the components, not the classes.
+
+**`shell.css`** (F2) — chrome: `.app-bar` `.brand` `.brand-mark` `.brand-name`
+`.skip-link` `.app-shell` `.app-sidebar` `.app-sidebar-footer` `.app-nav`
+`.app-nav-list` `.app-nav-sublist` `.app-nav-item` `.app-nav-group`
+`.app-nav-group-label` `.app-nav-link` `.app-nav-icon-box` `.app-nav-label`
+`.app-account` `.app-account-mark` `.app-account-copy` `.app-account-label`
+`.app-account-email` `.app-sign-out` `.app-main`, plus the `main` container
+rule. Page slots: `.page-header` `.page-heading` `.page-status`
+`.page-header-actions` `.page-content` `.page-footer`.
+
+`.app-bar-spacer` and `.app-bar-user` were **removed** by F2 — the account
+moved into the sidebar footer. Nothing should reference them.
 
 **`login.css`** (S1) — `.page-centered` `.hero` `.hero-split` `.hero-copy`
 `.hero-art`. `.hero-art` keeps `object-fit: contain`: the retained
@@ -490,12 +585,42 @@ classes are the whole vocabulary — `setupStatus` is exactly
 `pending` | `ready` | `invite-failed`, and a fourth class here would mean a
 fourth value the configuration schema does not have.
 
-**`wizard.css`** (F6) — `.import-wizard` `.legacy-setup` `.section-note`
-`.mapping-list` `.mapping-row` `.mapping-sheet` `.setup-result`.
+**`wizard.css`** (F6) — shell: `.wizard` `.wizard-head` `.wizard-layout`
+`.wizard-steps` `.wizard-steps-kicker` `.wizard-progress` `.wizard-progress-seg`
+`.wizard-rail` `.wizard-rail-step` `.wizard-rail-link` `.wizard-rail-mark`
+`.wizard-rail-copy` `.wizard-rail-label` `.wizard-rail-hint` `.wizard-main`
+`.wizard-step-body` `.wizard-step-head` `.wizard-step-title` `.wizard-lede`
+`.wizard-banner` `.wizard-actions`. Items: `.wizard-item` `.wizard-item-list`
+`.wizard-item-title` `.wizard-item-detail`. Status: `.wizard-status`
+`.wizard-status-busy` `.wizard-status-attention`. Review: `.wizard-summary`
+`.wizard-summary-title` `.wizard-summary-list` `.wizard-summary-item`
+`.wizard-summary-label` `.wizard-summary-value` `.wizard-summary-note`
+`.wizard-review`. Progress: `.setup-progress`. Pre-existing and untouched:
+`.import-wizard` `.legacy-setup` `.section-note` `.mapping-list` `.mapping-row`
+`.mapping-sheet` `.setup-result`.
+
+These are the internals of `WizardShell` — consume the component.
 
 Note: `.timeline-label-suffix` is defined in `primitives.css` beside `.sr-only`
 because it is the same visually-hidden treatment; the day editor markup keeps
 using its own name.
+
+### Prefix families that span more than one owner
+
+No class name collides across the eleven stylesheets — that was checked
+mechanically after the Wave 1 merge. Three **prefixes**, however, are now
+shared between owners, and they are easy to confuse at a glance:
+
+| Prefix | Who owns what |
+| --- | --- |
+| `.page-*` | `.page-lede` is a primitive (F1); `.page-error` is a state (F5); `.page-centered` is login (S1); `.page-header` `.page-heading` `.page-status` `.page-header-actions` `.page-content` `.page-footer` are `PageShell` slots (F2) |
+| `.state-*` | `.state-pill*` is a primitive (F1); `.state-notice*` and `.state-skeleton` are F5 components |
+| `.skeleton*` | The bare `.skeleton*` presets are primitives (F1). `.state-skeleton` is F5's *scene* built from them — it is not a `.skeleton` variant |
+
+`.wizard-status-busy` and `.wizard-status-attention` (F6) express the same two
+ideas as `.state-pill-busy` and `.state-pill-attention` (F1). Both are in use
+and neither is wrong, but prefer the `.state-pill` family outside a wizard so
+one product does not grow two status vocabularies.
 
 ## Accessibility baseline every task inherits
 
@@ -506,6 +631,10 @@ undo them.
   measured, not estimated — re-measure if you change a colour.
 - Every workflow keyboard complete, with a visible focus ring on everything
   focusable.
+- The skip link (`.skip-link`, targeting `AppShell`'s exported
+  `MAIN_CONTENT_ID`) is already in the shell. It only works while there is
+  exactly one `<main>` on the page, which is why `PageShell` renders it and a
+  screen must not add another.
 - Calendar: arrow-key movement, Enter/Space activation, correct
   selected/today/state announcement, and the **full readable date** exposed
   even though the cell shows a bare day number.

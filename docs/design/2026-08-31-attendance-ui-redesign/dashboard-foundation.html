@@ -1,0 +1,289 @@
+<style>
+  :root {
+    --ink: #19213b;
+    --muted: #6c7592;
+    --line: #e4e7f2;
+    --surface: #ffffff;
+    --canvas: #f6f7fc;
+    --indigo: #5868e8;
+    --indigo-dark: #4454d5;
+    --indigo-soft: #eef0ff;
+    --mint: #dff7ee;
+    --mint-ink: #14745a;
+    --amber: #fff2cf;
+    --shadow: 0 24px 64px rgba(35, 43, 91, .14);
+  }
+
+  .concept-head { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:22px; }
+  .concept-head h2 { margin:0 0 8px; letter-spacing:-.035em; }
+  .concept-head p { max-width:720px; margin:0; }
+  .direction-pill { flex:none; padding:8px 12px; border-radius:999px; background:#e8f7f1; color:#14745a; font-size:12px; font-weight:800; }
+  .showcase { padding:28px; border-radius:28px; background:linear-gradient(145deg,#e9ecff 0%,#f2f4ff 47%,#e7f7f1 100%); border:1px solid #e0e5f5; }
+  .device-label { display:flex; align-items:center; gap:8px; margin:0 0 10px; color:#56617d; font-size:11px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+  .device-label:before { content:""; width:8px; height:8px; border-radius:50%; background:var(--indigo); }
+  .devices { display:grid; grid-template-columns:minmax(640px, 2.25fr) minmax(240px,.75fr); gap:22px; align-items:start; }
+
+  .desktop-shell { overflow:hidden; min-height:590px; display:grid; grid-template-columns:174px 1fr; border-radius:18px; background:var(--canvas); box-shadow:var(--shadow); color:var(--ink); }
+  .sidebar { display:flex; flex-direction:column; padding:20px 14px 14px; background:#20284d; color:#cfd5f0; }
+  .brand { display:flex; align-items:center; gap:9px; padding:0 8px 20px; color:white; font-size:12px; font-weight:850; letter-spacing:-.02em; }
+  .brand-mark { width:27px; height:27px; display:grid; place-items:center; border-radius:9px; background:linear-gradient(145deg,#6f7df0,#4a59dd); box-shadow:0 8px 18px rgba(83,101,232,.3); font-size:11px; }
+  .nav-label { margin:10px 9px 6px; color:#818bad; font-size:8px; font-weight:800; letter-spacing:.11em; text-transform:uppercase; }
+  .nav-item { display:flex; align-items:center; gap:9px; min-height:35px; padding:0 9px; border-radius:10px; color:#cfd5f0; font-size:10px; font-weight:650; }
+  .nav-item.active { background:rgba(255,255,255,.11); color:white; box-shadow:inset 2px 0 #8d9aff; }
+  .nav-icon { width:15px; text-align:center; opacity:.9; }
+  .nav-badge { margin-left:auto; min-width:17px; padding:2px 5px; border-radius:999px; background:#6574ee; color:#fff; font-size:7px; font-weight:850; text-align:center; }
+  .sidebar-bottom { margin-top:auto; padding-top:14px; border-top:1px solid rgba(255,255,255,.08); }
+  .account { display:flex; align-items:center; gap:8px; padding:10px 7px 2px; }
+  .avatar { width:26px; height:26px; flex:none; display:grid; place-items:center; border-radius:50%; background:#dfe4ff; color:#4454d5; font-size:8px; font-weight:900; }
+  .account-copy { min-width:0; }
+  .account-copy b, .account-copy span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .account-copy b { color:#fff; font-size:8px; }
+  .account-copy span { margin-top:2px; color:#8f99bd; font-size:6px; }
+
+  .desktop-main { padding:0 24px 28px; }
+  .topbar { height:60px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
+  .breadcrumb { color:#77809b; font-size:9px; }
+  .top-actions { display:flex; align-items:center; gap:8px; }
+  .search { width:152px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#9198ad; font-size:8px; }
+  .icon-button { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--line); border-radius:10px; background:#fff; color:#69738e; font-size:10px; }
+  .desktop-content { max-width:850px; margin:0 auto; padding-top:26px; }
+  .eyebrow { color:#7c86a3; font-size:8px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
+  .greeting { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin:5px 0 18px; }
+  .greeting h1 { margin:0; color:var(--ink); font-size:24px; letter-spacing:-.045em; line-height:1.15; }
+  .greeting p { margin:5px 0 0; color:var(--muted); font-size:9px; }
+  .sync { display:flex; align-items:center; gap:6px; color:#66718c; font-size:8px; white-space:nowrap; }
+  .sync-dot { width:7px; height:7px; border-radius:50%; background:#31ad83; box-shadow:0 0 0 3px #e1f7ef; }
+
+  .today-card { position:relative; overflow:hidden; display:grid; grid-template-columns:1fr auto; align-items:center; gap:22px; padding:21px 22px; border-radius:18px; background:linear-gradient(135deg,#5565e5,#7180ee); color:#fff; box-shadow:0 17px 34px rgba(74,88,215,.22); }
+  .today-card:after { content:""; position:absolute; width:180px; height:180px; right:-80px; top:-95px; border:28px solid rgba(255,255,255,.08); border-radius:50%; }
+  .today-date { margin-bottom:5px; font-size:8px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; opacity:.75; }
+  .today-title { margin:0 0 9px; font-size:17px; letter-spacing:-.03em; }
+  .today-meta { display:flex; align-items:center; gap:8px; font-size:8px; opacity:.87; }
+  .status-chip { padding:4px 7px; border-radius:999px; background:rgba(23,36,98,.28); color:#fff; font-weight:800; }
+  .primary-button { position:relative; z-index:1; min-width:118px; padding:10px 13px; border-radius:11px; background:#fff; color:var(--indigo-dark); font-size:9px; font-weight:900; text-align:center; box-shadow:0 8px 18px rgba(35,45,126,.18); }
+
+  .section-row { display:flex; align-items:center; justify-content:space-between; margin:22px 1px 10px; }
+  .section-row h3 { margin:0; font-size:12px; letter-spacing:-.02em; }
+  .section-link { color:var(--indigo-dark); font-size:8px; font-weight:800; }
+  .sheet-grid { display:grid; grid-template-columns:1.45fr .9fr; gap:12px; }
+  .panel { border:1px solid var(--line); border-radius:15px; background:#fff; box-shadow:0 4px 18px rgba(32,40,77,.045); }
+  .sheet-list { overflow:hidden; }
+  .sheet-row { display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #eceef5; }
+  .sheet-row:last-child { border-bottom:0; }
+  .month { width:32px; height:32px; display:grid; place-items:center; border-radius:10px; background:var(--indigo-soft); color:var(--indigo-dark); font-size:8px; font-weight:900; }
+  .month.old { background:#f1f3f7; color:#7c8499; }
+  .sheet-copy b, .sheet-copy span { display:block; }
+  .sheet-copy b { font-size:9px; }
+  .sheet-copy span { margin-top:3px; color:var(--muted); font-size:7px; }
+  .state { padding:4px 7px; border-radius:999px; background:var(--mint); color:var(--mint-ink); font-size:7px; font-weight:850; }
+  .state.neutral { background:#f0f2f7; color:#6d7690; }
+  .manage-panel { padding:14px; }
+  .manage-top { display:flex; justify-content:space-between; gap:8px; }
+  .manage-top b { font-size:9px; }
+  .manage-top span { color:#8a92a8; font-size:8px; }
+  .metric-row { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; margin-top:11px; }
+  .metric { padding:9px; border-radius:10px; background:#f7f8fc; }
+  .metric b { display:block; font-size:14px; letter-spacing:-.04em; }
+  .metric span { color:#7a829b; font-size:7px; }
+  .attention { display:flex; align-items:center; gap:7px; margin-top:9px; padding:8px 9px; border-radius:10px; background:var(--amber); color:#805f13; font-size:7px; font-weight:750; }
+  .quick-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:10px; }
+  .quick { display:flex; align-items:center; gap:8px; min-height:38px; padding:8px 10px; border:1px solid var(--line); border-radius:11px; background:#fff; color:#3e4762; font-size:8px; font-weight:750; }
+  .quick-icon { width:23px; height:23px; display:grid; place-items:center; border-radius:8px; background:#f0f2ff; color:var(--indigo); font-weight:900; }
+
+  .phone-wrap { display:flex; justify-content:center; }
+  .phone-shell { position:relative; width:260px; min-height:590px; overflow:hidden; border:7px solid #20284d; border-radius:31px; background:var(--canvas); box-shadow:var(--shadow); color:var(--ink); }
+  .phone-status { height:18px; padding:7px 15px 0; display:flex; justify-content:space-between; color:#505a76; font-size:6px; font-weight:800; }
+  .phone-head { height:46px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.86); }
+  .phone-brand { display:flex; align-items:center; gap:7px; font-size:9px; font-weight:900; }
+  .phone-brand .brand-mark { width:24px; height:24px; border-radius:8px; font-size:9px; color:white; }
+  .phone-body { padding:18px 13px 78px; }
+  .phone-body .eyebrow { font-size:7px; }
+  .phone-body h2 { margin:4px 0 4px; font-size:20px; letter-spacing:-.045em; }
+  .phone-sub { margin:0 0 14px; color:var(--muted); font-size:8px; }
+  .phone-today { position:relative; overflow:hidden; padding:16px; border-radius:17px; background:linear-gradient(145deg,#5565e5,#7180ee); color:white; box-shadow:0 14px 28px rgba(74,88,215,.2); }
+  .phone-today .today-date { font-size:7px; }
+  .phone-today h3 { margin:0 0 5px; font-size:14px; letter-spacing:-.025em; }
+  .phone-today p { margin:0; font-size:7px; opacity:.82; }
+  .phone-primary { margin-top:13px; padding:11px; border-radius:11px; background:white; color:var(--indigo-dark); font-size:8px; font-weight:900; text-align:center; }
+  .mobile-sync { display:flex; align-items:center; gap:5px; margin:9px 1px 0; color:#68728c; font-size:7px; }
+  .mobile-section { display:flex; align-items:center; justify-content:space-between; margin:18px 1px 8px; }
+  .mobile-section b { font-size:10px; }
+  .mobile-section span { color:var(--indigo); font-size:7px; font-weight:800; }
+  .mobile-card { padding:11px; border:1px solid var(--line); border-radius:13px; background:#fff; box-shadow:0 3px 14px rgba(32,40,77,.04); }
+  .mobile-sheet { display:grid; grid-template-columns:30px 1fr auto; align-items:center; gap:8px; }
+  .mobile-sheet + .mobile-sheet { margin-top:9px; padding-top:9px; border-top:1px solid #eceef5; }
+  .mobile-sheet .month { width:29px; height:29px; font-size:7px; }
+  .mobile-sheet .sheet-copy b { font-size:8px; }
+  .mobile-sheet .sheet-copy span { font-size:6px; }
+  .mobile-sheet .state { font-size:6px; }
+  .mobile-manage { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .mobile-manage b { display:block; font-size:8px; }
+  .mobile-manage span { color:var(--muted); font-size:6px; }
+  .manage-number { color:var(--indigo-dark); font-size:15px; font-weight:900; }
+  .bottom-nav { position:absolute; left:0; right:0; bottom:0; height:61px; display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--line); background:rgba(255,255,255,.96); backdrop-filter:blur(12px); }
+  .bottom-item { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#858da5; font-size:6px; font-weight:750; }
+  .bottom-item i { width:17px; height:17px; display:grid; place-items:center; border-radius:6px; font-style:normal; font-size:9px; }
+  .bottom-item.active { color:var(--indigo-dark); }
+  .bottom-item.active i { background:var(--indigo-soft); }
+
+  .rationale { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:22px; }
+  .reason { padding:17px; border:1px solid #e3e7f1; border-radius:16px; background:#fff; }
+  .reason-no { width:25px; height:25px; display:grid; place-items:center; margin-bottom:11px; border-radius:8px; background:var(--indigo-soft); color:var(--indigo-dark); font-size:10px; font-weight:900; }
+  .reason h3 { margin:0 0 6px; font-size:13px; }
+  .reason p { margin:0; color:#69738d; font-size:12px; line-height:1.55; }
+  .decision-note { margin-top:14px; padding:14px 16px; border-radius:14px; background:#edf8f4; color:#275f51; font-size:12px; line-height:1.55; }
+  .decision-note b { color:#174d40; }
+  .approval { margin-top:22px; }
+  .approval h3 { margin:0 0 5px; }
+  .approval p { margin:0 0 13px; }
+  .approval-options { display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:10px; }
+  .approval-card { padding:15px; border:1px solid #dfe3ef; border-radius:14px; background:#fff; cursor:pointer; transition:.18s ease; }
+  .approval-card:hover { transform:translateY(-2px); border-color:#9ca7ef; box-shadow:0 9px 24px rgba(50,60,120,.08); }
+  .approval-card b { display:block; margin-bottom:4px; color:#202944; font-size:12px; }
+  .approval-card span { color:#737c95; font-size:11px; line-height:1.4; }
+  .approval-card.recommended { border-color:#a7b0f4; background:#f8f9ff; }
+  .recommended b { color:var(--indigo-dark); }
+
+  @media (max-width:1050px) {
+    .devices { grid-template-columns:1fr; }
+    .phone-wrap { justify-content:flex-start; }
+  }
+  @media (max-width:760px) {
+    .concept-head { display:block; }
+    .direction-pill { display:inline-block; margin-top:12px; }
+    .showcase { padding:14px; }
+    .desktop-shell { min-width:720px; transform-origin:top left; }
+    .desktop-crop { overflow:auto; padding-bottom:8px; }
+    .rationale, .approval-options { grid-template-columns:1fr; }
+  }
+</style>
+
+<div class="concept-head">
+  <div>
+    <h2>Phần 1 · Visual foundation &amp; unified dashboard</h2>
+    <p class="subtitle">Dashboard đưa hành động hằng ngày lên trước, vẫn cho người quản lý thấy việc cần xử lý mà không buộc họ chuyển role.</p>
+  </div>
+  <span class="direction-pill">A · Calm productivity</span>
+</div>
+
+<section class="showcase">
+  <div class="devices">
+    <div class="desktop-crop">
+      <div class="device-label">Desktop · 1440+</div>
+      <div class="desktop-shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="brand-mark">BA</span><span>Attendance</span></div>
+          <div class="nav-label">Workspace</div>
+          <div class="nav-item active"><span class="nav-icon">⌂</span>Today</div>
+          <div class="nav-item"><span class="nav-icon">□</span>Timesheets</div>
+          <div class="nav-label">Management</div>
+          <div class="nav-item"><span class="nav-icon">▤</span>Managed files<span class="nav-badge">2</span></div>
+          <div class="nav-item"><span class="nav-icon">♙</span>Members</div>
+          <div class="sidebar-bottom">
+            <div class="nav-item"><span class="nav-icon">?</span>Help &amp; guide</div>
+            <div class="nav-item"><span class="nav-icon">⚙</span>Settings</div>
+            <div class="account"><span class="avatar">LN</span><span class="account-copy"><b>Linh Nguyen</b><span>linh.np@blended-asia.com</span></span></div>
+          </div>
+        </aside>
+
+        <main class="desktop-main">
+          <div class="topbar">
+            <span class="breadcrumb">Workspace / Today</span>
+            <span class="top-actions"><span class="search">⌕ &nbsp; Search files</span><span class="icon-button">?</span><span class="icon-button">◌</span></span>
+          </div>
+          <div class="desktop-content">
+            <div class="eyebrow">Monday · August 31</div>
+            <div class="greeting">
+              <div><h1>Good morning, Linh</h1><p>Your workday is ready to continue.</p></div>
+              <div class="sync"><span class="sync-dot"></span>All changes synced</div>
+            </div>
+
+            <section class="today-card">
+              <div>
+                <div class="today-date">Today · August attendance</div>
+                <h2 class="today-title">08:30 → Not clocked out</h2>
+                <div class="today-meta"><span class="status-chip">In progress</span><span>2 work blocks · 5h 45m recorded</span></div>
+              </div>
+              <div class="primary-button">Continue today →</div>
+            </section>
+
+            <div class="section-row"><h3>My timesheets</h3><span class="section-link">View all →</span></div>
+            <div class="sheet-grid">
+              <div class="panel sheet-list">
+                <div class="sheet-row"><span class="month">AUG</span><span class="sheet-copy"><b>August 2026</b><span>Updated 2 minutes ago · 17 days entered</span></span><span class="state">Current</span></div>
+                <div class="sheet-row"><span class="month old">JUL</span><span class="sheet-copy"><b>July 2026</b><span>Submitted on Aug 2 · 168 hours</span></span><span class="state neutral">Submitted</span></div>
+              </div>
+              <div class="panel manage-panel">
+                <div class="manage-top"><b>Management</b><span>View all →</span></div>
+                <div class="metric-row"><div class="metric"><b>2</b><span>Active files</span></div><div class="metric"><b>18</b><span>Members</span></div></div>
+                <div class="attention">● &nbsp; 1 member needs setup</div>
+              </div>
+            </div>
+
+            <div class="section-row"><h3>Quick actions</h3></div>
+            <div class="quick-actions">
+              <div class="quick"><span class="quick-icon">↗</span>Open by link</div>
+              <div class="quick"><span class="quick-icon">＋</span>Create monthly file</div>
+              <div class="quick"><span class="quick-icon">⇧</span>Import workbook</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div>
+      <div class="device-label">Mobile · 390</div>
+      <div class="phone-wrap">
+        <div class="phone-shell">
+          <div class="phone-status"><span>9:41</span><span>● ◔ ▰</span></div>
+          <div class="phone-head"><span class="phone-brand"><span class="brand-mark">BA</span>Attendance</span><span class="avatar">LN</span></div>
+          <div class="phone-body">
+            <div class="eyebrow">Monday · August 31</div>
+            <h2>Good morning, Linh</h2>
+            <p class="phone-sub">Your workday is ready to continue.</p>
+            <div class="phone-today">
+              <div class="today-date">Today · August attendance</div>
+              <h3>08:30 → Not clocked out</h3>
+              <p>2 work blocks · 5h 45m recorded</p>
+              <div class="phone-primary">Continue today →</div>
+            </div>
+            <div class="mobile-sync"><span class="sync-dot"></span>All changes synced</div>
+
+            <div class="mobile-section"><b>My timesheets</b><span>View all →</span></div>
+            <div class="mobile-card">
+              <div class="mobile-sheet"><span class="month">AUG</span><span class="sheet-copy"><b>August 2026</b><span>Updated 2 min ago</span></span><span class="state">Current</span></div>
+              <div class="mobile-sheet"><span class="month old">JUL</span><span class="sheet-copy"><b>July 2026</b><span>168 hours</span></span><span class="state neutral">Submitted</span></div>
+            </div>
+
+            <div class="mobile-section"><b>Management</b><span>View all →</span></div>
+            <div class="mobile-card mobile-manage"><span><b>2 active files · 18 members</b><span>1 member needs setup</span></span><span class="manage-number">1</span></div>
+          </div>
+          <nav class="bottom-nav">
+            <span class="bottom-item active"><i>⌂</i>Today</span>
+            <span class="bottom-item"><i>□</i>Timesheets</span>
+            <span class="bottom-item"><i>▤</i>Manage</span>
+            <span class="bottom-item"><i>•••</i>More</span>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rationale">
+  <article class="reason"><span class="reason-no">1</span><h3>Một hierarchy, không role switch</h3><p>Today và My timesheets phục vụ việc hằng ngày. Management vẫn hiện diện nhưng nằm dưới, giúp người kiêm hai vai trò không bỏ sót việc.</p></article>
+  <article class="reason"><span class="reason-no">2</span><h3>Responsive theo hành vi</h3><p>Desktop dùng sidebar để quét nhanh; mobile dùng bottom navigation với vùng chạm lớn. Thứ tự nội dung và tên module luôn nhất quán.</p></article>
+  <article class="reason"><span class="reason-no">3</span><h3>Một primary action rõ ràng</h3><p>“Continue today” là CTA duy nhất nổi bật. Tạo file, import và mở link là secondary actions để giảm nhầm lẫn trong công việc thường nhật.</p></article>
+</div>
+
+<div class="decision-note"><b>Quy tắc empty state:</b> nếu chưa xác định được timesheet hiện tại, thẻ Today không đoán file; CTA đổi thành “Choose your timesheet” và giải thích ngắn cách chọn an toàn.</div>
+
+<section class="approval">
+  <h3>Duyệt phần 1</h3>
+  <p class="subtitle">Chọn một phương án để tôi khóa nền tảng này trước khi thiết kế timesheet editor.</p>
+  <div class="approval-options">
+    <div class="approval-card recommended" data-choice="approve_foundation" onclick="toggleSelect(this)"><b>✓ Duyệt nền tảng này</b><span>Giữ visual, navigation và hierarchy như mockup.</span></div>
+    <div class="approval-card" data-choice="adjust_density" onclick="toggleSelect(this)"><b>Tăng mật độ desktop</b><span>Giữ hướng này nhưng hiển thị nhiều dữ liệu hơn.</span></div>
+    <div class="approval-card" data-choice="revisit_navigation" onclick="toggleSelect(this)"><b>Điều chỉnh navigation</b><span>Giữ visual nhưng xem lại sidebar/bottom nav.</span></div>
+  </div>
+</section>

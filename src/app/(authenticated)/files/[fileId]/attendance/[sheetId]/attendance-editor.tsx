@@ -5,6 +5,7 @@ import { DayCalendar } from "@/components/day-calendar";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { WorkBlockForm } from "@/components/work-block-form";
+import { BulkApplyPanel } from "./bulk-apply-panel";
 import { LoadingGhosts } from "@/components/loading-ghosts";
 import { validateAttendanceDay } from "@/lib/attendance/validation";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
@@ -350,6 +351,22 @@ export function AttendanceEditor({
           onSlotChange={(slot, value) => dispatch({ type: "slot-change", slot, value })}
         />
       </section>
+
+      {/*
+        * Copying the open day onto others. It sits after the editors and before
+        * Save because it reads as a second thing to do with the day now in
+        * front of you, and it is deliberately unavailable while a save is in
+        * flight: it writes through the same endpoint.
+        */}
+      <BulkApplyPanel
+        fileId={view.fileId}
+        sheetId={sheetId}
+        view={view}
+        source={draft}
+        api={api}
+        disabled={saving || dirty}
+        onApplied={() => dispatch({ type: "reload" })}
+      />
 
       <div className="attendance-actions">
         <button

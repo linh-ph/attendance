@@ -152,6 +152,18 @@ must show which cells it will replace before it is applied. The block opens on
 the standard working day, 08:00 to 17:00, so the ordinary case needs only a
 description.
 
+One day can be copied onto others. `Apply this day to other days` opens a
+calendar of the month: click a day to include it, or drag across several. A
+drag is a working-week gesture and skips the weekend it crosses; a weekend
+included by hand is kept, because clicking a Saturday says somebody worked it.
+The day being copied is never a target.
+
+Applying replaces rather than merges, so the days that already hold something
+are counted and named before anything is written. Each day is then written
+through the ordinary per-day save — authorized, validated, and conflict-checked
+exactly like a hand-typed day — one at a time, and a failure stops there and
+reports how many were written rather than claiming the whole run.
+
 A created tab is laid out like the workbook the team already keeps: Arial, the
 reference file's column widths, and the first three rows and two columns frozen.
 That file uses no fills and no borders, so neither is invented here. Tabs are

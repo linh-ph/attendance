@@ -577,7 +577,8 @@
  * react-day-picker ships its own variables; mapping the app's tokens onto them
  * is less brittle than overriding its rules one by one.
  */
-.day-calendar-panel .rdp-root {
+.day-calendar-panel .rdp-root,
+.day-multi-calendar .rdp-root {
   --rdp-accent-color: var(--primary);
   --rdp-accent-background-color: var(--primary-wash);
   --rdp-day-height: 2.25rem;
@@ -594,7 +595,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.day-calendar-panel .rdp-month_caption {
+.day-calendar-panel .rdp-month_caption,
+.day-multi-calendar .rdp-month_caption {
   padding-bottom: var(--space-2xs);
   font-size: 0.8125rem;
   font-weight: 700;
@@ -603,7 +605,8 @@
   color: var(--ink-500);
 }
 
-.day-calendar-panel .rdp-weekday {
+.day-calendar-panel .rdp-weekday,
+.day-multi-calendar .rdp-weekday {
   color: var(--ink-500);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -639,4 +642,73 @@
 
 .day-calendar-entered.rdp-selected .rdp-day_button::after {
   background: var(--surface);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Applying one day to several                                                 */
+/* -------------------------------------------------------------------------- */
+
+.bulk-apply {
+  grid-column: 1 / -1;
+}
+
+/*
+ * Set apart from the editors above it: this writes to days that are not on
+ * screen, so it should not read as another field of the open day.
+ */
+.bulk-apply-open {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.bulk-apply-open h3 {
+  margin: 0 0 var(--space-xs);
+}
+
+/* The days picked as targets. Filled, so a run reads as one block at a glance. */
+.day-calendar-chosen .rdp-day_button {
+  color: var(--paper);
+  background: var(--primary);
+  font-weight: 700;
+}
+
+.day-calendar-chosen.day-calendar-weekend .rdp-day_button {
+  color: var(--paper);
+}
+
+/* The day being copied from, so the source of the copy is never in doubt. */
+.day-calendar-source .rdp-day_button {
+  border: 1px dashed var(--ink-500);
+  font-weight: 700;
+}
+
+/*
+ * A drag across the grid must not select the day numbers as text, which is what
+ * a browser does by default with a press-and-move over a table.
+ */
+.day-multi-calendar {
+  user-select: none;
+}
+
+.bulk-apply-count {
+  margin: var(--space-xs) 0 0;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-apply-warning {
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-control);
+  background: var(--warning-wash);
+}
+
+.bulk-apply-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
 }

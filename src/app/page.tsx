@@ -1,30 +1,16 @@
-import Image from "next/image";
+import { LoginPanel } from "@/components/login-panel";
 import { SignInButton } from "@/components/sign-in-button";
 
+/**
+ * The root is the same unauthenticated entry point as `/login`, and renders the
+ * same panel rather than a second variation of it. Both paths are public (see
+ * `lib/auth/paths.ts`), so two hand-maintained versions would be two things to
+ * keep in step for no gain.
+ */
 export default function Home() {
   return (
-    <main>
-      <section className="hero hero-split" aria-labelledby="page-title">
-        <div className="hero-copy">
-          <p className="eyebrow">blended-asia</p>
-          <h1 id="page-title">Attendance</h1>
-          <p>
-            Keep monthly working hours in the team spreadsheet. Managers create
-            and share the month; everyone else fills in their own timesheet.
-          </p>
-          <SignInButton />
-        </div>
-
-        {/* Decorative: empty alt keeps it out of the accessibility tree. */}
-        <Image
-          className="hero-art"
-          src="/meme.jpeg"
-          alt=""
-          width={387}
-          height={516}
-          priority
-        />
-      </section>
+    <main className="login-page">
+      <LoginPanel action={<SignInButton />} />
     </main>
   );
 }

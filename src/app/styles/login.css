@@ -1,0 +1,80 @@
+/**
+ * Login — the only unauthenticated surface.
+ *
+ * Owned by S1 (`app/login/*`, `app/page.tsx`, `components/sign-in-button.tsx`).
+ *
+ * The redesign target is a split layout: message and the single
+ * `Continue with Google` action on the left, the retained `public/meme.jpeg`
+ * on the right; on a phone the same image stacks above the message in a
+ * compact frame. The image keeps its aspect ratio and is never cropped to fill
+ * (`object-fit: contain`), and the primary action must stay reachable without
+ * excessive scrolling at 390 × 844.
+ *
+ * What is here now is the existing hero, re-skinned. The layout change is S1's.
+ */
+
+.page-centered {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: var(--space-lg) var(--space-md);
+}
+
+.hero {
+  width: min(100%, 42rem);
+  padding: clamp(var(--space-lg), 6vw, var(--space-2xl));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Desktop: message and action beside the retained image. */
+.hero-split {
+  display: grid;
+  gap: clamp(var(--space-lg), 4vw, var(--space-2xl));
+  align-items: center;
+  width: min(100%, 56rem);
+}
+
+@media (min-width: 48rem) {
+  .hero-split {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+/*
+ * The retained artwork. `contain` is a product requirement, not a preference:
+ * the image must not be cropped merely to fill its frame.
+ */
+.hero-art {
+  justify-self: center;
+  width: min(100%, 18rem);
+  height: auto;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+}
+
+.hero h1 {
+  font-size: var(--text-display);
+  letter-spacing: -0.045em;
+}
+
+.hero > p:not(.eyebrow),
+.hero-copy > p:not(.eyebrow) {
+  max-width: 35rem;
+  color: var(--ink-500);
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+}
+
+/* The one primary action on the page. */
+.hero button,
+.hero-copy button {
+  margin-top: var(--space-lg);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--text-md);
+  box-shadow: var(--shadow-primary);
+}

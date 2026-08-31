@@ -1,14 +1,26 @@
 /**
- * The timesheet — the screen this whole product exists for.
+ * The day editor — the screen this whole product exists for.
+ *
+ * Owned by S4 (`(authenticated)/files/[fileId]/attendance/**`,
+ * `components/day-summary.tsx`, `components/work-block-form.tsx`,
+ * `components/timeline-editor.tsx`).
+ *
+ * Narrowed by the F1 split: the day-picker skin moved to `calendar.css`, the
+ * notices to `states.css`, and the field, card and button treatments to
+ * `primitives.css`. What is left is the editor itself.
  *
  * It is laid out as a workbench: the day's figures on the left, the half-hour
  * report on the right, and the two things that must never scroll away — which
- * day you are on, and Save — pinned top and bottom. The report is 36 rows tall,
- * so without that pinning the save button spends most of its life off screen.
+ * day you are on, and Save — pinned top and bottom. The report is 36 rows
+ * tall, so without that pinning Save spends most of its life off screen.
  *
- * The time rail from the dashboard cards returns here at full size: a ruled
- * gutter of tabular times running down the report, which is what the sheet's
- * J:AS columns actually are.
+ * Two product invariants show up visually here and must not be re-styled away:
+ *
+ * - **Work hours is column H**, the sheet's own `=F-G-E`. It is never typed
+ *   and never written by a save, so it is rendered as a derived read-out
+ *   rather than as another input.
+ * - **The two reserved lunch slots** are hatched, not merely greyed, so
+ *   "spoken for" survives greyscale and colour-blind vision.
  */
 
 .attendance {
@@ -59,6 +71,13 @@
   }
 }
 
+/* The right-hand column: work block above, day-copier below. */
+.attendance-side {
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Day bar                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -66,32 +85,34 @@
 .attendance-header {
   position: sticky;
   /* Clears the app bar, which is sticky at the top of every page. */
-  top: 3.25rem;
-  z-index: 5;
+  top: var(--app-bar-height);
+  z-index: var(--z-sticky);
   display: flex;
   gap: var(--space-sm) var(--space-md);
   align-items: baseline;
   flex-wrap: wrap;
   padding: var(--space-sm) 0;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--paper) 95%, transparent);
+  background: color-mix(in srgb, var(--canvas) 95%, transparent);
   backdrop-filter: blur(12px);
 }
 
 .attendance-month {
   margin: 0;
-  font-size: 1.25rem;
-  letter-spacing: -0.02em;
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-snug);
+  font-variant-numeric: tabular-nums;
 }
 
 .attendance-sheet {
   margin: 0;
-  padding: 0.1875rem 0.625rem;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface-sunken);
   color: var(--ink-700);
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 
 .day-navigation {
@@ -103,18 +124,18 @@
 }
 
 .day-navigation button {
-  padding: 0.4375rem 0.75rem;
-  border: 1px solid var(--border-strong);
+  padding: var(--space-2xs) var(--space-sm);
+  border-color: var(--border-strong);
   color: var(--ink-700);
   background: var(--surface);
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
 }
 
 .day-navigation button:hover:not(:disabled) {
   color: var(--ink-900);
-  border-color: var(--ink-500);
-  background: var(--surface);
+  border-color: var(--primary);
+  background: var(--primary-wash);
 }
 
 .day-title {
@@ -129,96 +150,30 @@
 }
 
 .day-weekend {
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
   margin: 0;
-  padding: 0.125rem 0.5rem;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--warning-line);
   border-radius: var(--radius-pill);
   background: var(--warning-wash);
   color: var(--warning);
-  font-size: 0.6875rem;
-  font-weight: 700;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Fields                                                                      */
-/* -------------------------------------------------------------------------- */
+@media (max-width: 40rem) {
+  .attendance-header {
+    top: 0;
+  }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
-  min-width: 0;
-}
-
-.field > label,
-.field-label {
-  color: var(--ink-500);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.field-control {
-  width: 100%;
-  padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--ink-900);
-  font: inherit;
-  font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
-  transition: border-color var(--duration) var(--ease);
-}
-
-.field-control:hover:not(:disabled) {
-  border-color: var(--ink-500);
-}
-
-.field-control:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 1px;
-  border-color: var(--primary);
-}
-
-.field-control:disabled {
-  background: var(--surface-sunken);
-  color: var(--ink-500);
-  cursor: not-allowed;
-}
-
-/*
- * Carries its own row layout rather than borrowing it from `.field`, which is
- * a column elsewhere and stretches its children apart inside the create
- * wizard's card. `justify-content` keeps the box beside its label instead of at
- * opposite ends of the row.
- */
-.field-checkbox {
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  gap: var(--space-xs);
-  align-items: center;
-}
-
-.field-checkbox label {
-  flex: 0 1 auto;
-}
-
-.field-checkbox label {
-  color: var(--ink-900);
-  font-size: 0.9375rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.field-checkbox input {
-  width: 1.05rem;
-  height: 1.05rem;
-  accent-color: var(--primary);
+  .day-navigation {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -261,10 +216,9 @@
 
 .work-hours {
   color: var(--primary-ink);
-  font-family: var(--font-numeric);
-  font-size: 1.5rem;
+  font-size: var(--text-2xl);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -315,7 +269,7 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* Work report — the time rail                                                 */
+/* Work report — the half-hour slots, J:AS                                     */
 /* -------------------------------------------------------------------------- */
 
 .timeline {
@@ -328,8 +282,8 @@
 }
 
 .timeline:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .timeline-list {
@@ -339,7 +293,7 @@
 }
 
 /*
- * Time gutter, rail, then the entry. The rail is a real border rather than a
+ * Time gutter, rule, then the entry. The rule is a real border rather than a
  * decoration: it is the line the half-hours hang off, the same way the sheet's
  * slot columns hang off the clock.
  */
@@ -348,7 +302,7 @@
   gap: var(--space-sm);
   grid-template-columns: 4.25rem minmax(0, 1fr);
   align-items: center;
-  padding: 0.25rem var(--space-sm);
+  padding: var(--space-3xs) var(--space-sm);
   border-bottom: 1px solid var(--surface-sunken);
 }
 
@@ -362,8 +316,9 @@
 
 .timeline-label {
   display: flex;
-  align-items: center;
   gap: var(--space-2xs);
+  align-items: center;
+  min-height: var(--touch-target);
   padding-right: var(--space-sm);
   border-right: 2px solid var(--border);
   cursor: pointer;
@@ -371,37 +326,29 @@
 
 .timeline-time {
   color: var(--ink-500);
-  font-family: var(--font-numeric);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
 /* On the hour reads stronger, so the eye can count hours at a glance. */
 .timeline-row:nth-child(odd) .timeline-time {
   color: var(--ink-900);
-  font-weight: 600;
-}
-
-/* The suffix exists for screen readers; the column heading carries it visually. */
-.timeline-label-suffix {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  font-weight: var(--weight-semibold);
 }
 
 .timeline-input {
   width: 100%;
-  padding: 0.375rem 0.5rem;
+  min-height: var(--touch-target);
+  padding: var(--space-2xs) var(--space-xs);
   border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-900);
   font: inherit;
-  font-size: 0.875rem;
-  transition: border-color var(--duration) var(--ease);
+  font-size: var(--text-base);
+  transition:
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease);
 }
 
 .timeline-input:hover:not(:disabled) {
@@ -409,7 +356,7 @@
 }
 
 .timeline-input:focus-visible {
-  outline: 3px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 0;
   border-color: var(--primary);
   background: var(--surface);
@@ -440,56 +387,64 @@
  */
 .timeline-reserved {
   grid-column: 2;
-  margin-top: -0.125rem;
+  margin-top: calc(var(--space-3xs) * -1);
   color: var(--ink-500);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.02em;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Save bar and notices                                                        */
+/* Save bar                                                                    */
 /* -------------------------------------------------------------------------- */
 
 .attendance-actions {
   position: sticky;
   bottom: 0;
-  z-index: 5;
+  z-index: var(--z-sticky);
   display: flex;
-  gap: var(--space-md);
+  gap: var(--space-sm) var(--space-md);
   align-items: center;
   flex-wrap: wrap;
-  padding: var(--space-sm) 0;
+  padding: var(--space-sm) 0 calc(var(--space-sm) + var(--safe-bottom));
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--paper) 95%, transparent);
+  background: color-mix(in srgb, var(--canvas) 95%, transparent);
   backdrop-filter: blur(12px);
 }
 
+/*
+ * Unsaved work. Amber with a shape and a word — a draft that is safe locally
+ * but not yet in the sheet is an attention state, never a failure.
+ */
 .dirty-indicator {
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
   margin: 0;
-  padding: 0.1875rem 0.625rem;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--warning-line);
   border-radius: var(--radius-pill);
   background: var(--warning-wash);
   color: var(--warning);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
+.dirty-indicator::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+}
+
+/* Announced through a polite live region; it never steals focus. */
 .save-status {
   margin: 0;
   color: var(--ink-500);
-  font-size: 0.875rem;
-}
-
-.form-error {
-  margin: 0;
-  padding: var(--space-sm) var(--space-md);
-  border-left: 3px solid var(--danger);
-  border-radius: var(--radius-control);
-  background: var(--danger-wash);
-  color: var(--ink-900);
-  list-style-position: inside;
+  font-size: var(--text-base);
 }
 
 .form-error-actions {
@@ -499,6 +454,10 @@
   margin-top: var(--space-xs);
 }
 
+/*
+ * Remote changes detected. Indigo rather than red: the sheet moved on, which
+ * is information the user has to act on, not a failure of theirs.
+ */
 .conflict-disclosure {
   padding: var(--space-sm) var(--space-md);
   border-left: 3px solid var(--primary);
@@ -514,139 +473,7 @@
   margin: 0;
   padding-left: 1.1rem;
   color: var(--ink-700);
-  font-size: 0.875rem;
-}
-
-@media (max-width: 40rem) {
-  .attendance-header {
-    top: 0;
-  }
-
-  .day-navigation {
-    margin-left: 0;
-    width: 100%;
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* Day calendar                                                                */
-/* -------------------------------------------------------------------------- */
-
-.day-calendar {
-  position: relative;
-}
-
-.day-calendar-trigger {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  align-items: flex-start;
-  padding: 0.3125rem 0.75rem;
-  border: 1px solid var(--border-strong);
-  color: var(--ink-900);
-  background: var(--surface);
-}
-
-.day-calendar-trigger:hover:not(:disabled) {
-  border-color: var(--ink-500);
-  background: var(--surface);
-}
-
-.day-calendar-trigger-label {
-  color: var(--ink-500);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.day-calendar-trigger-value {
-  font-family: var(--font-numeric);
-  font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.day-calendar-panel {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  z-index: 20;
-  padding: var(--space-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-}
-
-/*
- * react-day-picker ships its own variables; mapping the app's tokens onto them
- * is less brittle than overriding its rules one by one.
- */
-.day-calendar-panel .rdp-root,
-.day-multi-calendar .rdp-root {
-  --rdp-accent-color: var(--primary);
-  --rdp-accent-background-color: var(--primary-wash);
-  --rdp-day-height: 2.25rem;
-  --rdp-day-width: 2.25rem;
-  --rdp-day_button-height: 2.25rem;
-  --rdp-day_button-width: 2.25rem;
-  --rdp-day_button-border-radius: var(--radius-control);
-  --rdp-selected-border: 2px solid var(--primary);
-  --rdp-outline: 3px solid var(--focus-ring);
-  --rdp-outline-selected: 3px solid var(--focus-ring);
-  --rdp-today-color: var(--primary-ink);
-  --rdp-disabled-opacity: 0.3;
-  font-family: inherit;
-  font-variant-numeric: tabular-nums;
-}
-
-.day-calendar-panel .rdp-month_caption,
-.day-multi-calendar .rdp-month_caption {
-  padding-bottom: var(--space-2xs);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-500);
-}
-
-.day-calendar-panel .rdp-weekday,
-.day-multi-calendar .rdp-weekday {
-  color: var(--ink-500);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.day-calendar-weekend:not(.rdp-selected) .rdp-day_button {
-  color: var(--warning);
-}
-
-/*
- * A dot under a day it already has something recorded on. The point of the
- * calendar is spotting the days that are still empty, so the mark has to
- * survive being scanned quickly.
- */
-.day-calendar-entered .rdp-day_button {
-  position: relative;
-  font-weight: 700;
-}
-
-.day-calendar-entered .rdp-day_button::after {
-  content: "";
-  position: absolute;
-  bottom: 0.3125rem;
-  left: 50%;
-  width: 0.25rem;
-  height: 0.25rem;
-  border-radius: 50%;
-  background: var(--primary);
-  transform: translateX(-50%);
-}
-
-.day-calendar-entered.rdp-selected .rdp-day_button::after {
-  background: var(--surface);
+  font-size: var(--text-base);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -668,31 +495,6 @@
   margin: 0 0 var(--space-xs);
 }
 
-/* The days picked as targets. Filled, so a run reads as one block at a glance. */
-.day-calendar-chosen .rdp-day_button {
-  color: var(--paper);
-  background: var(--primary);
-  font-weight: 700;
-}
-
-.day-calendar-chosen.day-calendar-weekend .rdp-day_button {
-  color: var(--paper);
-}
-
-/* The day being copied from, so the source of the copy is never in doubt. */
-.day-calendar-source .rdp-day_button {
-  border: 1px dashed var(--ink-500);
-  font-weight: 700;
-}
-
-/*
- * A drag across the grid must not select the day numbers as text, which is what
- * a browser does by default with a press-and-move over a table.
- */
-.day-multi-calendar {
-  user-select: none;
-}
-
 .bulk-apply-count {
   margin: var(--space-xs) 0 0;
   color: var(--ink-500);
@@ -712,11 +514,4 @@
   gap: var(--space-xs);
   flex-wrap: wrap;
   margin-top: var(--space-sm);
-}
-
-/* The right-hand column: work block above, day-copier below. */
-.attendance-side {
-  display: grid;
-  gap: var(--space-md);
-  align-content: start;
 }

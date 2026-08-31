@@ -1,0 +1,175 @@
+/**
+ * The calendar — month grid, day states, and the quick preview.
+ *
+ * Owned by S2 (`dashboard/page.tsx`, `dashboard-client.tsx`,
+ * `components/month-calendar/*`, `components/day-quick-preview/*`,
+ * `components/day-calendar.tsx`, `components/day-multi-calendar.tsx`,
+ * `components/month-label.tsx`).
+ *
+ * What is here now is the existing `react-day-picker` skin, re-tokenized. The
+ * month grid that becomes the dashboard's primary content is S2's to add.
+ *
+ * Two contract points the redesign must keep:
+ *
+ * - a recorded day is marked by a **dot as well as** its wash, so the state
+ *   survives greyscale and colour-blind vision;
+ * - the grid is keyboard complete — arrow movement, Enter/Space activation, a
+ *   visible focus ring, and a full readable date exposed to assistive
+ *   technology even though the cell shows a bare day number.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Day picker trigger and panel                                                */
+/* -------------------------------------------------------------------------- */
+
+.day-calendar {
+  position: relative;
+}
+
+.day-calendar-trigger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-2xs) var(--space-sm);
+  border-color: var(--border-strong);
+  color: var(--ink-900);
+  background: var(--surface);
+}
+
+.day-calendar-trigger:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-wash);
+}
+
+.day-calendar-trigger-label {
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.day-calendar-trigger-value {
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-calendar-panel {
+  position: absolute;
+  top: calc(100% + var(--space-xs));
+  right: 0;
+  z-index: var(--z-popover);
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* react-day-picker skin                                                       */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * react-day-picker ships its own variables; mapping the app's tokens onto them
+ * is less brittle than overriding its rules one by one.
+ */
+.day-calendar-panel .rdp-root,
+.day-multi-calendar .rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--primary-wash);
+  --rdp-day-height: var(--touch-target);
+  --rdp-day-width: var(--touch-target);
+  --rdp-day_button-height: var(--touch-target);
+  --rdp-day_button-width: var(--touch-target);
+  --rdp-day_button-border-radius: var(--radius-sm);
+  --rdp-selected-border: 2px solid var(--primary);
+  --rdp-outline: var(--focus-ring-width) solid var(--focus-ring);
+  --rdp-outline-selected: var(--focus-ring-width) solid var(--focus-ring);
+  --rdp-today-color: var(--primary-ink);
+  --rdp-disabled-opacity: 0.35;
+
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-calendar-panel .rdp-month_caption,
+.day-multi-calendar .rdp-month_caption {
+  padding-bottom: var(--space-2xs);
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.day-calendar-panel .rdp-weekday,
+.day-multi-calendar .rdp-weekday {
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.day-calendar-weekend:not(.rdp-selected) .rdp-day_button {
+  color: var(--warning);
+}
+
+/*
+ * A dot under a day that already has something recorded on it. The point of
+ * the calendar is spotting the days that are still empty, so the mark has to
+ * survive being scanned quickly — and it is a shape, not a colour, so it also
+ * survives being printed.
+ */
+.day-calendar-entered .rdp-day_button {
+  position: relative;
+  font-weight: var(--weight-bold);
+}
+
+.day-calendar-entered .rdp-day_button::after {
+  content: "";
+  position: absolute;
+  bottom: 0.375rem;
+  left: 50%;
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background: var(--success);
+  transform: translateX(-50%);
+}
+
+.day-calendar-entered.rdp-selected .rdp-day_button::after {
+  background: var(--surface);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Multi-day selection                                                         */
+/* -------------------------------------------------------------------------- */
+
+/* The days picked as targets. Filled, so a run reads as one block at a glance. */
+.day-calendar-chosen .rdp-day_button {
+  color: var(--primary-on);
+  background: var(--primary);
+  font-weight: var(--weight-bold);
+}
+
+.day-calendar-chosen.day-calendar-weekend .rdp-day_button {
+  color: var(--primary-on);
+}
+
+/* The day being copied from, so the source of the copy is never in doubt. */
+.day-calendar-source .rdp-day_button {
+  border: 1px dashed var(--ink-500);
+  font-weight: var(--weight-bold);
+}
+
+/*
+ * A drag across the grid must not select the day numbers as text, which is
+ * what a browser does by default with a press-and-move over a table.
+ */
+.day-multi-calendar {
+  user-select: none;
+}

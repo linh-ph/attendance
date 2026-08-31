@@ -1,0 +1,220 @@
+/**
+ * Members — reading a roster, editing one, and the roster shortcut shelf.
+ *
+ * Owned by S6 (`(authenticated)/members/*`,
+ * `(authenticated)/files/[fileId]/members/*`, `components/member-inputs.tsx`,
+ * `components/member-rows.tsx`, `components/roster-picker.tsx`). S7a and S7b
+ * consume these components read-only.
+ *
+ * `setupStatus` has exactly three values — `pending`, `ready`, `invite-failed`
+ * — and this file styles exactly those three. A fourth class here would mean a
+ * fourth value somewhere, which the configuration schema does not have.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Page stack                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: min(100%, 44rem);
+  margin-top: var(--space-md);
+}
+
+/* Inside a stack the step supplies its own gap, not a second top margin. */
+.members .step {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roster — reading                                                            */
+/* -------------------------------------------------------------------------- */
+
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Name and status lead, address underneath, actions pinned right. The status
+ * is the thing being scanned for on this screen, so it sits on the first line
+ * rather than at the end of a sentence.
+ */
+.member-row {
+  display: grid;
+  gap: 0 var(--space-sm);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.member-name {
+  grid-column: 1;
+  margin: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.member-email {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The status pill. Colour is never alone: each variant also draws a distinct
+ * shape, and the element's own text names the state.
+ */
+.member-status {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--neutral-line);
+  border-radius: var(--radius-pill);
+  color: var(--neutral);
+  background: var(--neutral-wash);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.member-status::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+/* Filled circle. */
+.member-status-ready {
+  color: var(--success);
+  background: var(--success-wash);
+  border-color: var(--success-line);
+}
+
+/* Hollow circle. */
+.member-status-pending {
+  color: var(--warning);
+  background: var(--warning-wash);
+  border-color: var(--warning-line);
+}
+
+.member-status-pending::before {
+  background: transparent;
+}
+
+/* Square. */
+.member-status-invite-failed {
+  color: var(--danger);
+  background: var(--danger-wash);
+  border-color: var(--danger-line);
+}
+
+.member-status-invite-failed::before {
+  border-radius: var(--space-3xs);
+}
+
+.member-actions {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roster — editing                                                            */
+/* -------------------------------------------------------------------------- */
+
+.member-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.member-input-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-input-row,
+.member-form {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-items: end;
+}
+
+.member-input-row {
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+}
+
+.member-input-row button,
+.member-form button {
+  justify-self: start;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Member roster shortcut                                                      */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Set apart from the member rows below it: this is a shelf of shortcuts, not
+ * another form, so it reads as a lighter surface with its own quiet heading.
+ */
+.roster-picker {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.roster-picker-title {
+  margin: 0 0 var(--space-xs);
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.roster-picker-list {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

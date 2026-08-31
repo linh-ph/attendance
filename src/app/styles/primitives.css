@@ -1,0 +1,996 @@
+/**
+ * Primitives — the shared vocabulary every surface builds from.
+ *
+ * A screen stylesheet composes these; it does not restate them and it never
+ * invents a second button, radius scale, or palette. If a screen needs a new
+ * shared primitive, that is a change to this file, and this file has one
+ * owner (F1) precisely so eight parallel screens cannot each grow their own.
+ *
+ * Three rules run through everything here:
+ *
+ * - **Colour is never the only carrier of state.** `.state-pill` always draws
+ *   a shape as well as a wash, and the markup always supplies words.
+ * - **Every interactive thing has a visible focus ring**, and hover, focus and
+ *   active are designed rather than inherited.
+ * - **Pointer targets reach 44 × 44 CSS px** wherever a finger is expected.
+ *
+ * Sections: layout · type · buttons · surfaces · cards · state pills · fields ·
+ * skeletons · live regions · utilities · motion preference.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Page rhythm                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A vertical stack of page sections. Used by the dashboard and by every
+ * wizard, so it lives here rather than with either of them.
+ */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  margin-top: var(--space-lg);
+}
+
+.section-header {
+  display: flex;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border);
+}
+
+.section-header h2 {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.section-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+  /* Pushed right in a section header; a plain row elsewhere. */
+  margin-left: auto;
+}
+
+@media (max-width: 32rem) {
+  .section-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Type                                                                        */
+/* -------------------------------------------------------------------------- */
+
+.eyebrow {
+  margin: 0 0 var(--space-2xs);
+  color: var(--primary-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-black);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.page-lede {
+  max-width: var(--reading-max);
+  margin: var(--space-xs) 0 0;
+  color: var(--ink-500);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buttons                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The bare element is the primary action, because most buttons in this app
+ * commit something. `.btn-secondary`, `.btn-ghost` and `.btn-danger` step down
+ * or aside from it; `.action` is the same grammar for a link.
+ */
+button,
+.btn {
+  display: inline-flex;
+  gap: var(--space-xs);
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--primary-on);
+  background: var(--primary);
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+button:hover:not(:disabled),
+.btn:hover:not(:disabled) {
+  background: var(--primary-ink);
+}
+
+button:active:not(:disabled),
+.btn:active:not(:disabled) {
+  background: var(--primary-strong);
+  transform: translateY(1px);
+}
+
+button:focus-visible,
+.btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+button:disabled,
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Quiet, bordered. The default for anything that does not commit. */
+.btn-secondary {
+  color: var(--ink-700);
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  color: var(--ink-900);
+  border-color: var(--primary);
+  background: var(--primary-wash);
+}
+
+.btn-secondary:active:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+/* No chrome until touched. For a tertiary action inside dense chrome. */
+.btn-ghost {
+  color: var(--ink-700);
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--surface-sunken);
+}
+
+.btn-ghost:active:not(:disabled) {
+  background: var(--neutral-wash);
+}
+
+/* Destroys or discards. Red appears here and in failure states, nowhere else. */
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger-line);
+  background: var(--danger-wash);
+}
+
+.btn-danger:hover:not(:disabled) {
+  color: var(--surface);
+  border-color: transparent;
+  background: var(--danger);
+}
+
+.btn-danger:active:not(:disabled) {
+  color: var(--surface);
+  background: color-mix(in srgb, var(--danger) 85%, black);
+}
+
+.btn-sm {
+  min-height: 2.25rem;
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.btn-lg {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-md);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/*
+ * Link-shaped actions. `.action` is the bordered secondary; `.action-primary`
+ * promotes it. Kept as its own class rather than folded into `.btn` because
+ * existing markup addresses it by name.
+ */
+.action {
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink-700);
+  background: var(--surface);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  text-decoration: none;
+  transition:
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    background var(--duration) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.action:hover {
+  color: var(--ink-900);
+  border-color: var(--primary);
+  background: var(--primary-wash);
+}
+
+.action:active {
+  transform: translateY(1px);
+}
+
+.action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.action-primary {
+  color: var(--primary-on);
+  border-color: transparent;
+  background: var(--primary);
+}
+
+.action-primary:hover {
+  color: var(--primary-on);
+  border-color: transparent;
+  background: var(--primary-ink);
+}
+
+/*
+ * Picker buttons select or navigate; they never commit. Primary is reserved
+ * for the one creating action in a view, so these read as secondary.
+ */
+.google-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.google-picker button {
+  color: var(--ink-700);
+  border-color: var(--border-strong);
+  background: var(--surface);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.google-picker button:hover:not(:disabled) {
+  color: var(--ink-900);
+  border-color: var(--primary);
+  background: var(--primary-wash);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Surfaces                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/* The plain raised sheet: one-pixel border, restrained shadow, 15px radius. */
+.surface {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Page-level container: larger radius, no shadow, recessed fill. */
+.surface-panel {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.surface-sunken {
+  padding: var(--space-md);
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+}
+
+/*
+ * A step is one card in a wizard stack. Marked on the element rather than
+ * inferred from an ancestor, because a wizard renders its steps as the
+ * component root — there is no wrapper to scope against.
+ */
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: min(100%, 44rem);
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.step > h2,
+.step > h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-snug);
+}
+
+.empty-state {
+  margin: 0;
+  padding: var(--space-lg) var(--space-md);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  color: var(--ink-500);
+  text-align: center;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cards                                                                       */
+/* -------------------------------------------------------------------------- */
+
+.card-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 64rem) {
+  .card-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.card:hover {
+  border-color: var(--primary-wash);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card:focus-within {
+  border-color: var(--primary);
+}
+
+.card-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-snug);
+}
+
+/* Facts as a labelled micro-grid, not a paragraph. */
+.card-facts {
+  display: grid;
+  gap: var(--space-sm) var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  margin: 0;
+}
+
+.card-fact dt {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.card-fact dd {
+  margin: var(--space-3xs) 0 0;
+  color: var(--ink-900);
+  font-size: var(--text-base);
+  /* Wrap addresses on their own boundaries, never mid-word. */
+  overflow-wrap: anywhere;
+}
+
+/* A fact that is a number, date, or duration: columns must line up. */
+.card-fact-numeric {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: normal;
+}
+
+.card-detail {
+  margin: var(--space-2xs) 0 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: var(--space-xs);
+}
+
+/* -------------------------------------------------------------------------- */
+/* State pills — colour is never alone                                         */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Every pill draws a shape token as well as a wash, and the markup supplies
+ * the word. A pill whose meaning is not already in the surrounding sentence
+ * carries its own accessible name.
+ *
+ * The shape is a pseudo-element so no markup change is needed to add it, and
+ * it survives forced-colours and greyscale printing where the wash does not.
+ */
+.state-pill {
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  color: var(--neutral);
+  background: var(--neutral-wash);
+  border-color: var(--neutral-line);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.state-pill::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+/* Synced, saved, recorded, ready: filled circle. */
+.state-pill-synced {
+  color: var(--success);
+  background: var(--success-wash);
+  border-color: var(--success-line);
+}
+
+/* Pending, missing, needs setup: hollow circle, so shape differs too. */
+.state-pill-pending,
+.state-pill-attention {
+  color: var(--warning);
+  background: var(--warning-wash);
+  border-color: var(--warning-line);
+}
+
+.state-pill-pending::before,
+.state-pill-attention::before {
+  background: transparent;
+}
+
+/* Failed, conflicting, needs repair: a square, unmistakable without colour. */
+.state-pill-failed {
+  color: var(--danger);
+  background: var(--danger-wash);
+  border-color: var(--danger-line);
+}
+
+.state-pill-failed::before {
+  border-radius: var(--space-3xs);
+}
+
+/* In flight. A bar, not a dot. */
+.state-pill-busy {
+  color: var(--primary-ink);
+  background: var(--primary-wash);
+  border-color: var(--primary-wash);
+}
+
+.state-pill-busy::before {
+  width: 0.75rem;
+  height: 0.3125rem;
+  border-radius: var(--radius-pill);
+}
+
+.state-pill-neutral {
+  color: var(--neutral);
+  background: var(--neutral-wash);
+  border-color: var(--neutral-line);
+}
+
+.state-pill-neutral::before {
+  background: transparent;
+  border-style: dashed;
+}
+
+/*
+ * Managed-file state, as rendered by the dashboard and the managed-files hub.
+ * Both screens read the same four values, so the mapping lives here.
+ */
+.card-state {
+  align-self: flex-start;
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--neutral-line);
+  border-radius: var(--radius-pill);
+  color: var(--neutral);
+  background: var(--neutral-wash);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.card-state::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.card-state-ready {
+  color: var(--success);
+  background: var(--success-wash);
+  border-color: var(--success-line);
+}
+
+.card-state-needs-setup {
+  color: var(--warning);
+  background: var(--warning-wash);
+  border-color: var(--warning-line);
+}
+
+.card-state-needs-setup::before {
+  background: transparent;
+}
+
+.card-state-needs-repair {
+  color: var(--danger);
+  background: var(--danger-wash);
+  border-color: var(--danger-line);
+}
+
+.card-state-needs-repair::before {
+  border-radius: var(--space-3xs);
+}
+
+.card-state-unknown {
+  color: var(--neutral);
+  background: var(--neutral-wash);
+  border-color: var(--neutral-line);
+}
+
+.card-state-unknown::before {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Form fields                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A field is label, control, then hint and error. The error is bound to the
+ * control with `aria-describedby` in markup; this file gives that binding a
+ * visible partner — a red border driven by `aria-invalid`, so the styling and
+ * the announcement cannot drift apart.
+ */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+
+.field > label,
+.field-label {
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+/*
+ * Not every input carries `.field-control` — the roster and the legacy mapping
+ * rows render bare inputs. Matching the `.field` wrapper as well means a
+ * control cannot go unstyled just because a class was forgotten.
+ */
+.field-control,
+.field > input,
+.field > select,
+.field > textarea {
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.field-control::placeholder,
+.field > input::placeholder,
+.field > textarea::placeholder {
+  color: var(--ink-500);
+}
+
+.field-control:hover:not(:disabled),
+.field > input:hover:not(:disabled),
+.field > select:hover:not(:disabled),
+.field > textarea:hover:not(:disabled) {
+  border-color: var(--ink-500);
+}
+
+.field-control:focus-visible,
+.field > input:focus-visible,
+.field > select:focus-visible,
+.field > textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+.field-control:disabled,
+.field > input:disabled,
+.field > select:disabled,
+.field > textarea:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-500);
+  cursor: not-allowed;
+}
+
+/* The visible partner of the `aria-describedby` error binding. */
+.field-control[aria-invalid="true"],
+.field > input[aria-invalid="true"],
+.field > select[aria-invalid="true"],
+.field > textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+  background: var(--danger-wash);
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+}
+
+/*
+ * The message named by `aria-describedby`. The leading mark means the error is
+ * findable without relying on the red.
+ */
+.field-error {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: baseline;
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.field-error::before {
+  content: "!";
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  line-height: 0.875rem;
+  text-align: center;
+}
+
+/*
+ * Carries its own row layout rather than borrowing it from `.field`, which is
+ * a column elsewhere and would stretch its children apart.
+ */
+.field-checkbox {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-xs);
+  align-items: center;
+  min-height: var(--touch-target);
+}
+
+.field-checkbox label {
+  flex: 0 1 auto;
+  color: var(--ink-900);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.field-checkbox input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--primary);
+}
+
+.field-checkbox input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* A field that spans its grid. */
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Skeletons                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A skeleton reserves the dimensions the real content will take, so nothing
+ * shifts when it arrives: set `--skeleton-h` and `--skeleton-w` to the final
+ * size rather than letting the placeholder pick its own.
+ *
+ * The shimmer is a background-position animation on a fixed-size box, so it
+ * moves no layout. Under reduced motion it holds still (see the bottom of this
+ * file) and the box still reads as a placeholder because of its fill.
+ */
+.skeleton {
+  display: block;
+  width: var(--skeleton-w, 100%);
+  height: var(--skeleton-h, 1rem);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(
+      90deg,
+      var(--surface-sunken) 0%,
+      var(--neutral-wash) 40%,
+      var(--surface-sunken) 80%
+    )
+    0 0 / 300% 100%;
+  animation: skeleton-sweep 1.6s linear infinite;
+}
+
+.skeleton-text {
+  --skeleton-h: 0.875rem;
+
+  border-radius: var(--radius-pill);
+}
+
+.skeleton-title {
+  --skeleton-h: 1.25rem;
+  --skeleton-w: 60%;
+}
+
+.skeleton-card {
+  --skeleton-h: 6.5rem;
+
+  border-radius: var(--radius-card);
+}
+
+.skeleton-circle {
+  --skeleton-h: 2.5rem;
+  --skeleton-w: 2.5rem;
+
+  border-radius: 50%;
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live regions and assistive-only text                                        */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * `.sr-only` is the announcement channel: put a polite live region in it and
+ * status changes are read without moving focus and without occupying layout.
+ * `.live-region` is its visible sibling for a status line that is also shown.
+ */
+.sr-only,
+.timeline-label-suffix {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.live-region {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+}
+
+.live-region:empty {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sticky action row                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The row that must never scroll away. It clears the home indicator on a
+ * phone, and it sits above content but below a popover.
+ */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--space-sm) 0 calc(var(--space-sm) + var(--safe-bottom));
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--canvas) 95%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.sticky-actions-top {
+  position: sticky;
+  top: 0;
+  bottom: auto;
+  z-index: var(--z-sticky);
+  padding: calc(var(--space-sm) + var(--safe-top)) 0 var(--space-sm);
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Utilities                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Guarantees the WCAG 2.2 pointer minimum on a control whose visible box is
+ * smaller than 44px — the box stays as drawn and the hit area grows around it.
+ */
+.touch-target {
+  position: relative;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.touch-target-inset::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--touch-target));
+  height: max(100%, var(--touch-target));
+  transform: translate(-50%, -50%);
+}
+
+/* Wide content scrolls inside its own labelled region, never the page. */
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Motion preference                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * No meaning depends on animation, so collapsing every duration is safe. The
+ * two exceptions — the skeleton sweep and the loading ghosts — are stopped
+ * outright rather than left parked at the end of their timeline; the ghosts'
+ * resting positions are set in `states.css`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card:hover,
+  .action:hover,
+  button:hover,
+  .btn:hover {
+    transform: none;
+  }
+
+  .skeleton {
+    animation: none !important;
+    background-position: 50% 0;
+  }
+}

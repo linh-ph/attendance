@@ -8,7 +8,11 @@ import {
   type SetupErrorCode,
 } from "@/lib/files/setup-service";
 import { createGoogleGateways } from "@/lib/google/client";
-import { FolderUnavailableError } from "@/lib/google/errors";
+import {
+  FolderUnavailableError,
+  debugErrorsEnabled,
+  toGoogleErrorDiagnostic,
+} from "@/lib/google/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +55,11 @@ function toResponseBody(result: MonthlySetupResult) {
  * the wizard can resume it — it is never deleted as rollback.
  */
 export async function POST(request: Request): Promise<Response> {
+  let accessTokenForRedaction: string | undefined;
+
   try {
     const session = await requireGoogleSessionFromRequest(request);
+    accessTokenForRedaction = session.accessToken;
 
     let payload: unknown;
     try {
@@ -103,8 +110,21 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: error.message }, { status: 400, headers: NO_STORE });
     }
 
+    /*
+     * Everything above is a failure the caller can act on. What is left is the
+     * Google boundary, and without this the wizard says only "Could not create
+     * the attendance file" — true, and useless for finding out why. Matches
+     * `/api/dashboard` and `/api/directory`, which already report this way.
+     */
+    const debug = debugErrorsEnabled()
+      ? toGoogleErrorDiagnostic(error, accessTokenForRedaction ? [accessTokenForRedaction] : [])
+      : undefined;
+    if (debug) {
+      console.error("Create attendance file failed.", debug);
+    }
+
     return Response.json(
-      { error: "Could not create the attendance file." },
+      { error: "Could not create the attendance file.", ...(debug ? { debug } : {}) },
       { status: 502, headers: NO_STORE },
     );
   }

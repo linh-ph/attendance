@@ -329,10 +329,17 @@ export function createConfigRepository(
     }
 
     const serialized = serializeAppConfig(config);
+    /*
+     * RAW, not the default `USER_ENTERED`. Every value here is machine data —
+     * a `YYYY-MM` month, emails, numeric IDs as strings, a status enum — and
+     * `USER_ENTERED` reads `2026-09` as a date and stores the serial `46266`,
+     * which then fails to read back as a month. Nothing in this sheet is ever
+     * meant to be a formula.
+     */
     await sheets.updateValues(input.fileId, [
-      { range: CONFIG_SETTINGS_RANGE, values: serialized.settings },
-      { range: CONFIG_STATUS_RANGE, values: serialized.statuses },
-      { range: CONFIG_MEMBER_RANGE, values: serialized.members },
+      { range: CONFIG_SETTINGS_RANGE, values: serialized.settings, inputOption: "RAW" },
+      { range: CONFIG_STATUS_RANGE, values: serialized.statuses, inputOption: "RAW" },
+      { range: CONFIG_MEMBER_RANGE, values: serialized.members, inputOption: "RAW" },
     ]);
 
     const protectedResult = await sheets.batchUpdate(input.fileId, [
@@ -393,7 +400,11 @@ export function createConfigRepository(
     const storedMember = validated.members[targetIndex];
 
     await sheets.updateValues(fileId, [
-      { range: configMemberRowRange(targetIndex), values: [memberRowValues(storedMember)] },
+      {
+        range: configMemberRowRange(targetIndex),
+        values: [memberRowValues(storedMember)],
+        inputOption: "RAW",
+      },
     ]);
 
     return storedMember;
@@ -401,7 +412,7 @@ export function createConfigRepository(
 
   async function updateSetupState(fileId: string, setupState: SetupState): Promise<void> {
     await sheets.updateValues(fileId, [
-      { range: CONFIG_SETUP_STATE_CELL, values: [[setupState]] },
+      { range: CONFIG_SETUP_STATE_CELL, values: [[setupState]], inputOption: "RAW" },
     ]);
     await drive.updateAppProperties(fileId, { [APP_PROPERTY_SETUP_STATE]: setupState });
   }

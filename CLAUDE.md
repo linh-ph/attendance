@@ -153,6 +153,10 @@ Violating any of these is a product regression, not a style choice.
 - `ValuePatch.inputOption` defaults to `USER_ENTERED` so the `=F-G-E` contract
   works. Free text — column I notes and the J:AS slots — must be sent as `RAW`,
   or a note beginning with `=` becomes a formula and `2026-07` becomes a date.
+- **Every `__APP_CONFIG` write is `RAW`.** This is not a preference: on the
+  first real Google run, `USER_ENTERED` stored the month `2026-09` as the serial
+  `46266`, which then failed to read back as `YYYY-MM` and made *every* file
+  creation fail with a bare 502. Nothing in that sheet is ever a formula.
 - Saves write the exact dirty A1 ranges, never whole rows or sheets.
 - The client derives its dirty set by running the domain's own `diffDay`, so it
   cannot drift from the server's.

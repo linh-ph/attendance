@@ -372,6 +372,18 @@ describe("ConfigRepository.initialize", () => {
     });
 
     const [settings, statusTable, members] = sheets.patches[0];
+
+    /*
+     * RAW, or Sheets reads the `2026-07` month as a date and stores the serial
+     * `46266`, which then fails to read back as a month at all — no file could
+     * be created. Nothing in this sheet is ever meant to be a formula.
+     */
+    expect([settings, statusTable, members].map((patch) => patch.inputOption)).toEqual([
+      "RAW",
+      "RAW",
+      "RAW",
+    ]);
+
     expect(settings.values).toEqual([
       ["schemaVersion", "1"],
       ["setupState", "pending"],
@@ -563,7 +575,7 @@ describe("ConfigRepository.updateSetupState", () => {
     await repository.updateSetupState("file-1", "needs-repair");
 
     expect(sheets.patches).toEqual([
-      [{ range: CONFIG_SETUP_STATE_CELL, values: [["needs-repair"]] }],
+      [{ range: CONFIG_SETUP_STATE_CELL, values: [["needs-repair"]], inputOption: "RAW" }],
     ]);
     expect(CONFIG_SETUP_STATE_CELL).toBe(`${CONFIG_SHEET_TITLE}!B2`);
     expect(sheets.events).toEqual([`updateValues:${CONFIG_SETUP_STATE_CELL}`]);

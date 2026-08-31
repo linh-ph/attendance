@@ -1,14 +1,23 @@
 /**
- * System states — the notices, and the waiting screen.
+ * System states — the sync vocabulary, the state gallery, the notices, and the
+ * waiting screen.
  *
- * Owned by F5 (`SyncStatus`, `ErrorNotice`, the loading ghosts). Everything a
- * screen shows when it is *not* showing the thing the user came for lives
- * here: errors, statuses, results, and the ghosts that hold the page while a
- * first remote load runs.
+ * Owned by F5 (`SyncStatus`, `StateNotice`, `ErrorNotice`, the loading ghosts).
+ * Everything a screen shows when it is *not* showing the thing the person came
+ * for lives here: statuses, empties, errors, results, and the ghosts that hold
+ * the page while a first remote load runs.
  *
- * Every notice states what happened and what to do next, and none of them uses
- * colour alone: each carries a left rule, a word, and — where the primitive
- * supplies one — a shape.
+ * Three rules bind every rule in this file:
+ *
+ * 1. **Colour never carries state alone.** Every state also has a word and a
+ *    shape — the shape comes from F1's `.state-pill` pseudo-element, so it
+ *    survives greyscale, printing, and forced-colours; the markup supplies the
+ *    word.
+ * 2. **Scope decides blast radius.** `-page`, `-section`, and `-card` variants
+ *    exist so one unreadable file renders as a card error and leaves the rest
+ *    of the dashboard alone.
+ * 3. **Placeholders reserve final dimensions** and stop animating under
+ *    `prefers-reduced-motion`, which F1's global block already enforces.
  *
  * The skeleton primitive lives in `primitives.css`; this file styles the
  * *scenes* built from it.
@@ -71,14 +80,193 @@
   margin-bottom: 0;
 }
 
+.api-error-title {
+  color: var(--ink-900);
+  font-weight: var(--weight-semibold);
+}
+
+.api-error-detail {
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+}
+
+/*
+ * Scope: how much of the page a failure is allowed to take.
+ *
+ * `-card` is the one that matters most. A dashboard that lists ten files and
+ * cannot read one of them renders nine rows and one card error — the whole
+ * page never fails for a single bad file.
+ */
+.api-error-page {
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-panel);
+}
+
+.api-error-card {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.api-error-card .card-actions {
+  padding-top: var(--space-2xs);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sync status — the one vocabulary                                            */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A polite live region that is also visible. It extends `.live-region`, so it
+ * collapses when empty and reads without moving focus. The pill carries the
+ * spec word; the sentence after it carries the meaning and the next action.
+ */
+.sync-status {
+  flex-wrap: wrap;
+  row-gap: var(--space-2xs);
+  column-gap: var(--space-xs);
+}
+
+.sync-status-detail {
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+}
+
+.sync-status-meta {
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The reusable state gallery                                                  */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * One shape for all fourteen states. Each stacks the same three answers in the
+ * same order — what happened, whether the data is safe, what to do next — so a
+ * person who has read one has read them all.
+ */
+.state-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.state-notice-eyebrow {
+  margin: 0 0 var(--space-2xs);
+}
+
+.state-notice-title {
+  margin: 0;
+  color: var(--ink-900);
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-snug);
+}
+
+.state-notice-safety {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+}
+
+.state-notice-guidance,
+.state-notice-detail {
+  margin: 0;
+  max-width: var(--reading-max);
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+}
+
+/* An empty list is not a failure, so it reads as the dashed placeholder. */
+.state-notice-empty {
+  border: 1px dashed var(--border-strong);
+  background: none;
+  box-shadow: none;
+}
+
+.state-notice-page {
+  padding: var(--space-lg);
+  border-radius: var(--radius-panel);
+}
+
+.state-notice-page .state-notice-title {
+  font-size: var(--text-lg);
+}
+
+.state-notice-card {
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.state-notice-card .state-notice-title {
+  font-size: var(--text-base);
+}
+
+/*
+ * Placeholders reserve the space the real content will take. The dimensions
+ * come from the component as `--skeleton-w` / `--skeleton-h`, so nothing
+ * shifts on arrival, and F1's reduced-motion block stops the sweep while the
+ * box still reads as a placeholder.
+ */
+.state-skeleton {
+  display: block;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Sanitized debug disclosure                                                  */
 /* -------------------------------------------------------------------------- */
 
 /*
- * Only rendered when the server-side `APP_DEBUG_ERRORS` switch is on. It shows
- * an allowlisted provider diagnostic, so it is the one place a monospace face
- * is correct: the reader is looking at machine output, not prose.
+ * Present only when the server attached a diagnostic, which it does only when
+ * the server-side `APP_DEBUG_ERRORS` switch is on. Collapsed by default: it is
+ * for whoever is diagnosing, never the first thing anyone else reads.
+ */
+.debug-error-disclosure {
+  width: min(100%, 56rem);
+  margin: var(--space-md) 0 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.debug-error-disclosure > summary {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-md);
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.debug-error-disclosure > summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+  border-radius: var(--radius-control);
+}
+
+.debug-error-badge {
+  padding: 0 var(--space-2xs);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+}
+
+/*
+ * The allowlisted provider diagnostic. This is the one place a monospace face
+ * is correct: the reader is looking at machine output, not prose. The rule is
+ * kept selector-compatible with the `<pre class="debug-error">` a screen may
+ * still render, so both shapes read the same.
  */
 .debug-error {
   width: min(100%, 56rem);
@@ -94,6 +282,50 @@
   font-size: var(--text-sm);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Inside the disclosure the panel chrome belongs to the `<details>` instead. */
+.debug-error-disclosure .debug-error {
+  width: auto;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+}
+
+.debug-error-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) 1fr;
+  gap: var(--space-2xs) var(--space-sm);
+  padding: var(--space-2xs) 0;
+}
+
+.debug-error-row dt {
+  color: var(--ink-500);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.debug-error-row dd {
+  margin: 0;
+}
+
+.debug-error-note {
+  margin: 0;
+  padding: 0 var(--space-md) var(--space-sm);
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+}
+
+/* On a phone the label and the value stack rather than squeezing the value. */
+@media (max-width: 32rem) {
+  .debug-error-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 
 /* -------------------------------------------------------------------------- */

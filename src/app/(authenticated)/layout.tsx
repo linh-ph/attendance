@@ -1,13 +1,19 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { AppShell } from "@/components/app-shell/app-shell";
+import { signOutAction } from "@/components/app-shell/sign-out-action";
 
 /**
  * Shell for every signed-in screen.
  *
- * The bar carries the product identity and the session controls so no page has
- * to render them, and so the sign-out control reads as chrome rather than as a
- * primary action floating above the content.
+ * The identity is read from the verified server session here — never from the
+ * client — and handed to `AppShell` for display only. Nothing about
+ * authorization happens in the shell: every route and every mutation
+ * re-authorizes itself against Drive, which is why the Management destinations
+ * are always shown rather than gated on a role this application does not have.
+ *
+ * The sign-out form is built here so the Auth.js server action stays in a
+ * server component; `AppShell` only places it.
  */
 export default async function AuthenticatedLayout({
   children,
@@ -15,30 +21,24 @@ export default async function AuthenticatedLayout({
   const session = await auth();
   const email = session?.user?.email ?? null;
 
-  async function signOutAction() {
-    "use server";
-    await signOut({ redirectTo: "/" });
+  // Signed out, the page itself redirects to `/login`; rendering the chrome
+  // around that redirect would flash a navigation the visitor cannot use.
+  if (!email) {
+    return <>{children}</>;
   }
 
   return (
-    <>
-      {email ? (
-        <header className="app-bar">
-          <Link className="brand" href="/dashboard">
-            <span className="brand-mark">blended-asia</span>
-            <span className="brand-name">Attendance</span>
-          </Link>
-
-          <span className="app-bar-spacer" />
-          <span className="app-bar-user">{email}</span>
-
-          <form action={signOutAction}>
-            <button type="submit">Sign out</button>
-          </form>
-        </header>
-      ) : null}
-
+    <AppShell
+      email={email}
+      signOut={
+        <form className="app-sign-out" action={signOutAction}>
+          <button className="btn-ghost btn-block" type="submit">
+            Sign out
+          </button>
+        </form>
+      }
+    >
       {children}
-    </>
+    </AppShell>
   );
 }

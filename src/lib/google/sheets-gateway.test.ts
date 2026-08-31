@@ -21,6 +21,7 @@ describe("getSpreadsheet", () => {
 
     await expect(gateway.getSpreadsheet("file-1")).resolves.toEqual({
       spreadsheetId: "file-1",
+      timeZone: null,
       sheets: [
         {
           sheetId: 0,
@@ -39,13 +40,46 @@ describe("getSpreadsheet", () => {
     });
   });
 
+  it("requests and returns the spreadsheet's own timezone", async () => {
+    const fakeSheets = createFakeSheetsClient({
+      spreadsheet: {
+        spreadsheetId: "file-1",
+        properties: { timeZone: "Asia/Tokyo" },
+        sheets: [{ properties: { sheetId: 1234, title: "Employee A", index: 0 } }],
+      },
+    });
+    const gateway = createSheetsGateway(fakeSheets);
+
+    const snapshot = await gateway.getSpreadsheet("file-1");
+
+    expect(snapshot.timeZone).toBe("Asia/Tokyo");
+    // Without the field in the mask Sheets simply omits it, and `Today` would
+    // be undeterminable for every file.
+    expect(SPREADSHEET_SNAPSHOT_FIELDS).toContain("properties(timeZone)");
+    expect(fakeSheets.getCalls[0].fields).toBe(SPREADSHEET_SNAPSHOT_FIELDS);
+  });
+
+  it("reports a missing, blank, or absent-properties timezone as null rather than a default", async () => {
+    for (const properties of [undefined, null, {}, { timeZone: null }, { timeZone: "   " }]) {
+      const fakeSheets = createFakeSheetsClient({
+        spreadsheet: { spreadsheetId: "file-1", properties, sheets: [] },
+      });
+
+      await expect(createSheetsGateway(fakeSheets).getSpreadsheet("file-1")).resolves.toEqual({
+        spreadsheetId: "file-1",
+        timeZone: null,
+        sheets: [],
+      });
+    }
+  });
+
   it("passes an explicit field mask through to the Sheets API", async () => {
     const fakeSheets = createFakeSheetsClient({ spreadsheet: { spreadsheetId: "file-1" } });
     const gateway = createSheetsGateway(fakeSheets);
 
     await expect(
       gateway.getSpreadsheet("file-1", "sheets(properties(sheetId,title))"),
-    ).resolves.toEqual({ spreadsheetId: "file-1", sheets: [] });
+    ).resolves.toEqual({ spreadsheetId: "file-1", timeZone: null, sheets: [] });
 
     expect(fakeSheets.getCalls[0].fields).toBe("sheets(properties(sheetId,title))");
   });

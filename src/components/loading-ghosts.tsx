@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { GhostCanvas } from "./ghost-canvas";
 
 /**
@@ -42,9 +42,16 @@ export interface LoadingGhostsProps {
 export function LoadingGhosts({ label }: LoadingGhostsProps) {
   const [webglDrawing, setWebglDrawing] = useState(false);
 
+  /*
+   * `GhostCanvas` lists this in its effect dependencies, so a fresh identity on
+   * every render would tear down and rebuild the whole WebGL scene each time
+   * the callback itself caused a render.
+   */
+  const handleReady = useCallback(() => setWebglDrawing(true), []);
+
   return (
     <div className="loading-ghosts">
-      <GhostCanvas onReady={() => setWebglDrawing(true)} />
+      <GhostCanvas onReady={handleReady} />
 
       <div
         className={webglDrawing ? "ghost-scene ghost-scene-replaced" : "ghost-scene"}

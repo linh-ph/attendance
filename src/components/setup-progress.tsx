@@ -2,13 +2,17 @@ import { MemberRows } from "@/components/member-rows";
 import type { MemberSummary } from "@/lib/files/member-service";
 
 /**
- * What a manager sees when Drive kept the file but a later setup step failed
- * (section 9.2).
+ * The wizard grammar's recovery surface: what a manager sees when Drive kept
+ * the file but a later setup step failed (spec section 7.3, section 9.2).
  *
- * A partial setup is never presented as a lost file: the file id, the folder
- * that has just become the active dashboard folder, and every member's retained
- * progress are shown together with the resume action. The optional retry is for
- * a flow that can safely re-run against the same retained file.
+ * A created or converted Drive file is never auto-deleted as rollback, so a
+ * partial setup is never presented as a lost file. The file id, the folder that
+ * has just become the active dashboard folder, and every member's retained
+ * progress are shown together with the Resume action, and the optional retry is
+ * for a flow that can safely re-run against that same retained file.
+ *
+ * The description is announced politely rather than by moving focus, because
+ * this panel replaces the step the person was already looking at.
  */
 
 export interface SetupProgressProps {
@@ -34,10 +38,10 @@ export function SetupProgress({
   isRetrying = false,
 }: SetupProgressProps) {
   return (
-    <section className="section step" aria-labelledby="setup-progress-heading">
+    <section className="section step setup-progress" aria-labelledby="setup-progress-heading">
       <h2 id="setup-progress-heading">Setup did not finish</h2>
 
-      <p role="status" className="form-status">
+      <p role="status" aria-live="polite" className="wizard-status wizard-status-attention">
         {description}
       </p>
 
@@ -60,7 +64,12 @@ export function SetupProgress({
 
       <div className="card-actions">
         {onRetry ? (
-          <button type="button" className="action" onClick={onRetry} disabled={isRetrying}>
+          <button
+            type="button"
+            className="action"
+            onClick={onRetry}
+            disabled={isRetrying}
+          >
             {isRetrying ? "Retrying setup…" : retryLabel}
           </button>
         ) : null}

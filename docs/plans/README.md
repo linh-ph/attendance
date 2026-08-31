@@ -31,3 +31,4 @@ decision into `docs/decisions/`; keep task-local choices in the plan.
 ## Active Plans
 
 - [Google Sheets Attendance App](active/2026-08-28-google-sheets-attendance-app.md)
+- [Attendance UI Redesign — Parallel Agent Task Breakdown](active/2026-08-31-attendance-ui-redesign.md)

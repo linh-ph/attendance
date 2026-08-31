@@ -111,6 +111,11 @@ function toErrorResponse(error: unknown): Response {
  * The actor is re-derived from the verified session and re-authorized against
  * live Drive metadata and the protected mapping before any attendance value is
  * read. The response carries one member sheet and nothing about any other.
+ *
+ * The body also carries `spreadsheetTimeZone`: the file's own validated IANA
+ * zone, or `null`. It is the only source the client may use to decide `Today`
+ * — never UTC, never the browser's zone — and `null` means the client keeps
+ * the calendar navigable while disabling `Today`.
  */
 export async function handleAttendanceRead(
   request: Request,

@@ -1,0 +1,128 @@
+<style>
+  :root { --ink:#19213b; --muted:#6d7690; --line:#e3e7f1; --canvas:#f6f7fc; --indigo:#5868e8; --indigo-dark:#4555d6; --indigo-soft:#eef0ff; --mint:#daf6eb; --mint-ink:#15745a; --amber:#fff1cc; --amber-ink:#895f0c; --red:#ffe6e9; --red-ink:#a83849; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:22px; }
+  .head h2 { margin:0 0 7px; letter-spacing:-.035em; }
+  .head p { margin:0; max-width:760px; }
+  .pill { flex:none; padding:7px 11px; border-radius:999px; background:#e4f7ef; color:#176a55; font-size:11px; font-weight:850; }
+  .flow { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px; }
+  .flow-step { position:relative; padding:11px 12px 11px 38px; border:1px solid var(--line); border-radius:13px; background:#fff; color:var(--muted); font-size:11px; line-height:1.45; }
+  .flow-step b { display:block; color:var(--ink); }
+  .flow-no { position:absolute; left:11px; top:12px; width:19px; height:19px; display:grid; place-items:center; border-radius:7px; background:var(--indigo-soft); color:var(--indigo-dark); font-size:9px; font-weight:900; }
+  .options { display:grid; gap:22px; }
+  .option { overflow:hidden; padding:0; border-radius:24px; }
+  .option-preview { padding:22px; background:linear-gradient(145deg,#e9edff,#eef7f5); }
+  .devices { display:grid; grid-template-columns:minmax(540px,2.15fr) minmax(210px,.7fr); gap:15px; align-items:start; }
+  .desktop { position:relative; overflow:hidden; min-height:350px; padding:17px; border-radius:15px; background:var(--canvas); color:var(--ink); box-shadow:0 16px 36px rgba(37,46,96,.14); }
+  .desktop-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .desktop-head h3 { margin:0; font-size:16px; letter-spacing:-.03em; }
+  .controls { display:flex; gap:6px; }
+  .control { padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:#66708b; font-size:7px; font-weight:750; }
+  .control.primary { border-color:var(--indigo); background:var(--indigo); color:#fff; }
+  .week { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; color:#818aa2; font-size:6px; font-weight:850; text-align:center; }
+  .calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:6px; }
+  .day { position:relative; min-height:47px; padding:6px; border:1px solid var(--line); border-radius:9px; background:#fff; font-size:7px; font-weight:800; }
+  .day.muted { color:#b0b6c7; background:#fafbfc; }
+  .day.complete { background:#f4fcf9; border-color:#bfe9da; }
+  .day.missing { background:#fffaf0; border-color:#f1d996; }
+  .day.selected { border:2px solid var(--indigo); box-shadow:0 0 0 3px rgba(88,104,232,.12); }
+  .dot { position:absolute; left:6px; bottom:6px; width:6px; height:6px; border-radius:50%; background:#31a77f; }
+  .dot.amber { background:#e7a927; }
+  .dot.gray { background:#c5cad7; }
+  .hours { position:absolute; right:5px; bottom:5px; color:#75809b; font-size:5px; font-weight:750; }
+  .legend { display:flex; gap:11px; margin-top:9px; color:#747e98; font-size:6px; }
+  .legend span { display:flex; align-items:center; gap:4px; }
+  .legend i { width:6px; height:6px; border-radius:50%; background:#31a77f; }
+  .legend .amber { background:#e7a927; }
+  .legend .gray { background:#c5cad7; }
+  .popup { position:absolute; z-index:3; width:190px; padding:13px; border:1px solid #dfe3ef; border-radius:13px; background:#fff; box-shadow:0 18px 44px rgba(29,38,81,.22); }
+  .popup h4 { margin:0; font-size:10px; }
+  .popup-sub { margin-top:2px; color:var(--muted); font-size:6px; }
+  .status { display:inline-block; margin-top:8px; padding:4px 6px; border-radius:999px; background:var(--mint); color:var(--mint-ink); font-size:6px; font-weight:850; }
+  .detail-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:9px; }
+  .detail { padding:7px; border-radius:8px; background:#f6f7fb; }
+  .detail span,.detail b { display:block; }
+  .detail span { color:#7b849e; font-size:5px; }
+  .detail b { margin-top:2px; font-size:8px; }
+  .block { margin-top:7px; padding:7px; border-left:3px solid #8793f1; border-radius:7px; background:#f1f3ff; font-size:6px; color:#59627d; }
+  .popup-action { display:flex; justify-content:flex-end; gap:6px; margin-top:9px; }
+  .small-button { padding:6px 8px; border:1px solid var(--line); border-radius:8px; color:#68718a; font-size:6px; font-weight:850; }
+  .small-button.primary { border-color:var(--indigo); background:var(--indigo); color:#fff; }
+  .popover { right:30px; top:102px; }
+  .side-panel { right:0; top:0; bottom:0; width:205px; border-radius:0; padding-top:20px; }
+  .desktop.dim-calendar .calendar-area { margin-right:202px; }
+  .center-modal { width:235px; left:50%; top:50%; transform:translate(-50%,-45%); }
+  .overlay { position:absolute; inset:0; background:rgba(26,34,69,.28); }
+
+  .phone { position:relative; overflow:hidden; width:220px; min-height:350px; margin:auto; border:6px solid #20284d; border-radius:25px; background:var(--canvas); color:var(--ink); box-shadow:0 16px 36px rgba(37,46,96,.14); }
+  .phone-head { display:flex; justify-content:space-between; align-items:center; padding:14px 12px 10px; background:#fff; border-bottom:1px solid var(--line); font-size:8px; font-weight:850; }
+  .phone-body { padding:12px 10px; }
+  .phone-month { display:flex; justify-content:space-between; align-items:center; margin-bottom:9px; }
+  .phone-month b { font-size:12px; }
+  .phone-calendar .day { min-height:29px; padding:4px; font-size:5px; border-radius:7px; }
+  .phone-calendar .hours { display:none; }
+  .phone-calendar .dot { width:4px; height:4px; left:4px; bottom:4px; }
+  .bottom-sheet { position:absolute; z-index:4; left:0; right:0; bottom:0; min-height:210px; padding:8px 13px 14px; border-radius:18px 18px 0 0; background:#fff; box-shadow:0 -15px 38px rgba(29,38,81,.2); }
+  .grabber { width:32px; height:3px; margin:0 auto 11px; border-radius:99px; background:#d7dbe5; }
+  .bottom-sheet h4 { margin:0; font-size:10px; }
+  .sheet-action { margin-top:10px; padding:9px; border-radius:9px; background:var(--indigo); color:#fff; text-align:center; font-size:7px; font-weight:900; }
+  .phone-overlay { position:absolute; inset:0; background:rgba(26,34,69,.25); }
+  .phone-modal { position:absolute; z-index:4; left:12px; right:12px; top:74px; padding:13px; border-radius:15px; background:#fff; box-shadow:0 18px 40px rgba(29,38,81,.25); }
+
+  .option-copy { padding:18px 21px 21px; }
+  .option-title { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .option-title h3 { margin:0 0 5px; font-size:16px; }
+  .option-copy p { margin:0; color:#69738d; line-height:1.55; }
+  .tag { flex:none; padding:5px 8px; border-radius:999px; background:var(--indigo-soft); color:var(--indigo-dark); font-size:10px; font-weight:850; }
+  .tradeoff { margin-top:10px; color:#79829a; font-size:11px; }
+  .tradeoff b { color:#4f5871; }
+  .decision { margin-top:19px; padding:14px 16px; border-radius:14px; background:#eef8f4; color:#2b6153; font-size:12px; line-height:1.55; }
+  @media(max-width:900px){ .devices{grid-template-columns:1fr}.desktop{min-width:580px}.desktop-wrap{overflow:auto;padding-bottom:7px}.flow{grid-template-columns:1fr}.head{display:block}.pill{display:inline-block;margin-top:10px} }
+</style>
+
+<div class="head">
+  <div><h2>Calendar dashboard · cách mở chi tiết ngày</h2><p class="subtitle">Calendar là nội dung chính. Màu và ký hiệu trạng thái luôn đi cùng nhau để không phụ thuộc riêng vào màu sắc.</p></div>
+  <span class="pill">Local-first · XLSX → IndexedDB ↔ Sheet</span>
+</div>
+
+<div class="flow">
+  <div class="flow-step"><span class="flow-no">1</span><b>Lần đầu mở file</b>Đọc XLSX/Google Sheet, chuẩn hóa dữ liệu và hydrate IndexedDB.</div>
+  <div class="flow-step"><span class="flow-no">2</span><b>Các lần mở sau</b>Render calendar ngay từ IndexedDB; đồng bộ nền kiểm tra thay đổi.</div>
+  <div class="flow-step"><span class="flow-no">3</span><b>Khi chỉnh sửa</b>Cập nhật IndexedDB để UI phản hồi tức thì, sau đó ghi Sheet và hiển thị trạng thái sync.</div>
+</div>
+
+<div class="options">
+  <article class="card option" data-choice="quick_preview" onclick="toggleSelect(this)">
+    <div class="option-preview"><div class="devices">
+      <div class="desktop-wrap"><div class="desktop">
+        <div class="desktop-head"><h3>August 2026</h3><div class="controls"><span class="control">‹</span><span class="control">Today</span><span class="control">›</span><span class="control primary">＋ Add entry</span></div></div>
+        <div class="calendar-area"><div class="week"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div><div class="calendar">
+          <div class="day muted">27</div><div class="day muted">28</div><div class="day muted">29</div><div class="day muted">30</div><div class="day muted">31</div><div class="day">1<span class="dot gray"></span></div><div class="day">2<span class="dot gray"></span></div>
+          <div class="day complete">3<span class="dot"></span><span class="hours">8h</span></div><div class="day complete">4<span class="dot"></span><span class="hours">8h</span></div><div class="day missing">5<span class="dot amber"></span><span class="hours">3h</span></div><div class="day complete">6<span class="dot"></span><span class="hours">8h</span></div><div class="day complete selected">7<span class="dot"></span><span class="hours">7.5h</span></div><div class="day">8<span class="dot gray"></span></div><div class="day">9<span class="dot gray"></span></div>
+          <div class="day complete">10<span class="dot"></span><span class="hours">8h</span></div><div class="day complete">11<span class="dot"></span><span class="hours">8h</span></div><div class="day complete">12<span class="dot"></span><span class="hours">8h</span></div><div class="day missing">13<span class="dot amber"></span><span class="hours">0h</span></div><div class="day complete">14<span class="dot"></span><span class="hours">8h</span></div><div class="day">15<span class="dot gray"></span></div><div class="day">16<span class="dot gray"></span></div>
+          <div class="day complete">17<span class="dot"></span><span class="hours">8h</span></div><div class="day complete">18<span class="dot"></span><span class="hours">8h</span></div><div class="day complete">19<span class="dot"></span><span class="hours">8h</span></div><div class="day complete">20<span class="dot"></span><span class="hours">8h</span></div><div class="day missing">21<span class="dot amber"></span></div><div class="day">22<span class="dot gray"></span></div><div class="day">23<span class="dot gray"></span></div>
+        </div><div class="legend"><span><i></i>Complete</span><span><i class="amber"></i>Incomplete / missing</span><span><i class="gray"></i>Non-working day</span></div></div>
+        <div class="popup popover"><h4>Friday, August 7</h4><div class="popup-sub">Last synced 2 minutes ago</div><span class="status">✓ Complete</span><div class="detail-grid"><div class="detail"><span>Clock in</span><b>08:30</b></div><div class="detail"><span>Clock out</span><b>17:30</b></div><div class="detail"><span>Break</span><b>01:00</b></div><div class="detail"><span>Total</span><b>07:30</b></div></div><div class="block"><b>09:00–12:00</b><br>Client dashboard implementation</div><div class="popup-action"><span class="small-button">Close</span><span class="small-button primary">Open full detail</span></div></div>
+      </div></div>
+      <div class="phone"><div class="phone-head"><span>Attendance</span><span>LN</span></div><div class="phone-body"><div class="phone-month"><b>August 2026</b><span class="control">Today</span></div><div class="week"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="calendar phone-calendar"><div class="day muted">27</div><div class="day muted">28</div><div class="day muted">29</div><div class="day muted">30</div><div class="day muted">31</div><div class="day"><span class="dot gray"></span>1</div><div class="day"><span class="dot gray"></span>2</div><div class="day complete"><span class="dot"></span>3</div><div class="day complete"><span class="dot"></span>4</div><div class="day missing"><span class="dot amber"></span>5</div><div class="day complete"><span class="dot"></span>6</div><div class="day selected"><span class="dot"></span>7</div><div class="day">8</div><div class="day">9</div></div></div><div class="bottom-sheet"><div class="grabber"></div><h4>Friday, August 7</h4><span class="status">✓ Complete</span><div class="detail-grid"><div class="detail"><span>Clock in</span><b>08:30</b></div><div class="detail"><span>Clock out</span><b>17:30</b></div><div class="detail"><span>Break</span><b>01:00</b></div><div class="detail"><span>Total</span><b>07:30</b></div></div><div class="sheet-action">Open full detail</div></div></div>
+    </div></div>
+    <div class="option-copy"><div class="option-title"><div><h3>A · Quick preview + full detail</h3><p>Desktop mở popover neo vào ngày; mobile mở bottom sheet. Popup chỉ để xem nhanh, CTA đưa sang editor đầy đủ khi cần sửa.</p></div><span class="tag">Khuyến nghị</span></div><div class="tradeoff"><b>Ưu:</b> giữ được ngữ cảnh cả tháng, ít thao tác nhầm, phù hợp đúng yêu cầu “click để xem detail”.</div></div>
+  </article>
+
+  <article class="card option" data-choice="side_inspector" onclick="toggleSelect(this)">
+    <div class="option-preview"><div class="devices">
+      <div class="desktop-wrap"><div class="desktop dim-calendar"><div class="calendar-area"><div class="desktop-head"><h3>August 2026</h3><div class="controls"><span class="control">Today</span><span class="control">‹ &nbsp; ›</span></div></div><div class="week"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div><div class="calendar"><div class="day complete">3<span class="dot"></span></div><div class="day complete">4<span class="dot"></span></div><div class="day missing">5<span class="dot amber"></span></div><div class="day complete">6<span class="dot"></span></div><div class="day selected">7<span class="dot"></span></div><div class="day">8</div><div class="day">9</div><div class="day complete">10<span class="dot"></span></div><div class="day complete">11<span class="dot"></span></div><div class="day complete">12<span class="dot"></span></div><div class="day missing">13<span class="dot amber"></span></div><div class="day complete">14<span class="dot"></span></div><div class="day">15</div><div class="day">16</div></div></div><div class="popup side-panel"><h4>Friday, August 7</h4><div class="popup-sub">Day inspector</div><span class="status">✓ Complete</span><div class="detail-grid"><div class="detail"><span>Clock in</span><b>08:30</b></div><div class="detail"><span>Clock out</span><b>17:30</b></div></div><div class="block"><b>09:00–12:00</b><br>Client dashboard implementation</div><div class="block"><b>13:00–17:30</b><br>QA and release notes</div><div class="popup-action"><span class="small-button primary">Open detail</span></div></div></div></div>
+      <div class="phone"><div class="phone-head"><span>Attendance</span><span>LN</span></div><div class="phone-body"><div class="phone-month"><b>August 2026</b></div><div class="week"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="calendar phone-calendar"><div class="day complete">3<span class="dot"></span></div><div class="day complete">4<span class="dot"></span></div><div class="day missing">5<span class="dot amber"></span></div><div class="day complete">6<span class="dot"></span></div><div class="day selected">7<span class="dot"></span></div><div class="day">8</div><div class="day">9</div></div><div class="mobile-card" style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff;font-size:7px"><b>Friday, August 7</b><br><span style="color:var(--muted)">08:30–17:30 · 7h 30m</span><div class="sheet-action">Open detail</div></div></div></div>
+    </div></div>
+    <div class="option-copy"><div class="option-title"><div><h3>B · Persistent day inspector</h3><p>Desktop dành một panel cố định bên phải cho ngày đang chọn; mobile hiển thị card bên dưới calendar.</p></div><span class="tag">Quét nhiều ngày</span></div><div class="tradeoff"><b>Đổi lại:</b> tốt cho power user nhưng làm calendar hẹp hơn và hai breakpoint có hành vi khá khác nhau.</div></div>
+  </article>
+
+  <article class="card option" data-choice="editable_modal" onclick="toggleSelect(this)">
+    <div class="option-preview"><div class="devices">
+      <div class="desktop-wrap"><div class="desktop"><div class="desktop-head"><h3>August 2026</h3><div class="controls"><span class="control">Today</span><span class="control">‹ &nbsp; ›</span></div></div><div class="week"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div><div class="calendar"><div class="day complete">3<span class="dot"></span></div><div class="day complete">4<span class="dot"></span></div><div class="day missing">5<span class="dot amber"></span></div><div class="day complete">6<span class="dot"></span></div><div class="day selected">7<span class="dot"></span></div><div class="day">8</div><div class="day">9</div><div class="day complete">10<span class="dot"></span></div><div class="day complete">11<span class="dot"></span></div><div class="day complete">12<span class="dot"></span></div><div class="day missing">13<span class="dot amber"></span></div><div class="day complete">14<span class="dot"></span></div><div class="day">15</div><div class="day">16</div></div><div class="overlay"></div><div class="popup center-modal"><h4>Edit Friday, August 7</h4><div class="detail-grid"><div class="detail"><span>Clock in</span><b>08:30</b></div><div class="detail"><span>Clock out</span><b>17:30</b></div></div><div class="block">Work blocks and notes editable here…</div><div class="popup-action"><span class="small-button">Cancel</span><span class="small-button primary">Save &amp; sync</span></div></div></div></div>
+      <div class="phone"><div class="phone-head"><span>Attendance</span><span>LN</span></div><div class="phone-body"><div class="phone-month"><b>August 2026</b></div><div class="week"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="calendar phone-calendar"><div class="day complete">3<span class="dot"></span></div><div class="day complete">4<span class="dot"></span></div><div class="day missing">5<span class="dot amber"></span></div><div class="day complete">6<span class="dot"></span></div><div class="day selected">7<span class="dot"></span></div><div class="day">8</div><div class="day">9</div></div></div><div class="phone-overlay"></div><div class="phone-modal"><h4>Edit August 7</h4><div class="detail-grid"><div class="detail"><span>Clock in</span><b>08:30</b></div><div class="detail"><span>Clock out</span><b>17:30</b></div></div><div class="block">Editable work blocks…</div><div class="sheet-action">Save &amp; sync</div></div></div>
+    </div></div>
+    <div class="option-copy"><div class="option-title"><div><h3>C · Edit directly in modal</h3><p>Click ngày mở form chỉnh sửa ngay trong modal, lưu theo mô hình local-first rồi sync Sheet.</p></div><span class="tag">Ít chuyển trang</span></div><div class="tradeoff"><b>Đổi lại:</b> modal dễ quá tải trên điện thoại, khó xử lý work blocks dài, validation và xung đột đồng bộ.</div></div>
+  </article>
+</div>
+
+<div class="decision"><b>Đề xuất của tôi: A.</b> Popup/bottom sheet làm nhiệm vụ “quick shower/preview”; chỉnh sửa vẫn đi vào day editor chuyên dụng. Cách này giữ calendar sạch, tránh mất dữ liệu do form dài trong modal và cho phép xử lý sync/error rõ ràng.</div>

@@ -1,353 +1,58 @@
 /**
- * The management screens: create a month, import a workbook, set up a legacy
- * file, and edit a roster.
+ * The managed-files hub — the manager's side of the product.
  *
- * They are all the same shape — a stack of steps, each a card, ending in one
- * commit action — so they share one set of rules rather than four. Everything
- * here reuses the tokens, fields, and card treatment the dashboard and the
- * timesheet already established; only what is genuinely particular to these
- * screens is defined.
+ * Owned by S5 (`(authenticated)/manage/*`,
+ * `components/destination-folder.tsx`).
+ *
+ * Narrowed by the F1 split: the roster rules moved to `members.css`, the
+ * wizard grammar to `wizard.css`, the notices to `states.css`, and the shared
+ * card, field, step and state-pill treatments to `primitives.css`. What is
+ * left is the destination-folder control and the hub's own chrome.
+ *
+ * Management modules stay visible without competing with the daily primary
+ * action — this hub is never the loudest thing on a page it shares.
  */
 
 /* -------------------------------------------------------------------------- */
-/* Step layout                                                                 */
+/* Destination folder                                                          */
 /* -------------------------------------------------------------------------- */
-
-.import-wizard,
-.legacy-setup,
-.members {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  width: min(100%, 44rem);
-  margin-top: var(--space-md);
-}
-
-/* Inside a stack the step supplies its own gap, not a second top margin. */
-.import-wizard .step,
-.legacy-setup .step,
-.members .step {
-  width: 100%;
-  margin-top: 0;
-}
 
 /*
- * A step is one card in the stack. It is marked on the element rather than
- * inferred from an ancestor, because these wizards render their steps as the
- * component root — there is no wrapper to scope against.
+ * The folder is a preference held in `localStorage`, not an authorization
+ * result: the server re-reads Drive access on every request regardless of what
+ * is displayed here.
  */
-.step {
+.folder-control {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  width: min(100%, 44rem);
-  margin-top: var(--space-md);
-  padding: var(--space-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.step > h2,
-.step > h3 {
-  margin: 0;
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-}
-
-.section-note {
-  margin: 0 0 var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  border-left: 3px solid var(--warning);
-  border-radius: var(--radius-control);
-  background: var(--warning-wash);
-  color: var(--ink-900);
-  font-size: 0.875rem;
-}
-
-.field-hint {
-  margin: 0;
-  color: var(--ink-500);
-  font-size: 0.8125rem;
-}
-
-/*
- * Not every input in the app carries `.field-control` — the roster and the
- * legacy mapping rows render bare inputs. Matching on the `.field` wrapper
- * means a control cannot go unstyled just because a class was forgotten.
- */
-.field > input,
-.field > select,
-.field > textarea {
-  width: 100%;
-  padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--ink-900);
-  font: inherit;
-  font-size: 0.9375rem;
-  transition: border-color var(--duration) var(--ease);
-}
-
-.field > input:hover:not(:disabled),
-.field > select:hover:not(:disabled),
-.field > textarea:hover:not(:disabled) {
-  border-color: var(--ink-500);
-}
-
-.field > input:focus-visible,
-.field > select:focus-visible,
-.field > textarea:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 1px;
-  border-color: var(--primary);
-}
-
-.field > input:disabled,
-.field > select:disabled,
-.field > textarea:disabled {
-  background: var(--surface-sunken);
-  color: var(--ink-500);
-  cursor: not-allowed;
-}
-
-.field > input[aria-invalid="true"] {
-  border-color: var(--danger);
-}
-
-.field-error {
-  margin: 0;
-  color: var(--danger);
-  font-size: 0.8125rem;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Roster — reading                                                            */
-/* -------------------------------------------------------------------------- */
-
-.member-list {
-  display: flex;
-  flex-direction: column;
   gap: var(--space-xs);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
-/*
- * Name and status lead, address underneath, actions pinned right. The status
- * is the thing being scanned for on this screen, so it sits on the first line
- * rather than at the end of a sentence.
- */
-.member-row {
-  display: grid;
-  gap: 0 var(--space-sm);
-  grid-template-columns: minmax(0, 1fr) auto;
+/* Pushed right in a section header; a plain field elsewhere. */
+.section-header .folder-control {
+  margin-left: auto;
   align-items: center;
-  padding: var(--space-sm) var(--space-md);
+}
+
+.folder-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  margin: 0;
+  padding: var(--space-2xs) var(--space-sm);
   border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-}
-
-.member-name {
-  grid-column: 1;
-  margin: 0;
-  font-weight: 600;
-}
-
-.member-email {
-  grid-column: 1;
-  grid-row: 2;
-  margin: 0;
-  color: var(--ink-500);
-  font-size: 0.8125rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   overflow-wrap: anywhere;
 }
 
-.member-status {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: start;
-  margin: 0;
-  padding: 0.1875rem 0.625rem;
-  border-radius: var(--radius-pill);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.member-status-ready {
-  color: var(--success);
-  background: var(--success-wash);
-}
-
-.member-status-pending {
-  color: var(--warning);
-  background: var(--warning-wash);
-}
-
-.member-status-invite-failed {
-  color: var(--danger);
-  background: var(--danger-wash);
-}
-
-.member-actions {
-  grid-column: 2;
-  grid-row: 2;
-  display: flex;
-  gap: var(--space-xs);
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Roster — editing                                                            */
-/* -------------------------------------------------------------------------- */
-
-.member-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.member-input-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.member-input-row,
-.member-form,
-.mapping-row {
-  display: grid;
-  gap: var(--space-sm);
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  align-items: end;
-}
-
-.member-input-row {
-  padding: var(--space-sm);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  background: var(--surface-sunken);
-}
-
-.member-input-row button,
-.member-form button {
-  justify-self: start;
-  white-space: nowrap;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Member roster shortcut                                                      */
-/* -------------------------------------------------------------------------- */
-
-/*
- * Set apart from the member rows below it: this is a shelf of shortcuts, not
- * another form, so it reads as a lighter surface with its own quiet heading.
- */
-.roster-picker {
-  margin-bottom: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  border-left: 3px solid var(--border-strong);
-  background: var(--surface);
-}
-
-.roster-picker-title {
-  margin: 0 0 var(--space-xs);
-  color: var(--ink-500);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.roster-picker-list {
-  display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Legacy mapping                                                              */
-/* -------------------------------------------------------------------------- */
-
-.mapping-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.mapping-row {
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-}
-
-/* The tab being mapped names the whole row, so it spans it. */
-.mapping-sheet {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--ink-900);
-  font-family: var(--font-numeric);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Results and notices                                                         */
-/* -------------------------------------------------------------------------- */
-
-.setup-result {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border-left: 3px solid var(--success);
-  border-radius: var(--radius-card);
-  background: var(--success-wash);
-}
-
-.form-status {
-  margin: 0;
-  color: var(--ink-700);
-  font-size: 0.875rem;
-}
-
-.card-detail {
-  margin: var(--space-2xs) 0 0;
-  color: var(--ink-500);
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.api-error {
-  padding: var(--space-sm) var(--space-md);
-  border-left: 3px solid var(--danger);
-  border-radius: var(--radius-control);
-  background: var(--danger-wash);
-  color: var(--ink-900);
-}
-
-.api-error p {
-  margin: 0 0 var(--space-2xs);
-}
-
-.api-error p:last-child {
-  margin-bottom: 0;
+@media (max-width: 32rem) {
+  .section-header .folder-control {
+    margin-left: 0;
+    width: 100%;
+  }
 }

@@ -24,6 +24,7 @@ import type {
 import { emptyDay, type TimeSlot } from "./model";
 import { TIME_SLOTS } from "./slots";
 import { isAttendanceError, readAttendanceMonth, saveAttendanceDay } from "./service";
+import { todayInZone } from "./zone";
 
 /* -------------------------------------------------------------------------- */
 /* Fixtures                                                                    */
@@ -190,6 +191,8 @@ interface FakeSheetsGateway extends SheetsGateway {
 function createFakeSheets(options: {
   sheets?: SheetSummary[];
   values?: Record<string, CellValue[][]>;
+  /** What Sheets reports as `spreadsheet.properties.timeZone`. */
+  timeZone?: string | null;
 } = {}): FakeSheetsGateway {
   const valueReads: string[] = [];
   const valueUpdates: { range: string; value: CellValue }[] = [];
@@ -201,7 +204,11 @@ function createFakeSheets(options: {
     valueUpdateOptions,
     updateCalls: 0,
     async getSpreadsheet(fileId): Promise<SpreadsheetSnapshot> {
-      return { spreadsheetId: fileId, sheets: options.sheets ?? SHEET_SUMMARIES };
+      return {
+        spreadsheetId: fileId,
+        timeZone: options.timeZone === undefined ? "Asia/Tokyo" : options.timeZone,
+        sheets: options.sheets ?? SHEET_SUMMARIES,
+      };
     },
     async batchUpdate(fileId) {
       return { spreadsheetId: fileId, replies: [] };
@@ -424,6 +431,98 @@ describe("readAttendanceMonth", () => {
     expect(view.month).toBe("2026-07");
     expect(view.sheetTitle).toBe(SHEET_A_TITLE);
     expect(attendanceValueReads(sheets).length).toBeGreaterThan(0);
+  });
+
+  /*
+   * `Today` is the spreadsheet's day. These prove the value the calendar needs
+   * reaches the month view, and that it is never quietly replaced by UTC or by
+   * the device zone — Vitest pins `TZ=America/Los_Angeles`.
+   */
+
+  it("exposes the spreadsheet's own IANA timezone on the month view", async () => {
+    const sheets = createFakeSheets({ values: readyMonth(), timeZone: "Asia/Tokyo" });
+
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
+
+    expect(view.spreadsheetTimeZone).toBe("Asia/Tokyo");
+    // Declared optional on the type only for older fixtures; a real read always
+    // carries the key, so a consumer never has to distinguish the two absences.
+    expect(Object.hasOwn(view, "spreadsheetTimeZone")).toBe(true);
+
+    // 23:30 UTC on 1 July is already 2 July in Tokyo, and still 1 July in UTC
+    // and in the test process's own Pacific zone.
+    const instant = new Date("2026-07-01T23:30:00.000Z");
+    expect(todayInZone(view.spreadsheetTimeZone, instant)).toBe("2026-07-02");
+    expect(todayInZone("UTC", instant)).toBe("2026-07-01");
+  });
+
+  it("resolves a different Today after the file context changes to a file in another zone", async () => {
+    const instant = new Date("2026-07-01T23:30:00.000Z");
+
+    const tokyoView = await readAttendanceMonth(
+      {
+        drive: employeeDrive(),
+        sheets: createFakeSheets({ values: readyMonth(), timeZone: "Asia/Tokyo" }),
+      },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
+    const losAngelesView = await readAttendanceMonth(
+      {
+        drive: employeeDrive(),
+        sheets: createFakeSheets({ values: readyMonth(), timeZone: "America/Los_Angeles" }),
+      },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
+
+    expect(todayInZone(tokyoView.spreadsheetTimeZone, instant)).toBe("2026-07-02");
+    expect(todayInZone(losAngelesView.spreadsheetTimeZone, instant)).toBe("2026-07-01");
+  });
+
+  it("reports the timezone as null — never UTC — when the spreadsheet does not supply one", async () => {
+    const sheets = createFakeSheets({ values: readyMonth(), timeZone: null });
+
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
+
+    // Still navigable: the month is fully returned, only Today is undeterminable.
+    expect(Object.hasOwn(view, "spreadsheetTimeZone")).toBe(true);
+    expect(view.spreadsheetTimeZone).toBeNull();
+    expect(view.days).toHaveLength(31);
+    expect(todayInZone(view.spreadsheetTimeZone, new Date("2026-07-01T23:30:00.000Z"))).toBeNull();
+  });
+
+  it("reports the timezone as null when the spreadsheet supplies a non-IANA zone", async () => {
+    // Sheets documents `GMT-07:00` as its custom-zone fallback; it is not IANA.
+    const sheets = createFakeSheets({ values: readyMonth(), timeZone: "GMT-07:00" });
+
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
+
+    expect(view.spreadsheetTimeZone).toBeNull();
+    expect(view.days).toHaveLength(31);
+  });
+
+  it("exposes the spreadsheet timezone for a file that has never been configured", async () => {
+    const sheets = createFakeSheets({
+      sheets: [{ sheetId: 111, title: SHEET_A_TITLE, index: 0, hidden: false, protectedRanges: [] }],
+      values: attendanceRanges(SHEET_A_TITLE),
+      timeZone: "Europe/Berlin",
+    });
+
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
+
+    expect(view.role).toBe("open");
+    expect(view.spreadsheetTimeZone).toBe("Europe/Berlin");
   });
 
   it("reports needs-repair for an unreadable configuration instead of falling back", async () => {

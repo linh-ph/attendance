@@ -193,6 +193,8 @@ function createGateways(options: {
   values?: Record<string, CellValue[][]>;
   sheets?: SheetSummary[];
   readError?: unknown;
+  /** What Sheets reports as `spreadsheet.properties.timeZone`. */
+  timeZone?: string | null;
 } = {}): FakeGateways & { createGateways: (accessToken: string) => FakeGateways } {
   const valueUpdates: { range: string; value: CellValue }[] = [];
   const tokens: string[] = [];
@@ -240,7 +242,11 @@ function createGateways(options: {
   const sheets: SheetsGateway = {
     async getSpreadsheet(fileId) {
       if (options.readError) throw options.readError;
-      return { spreadsheetId: fileId, sheets: options.sheets ?? SHEET_SUMMARIES };
+      return {
+        spreadsheetId: fileId,
+        timeZone: options.timeZone === undefined ? "Asia/Tokyo" : options.timeZone,
+        sheets: options.sheets ?? SHEET_SUMMARIES,
+      };
     },
     async batchUpdate(fileId) {
       return { spreadsheetId: fileId, replies: [] };
@@ -307,6 +313,41 @@ describe("GET /api/files/[fileId]/attendance/[sheetId]", () => {
     expect(body.statuses).toEqual(APP_CONFIG.statuses);
     expect(body.days).toHaveLength(31);
     expect(fakes.tokens).toEqual(["provider-access-token"]);
+  });
+
+  it("surfaces the spreadsheet's own timezone so the client never guesses Today", async () => {
+    stubAuthEnv();
+    const fakes = createGateways({ timeZone: "Asia/Tokyo" });
+
+    const response = await handleAttendanceRead(
+      await signedRequest(EMPLOYEE_A),
+      routeContext(),
+      fakes,
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { spreadsheetTimeZone: string | null };
+    expect(body.spreadsheetTimeZone).toBe("Asia/Tokyo");
+  });
+
+  it("surfaces a null timezone rather than a fallback when the spreadsheet has none", async () => {
+    stubAuthEnv();
+    const fakes = createGateways({ timeZone: null });
+
+    const response = await handleAttendanceRead(
+      await signedRequest(EMPLOYEE_A),
+      routeContext(),
+      fakes,
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      spreadsheetTimeZone: string | null;
+      days: unknown[];
+    };
+    expect(body.spreadsheetTimeZone).toBeNull();
+    // The month still loads: only Today is undeterminable.
+    expect(body.days).toHaveLength(31);
   });
 
   it("rejects an anonymous request before any Google call", async () => {

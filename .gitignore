@@ -19,3 +19,8 @@ test-results/
 client_secret_google.json
 .brainstorm/
 ~$*.xlsx
+
+# Real attendance workbooks. They carry colleagues' names and hours, and the
+# reference suite reads one by path rather than from the repository — see the
+# `REFERENCE_XLSX_PATH` section of README.md.
+*.xlsx

@@ -735,6 +735,27 @@ a change there stops and reports.
 - [ ] V3 e2e and documentation
 - [ ] Integration gate: `verify` green, e2e green
 
+## Execution log
+
+- 2026-08-31: `redesign/integration` pushed as the shared base — main plus this
+  plan and the checked-in mockups. Every task branches from it as
+  `redesign/<task-id>-<slug>` and pushes back; the integrator merges in wave
+  order.
+- 2026-08-31: Wave 0 dispatched — F1 (`redesign/f1-design-foundation`),
+  F3 (`redesign/f3-attendance-cache`), F4 (`redesign/f4-timezone-day-state`).
+
+### Operational notes for every agent
+
+Two things a fresh worktree does not inherit, both discovered the hard way:
+
+- **`.env` is gitignored**, and `docker-compose.yaml` declares `env_file: .env`.
+  A new worktree has none, so every docker command fails until
+  `cp .env.example .env` runs. Do it as part of branch setup.
+- **`node_modules` is a named Compose volume keyed by project name**, which
+  defaults to the directory name. Each worktree therefore gets its own empty
+  volume, populated from the image on first use — the first
+  `docker compose run` in a worktree is slow. That is expected, not a fault.
+
 ## Decisions
 
 - 2026-08-31: F1 splits the six shared stylesheets into one exclusively-owned

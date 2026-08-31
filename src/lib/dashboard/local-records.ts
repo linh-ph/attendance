@@ -15,7 +15,7 @@
  */
 
 import type { AttendanceDay } from "@/lib/attendance/model";
-import type { AttendanceMonthView } from "@/lib/attendance/service";
+import type { CachedMonthView } from "@/lib/cache/records";
 
 /** Most-recent-first; older entries fall off the end. */
 export const RECENT_FILE_LIMIT = 10;
@@ -56,7 +56,8 @@ export interface DraftRecord {
 
 export interface MonthCacheRecord {
   email: string;
-  view: AttendanceMonthView;
+  /** No `role`: an authorization result is never persisted (spec §5.1). */
+  view: CachedMonthView;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -180,6 +181,14 @@ export function isDraftRecord(value: unknown): value is DraftRecord {
   );
 }
 
+/**
+ * A month record written before this build carries the `role` that
+ * `authorizeFile` returned. Rejecting it means such a record can never hand an
+ * authorization result back to a caller: the read misses, the month is fetched
+ * from the server, and the next write stores the role-free shape.
+ */
 export function isMonthCacheRecord(value: unknown): value is MonthCacheRecord {
-  return isRecord(value) && isNonEmptyString(value.email) && isRecord(value.view);
+  if (!isRecord(value) || !isNonEmptyString(value.email) || !isRecord(value.view)) return false;
+
+  return value.view.role === undefined;
 }

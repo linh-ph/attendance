@@ -185,6 +185,47 @@ describe("no credential material can be stored", () => {
     expect(data.stores[CACHE_MONTH_STORE].size).toBe(0);
   });
 
+  it("stores the month without the authorization result the server returned", async () => {
+    const data = createMemoryData();
+    const cache = cacheWith(createMemoryEngine({ data }));
+
+    // The caller hands over the whole server response, role and all.
+    const written = expectStatus(
+      await expectOk(cache.writeMonth(CONTEXT, { view: view(REMOTE_DAYS), checkedAt: CHECKED_AT })),
+      "written",
+    );
+
+    expect("role" in written.record.view).toBe(false);
+    expect(JSON.stringify([...data.stores[CACHE_MONTH_STORE].values()])).not.toContain("employee");
+
+    const read = await expectOk(cache.readMonth(CONTEXT));
+    expect(read).not.toBe(null);
+    expect("role" in (read?.view ?? {})).toBe(false);
+    // The attendance data itself is untouched.
+    expect(read?.view.days).toHaveLength(2);
+    expect(read?.view.sheetTitle).toBe("NGUYEN PHAN LINH");
+  });
+
+  it("refuses to read back a record that somehow carries a role, rather than returning one", async () => {
+    const engine = createMemoryEngine();
+
+    await engine.transact([CACHE_MONTH_STORE], "readwrite", (tx) =>
+      tx.put(CACHE_MONTH_STORE, monthCacheKey(CONTEXT), {
+        schemaVersion: CACHE_SCHEMA_VERSION,
+        account: "linh.np@blended-asia.com",
+        fileId: "file-1",
+        sheetId: "101",
+        month: "2026-07",
+        revision: 1,
+        checkedAt: CHECKED_AT,
+        view: view(REMOTE_DAYS),
+        baselineHashes: {},
+      }),
+    );
+
+    expect(await cacheWith(engine).readMonth(CONTEXT)).toMatchObject({ ok: false, reason: "corrupt" });
+  });
+
   it("refuses a draft whose value looks like an OAuth token and writes nothing", async () => {
     const data = createMemoryData();
     const cache = cacheWith(createMemoryEngine({ data }));

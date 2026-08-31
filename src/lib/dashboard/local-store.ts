@@ -43,6 +43,7 @@ import {
   type TransactionMode,
 } from "@/lib/cache/engine";
 import { findCredentialMaterial } from "@/lib/cache/keys";
+import { stripAuthorization, type CachedMonthView } from "@/lib/cache/records";
 import { classifyStorageError, fail, ok, type CacheResult } from "@/lib/cache/results";
 import {
   addRecentFile,
@@ -126,11 +127,12 @@ export interface AcknowledgedLocalStore {
     sheetId: string,
     date: string,
   ): Promise<CacheResult<void>>;
+  /** No `role`: an authorization result is never read back from storage. */
   readMonth(
     email: string,
     fileId: string,
     sheetId: string,
-  ): Promise<CacheResult<AttendanceMonthView | null>>;
+  ): Promise<CacheResult<CachedMonthView | null>>;
   writeMonth(
     email: string,
     fileId: string,
@@ -216,13 +218,19 @@ export function createAcknowledgedStore(engine: CacheEngine): AcknowledgedLocalS
     },
 
     writeMonth(email, fileId, sheetId, view) {
-      const refused = refuseCredentials(view);
+      // `role` comes from `authorizeFile`, so it is an authorization result and
+      // must not be persisted (spec §5.1). Dropping it here changes nothing for
+      // the current call sites — no consumer reads a role off a cached month —
+      // and the guard below refuses it should it ever arrive another way.
+      const storable = stripAuthorization(view);
+
+      const refused = refuseCredentials(storable);
       if (refused) return Promise.resolve(refused);
 
       return run([MONTH_STORE], "readwrite", (tx) =>
         tx.put(MONTH_STORE, monthCacheKey(email, fileId, sheetId), {
           email: scopeKey(email),
-          view,
+          view: storable,
         }),
       );
     },
@@ -325,7 +333,16 @@ export function toLegacyStore(store: AcknowledgedLocalStore): LocalStore {
       await store.clearDraft(email, fileId, sheetId, date);
     },
     async readMonth(email, fileId, sheetId) {
-      return orFallback(await store.readMonth(email, fileId, sheetId), null);
+      // Known type debt, deliberately contained here. The cached month has no
+      // `role` at runtime, but the legacy signature promises a full
+      // `AttendanceMonthView` because `attendance-editor.tsx` feeds this value
+      // straight into a reducer action typed that way — and that file belongs
+      // to another task. No consumer reads the role, so the cast is safe today;
+      // it disappears when that screen takes `role` from the API response and
+      // this signature can narrow to `CachedMonthView`.
+      const cached = orFallback(await store.readMonth(email, fileId, sheetId), null);
+
+      return cached as AttendanceMonthView | null;
     },
     async writeMonth(email, fileId, sheetId, view) {
       await store.writeMonth(email, fileId, sheetId, view);

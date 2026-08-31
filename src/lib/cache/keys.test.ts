@@ -76,12 +76,21 @@ describe("credential material is not storable", () => {
     ).toBe("notes");
   });
 
+  it("names the offending path for an authorization result, not just a credential", () => {
+    // `AttendanceMonthView.role` is assigned straight from `authorizeFile`, and
+    // `access/policy.ts` says "never a cached role". Spec §5.1 puts
+    // authorization results in the same never-store class as tokens.
+    expect(findCredentialMaterial({ view: { role: "manager" } })).toBe("view.role");
+    expect(findCredentialMaterial({ authorized: true })).toBe("authorized");
+    expect(findCredentialMaterial({ permissions: ["write"] })).toBe("permissions");
+  });
+
   it("accepts an ordinary attendance record", () => {
     expect(
       findCredentialMaterial({
         view: {
           month: "2026-07",
-          role: "employee",
+          sheetTitle: "NGUYEN PHAN LINH",
           days: [{ date: "2026-07-03", notes: "late train" }],
         },
       }),

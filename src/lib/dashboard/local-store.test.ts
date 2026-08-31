@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AttendanceDay } from "@/lib/attendance/model";
-import { CacheStorageError, createMemoryEngine } from "@/lib/cache/engine";
+import { CacheStorageError, MONTH_STORE, createMemoryEngine } from "@/lib/cache/engine";
 import {
   createAcknowledgedStore,
   createMemoryStore,
@@ -188,6 +188,35 @@ describe("the acknowledged store under the legacy adapter", () => {
       ok: true,
       value: { day: day(), baseline: day() },
     });
+  });
+
+  it("stores the month without the authorization result, and never reads one back", async () => {
+    const store = createAcknowledgedStore(createMemoryEngine());
+
+    await store.writeMonth("a@b.com", "file-1", "101", {
+      month: "2026-07",
+      role: "manager",
+      days: [],
+    } as never);
+
+    const result = await store.readMonth("a@b.com", "file-1", "101");
+
+    expect(result).toEqual({ ok: true, value: { month: "2026-07", days: [] } });
+  });
+
+  it("treats a month cached by an older build, still carrying a role, as a miss", async () => {
+    const engine = createMemoryEngine();
+    const store = createAcknowledgedStore(engine);
+
+    await engine.transact([MONTH_STORE], "readwrite", (tx) =>
+      tx.put(MONTH_STORE, "a@b.com::file-1::101", {
+        email: "a@b.com",
+        view: { month: "2026-07", role: "manager", days: [] },
+      }),
+    );
+
+    // A miss, not a role: the caller refetches from the server instead.
+    expect(await store.readMonth("a@b.com", "file-1", "101")).toEqual({ ok: true, value: null });
   });
 
   it("refuses to store credential-shaped material", async () => {

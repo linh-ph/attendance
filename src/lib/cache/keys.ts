@@ -123,6 +123,14 @@ const FORBIDDEN_PROPERTY_NAMES: ReadonlySet<string> = new Set([
   "password",
   "credential",
   "credentials",
+  // An authorization outcome is not credential material, but it is decided by
+  // the server per request and must never be read back from storage. See
+  // `access/policy.ts` ("never a cached role") and spec §5.1.
+  "role",
+  "roles",
+  "authorized",
+  "permission",
+  "permissions",
 ]);
 
 /** Google OAuth access tokens all start this way. */
@@ -151,14 +159,15 @@ function looksLikeCredentialValue(value: string): boolean {
  * Returns the path of the first credential-shaped thing found, or `null`.
  *
  * `CLAUDE.md` states plainly that no token, refresh token, cookie, or
- * authorization result reaches IndexedDB. This turns that from a convention
+ * authorization **result** reaches IndexedDB. This turns that from a convention
  * into an enforced refusal: the cache calls this before every write and answers
  * `forbidden-content` rather than storing the value.
  *
- * It deliberately does **not** flag `role` on a cached month view. That field
- * is part of the month the app has always cached, it is re-derived by the
- * server on every request, and it grants nothing on its own — the server
- * re-authorizes each call regardless of what the browser holds.
+ * `role` is on the list. `AttendanceMonthView.role` is assigned straight from
+ * `authorizeFile`, so it is an authorization result, not incidental metadata —
+ * `access/policy.ts` says "never a cached role" for exactly this reason. The
+ * month cache therefore stores `CachedMonthView`, which has no `role` at all,
+ * and a caller takes the role from the fresh server response on every load.
  */
 export function findCredentialMaterial(value: unknown, path = "", depth = 0): string | null {
   if (depth > MAX_SCAN_DEPTH) return null;

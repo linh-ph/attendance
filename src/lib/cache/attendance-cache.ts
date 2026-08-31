@@ -62,6 +62,7 @@ import {
   buildMonthRecord,
   isCachedDraftRecord,
   isCachedMonthRecord,
+  stripAuthorization,
   type CachedDraftRecord,
   type CachedMonthRecord,
 } from "./records";
@@ -284,7 +285,11 @@ export function createAttendanceCache(options: AttendanceCacheOptions): Attendan
     },
 
     async writeMonth(context, input) {
-      const refused = refuseCredentials({ view: input.view });
+      // The authorization outcome is dropped before the guard runs, so a caller
+      // may hand over the whole server response and still store nothing that
+      // grants anything. `role` is on the guard's deny list, so a value that
+      // slipped past this strip would be refused rather than written.
+      const refused = refuseCredentials({ view: stripAuthorization(input.view) });
       if (refused) return refused;
 
       // Spec §5.5: a superseded response may not touch storage at all.

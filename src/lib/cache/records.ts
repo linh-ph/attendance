@@ -18,6 +18,25 @@ import type { AttendanceMonthView } from "@/lib/attendance/service";
 import { hashDay } from "./revisions";
 import { normalizeAccount, type CacheContext } from "./keys";
 
+/**
+ * A month as it is allowed to be persisted: everything except the
+ * authorization outcome.
+ *
+ * `AttendanceMonthView.role` comes straight from `authorizeFile`, so it is an
+ * authorization result — the one class of value spec §5.1 and `CLAUDE.md`
+ * forbid in IndexedDB, and what `access/policy.ts` means by "never a cached
+ * role". Omitting it from the *type* is the point: a future consumer cannot
+ * read a role that is not there, and must take it from the server response
+ * that re-authorizes the request anyway.
+ */
+export type CachedMonthView = Omit<AttendanceMonthView, "role">;
+
+/** Drops the authorization outcome from a month before it can be stored. */
+export function stripAuthorization(view: AttendanceMonthView): CachedMonthView {
+  const { role: _role, ...rest } = view;
+  return rest;
+}
+
 export interface CachedMonthRecord {
   schemaVersion: number;
   account: string;
@@ -28,7 +47,8 @@ export interface CachedMonthRecord {
   revision: number;
   /** ISO timestamp of the last successful Sheet check this record reflects. */
   checkedAt: string;
-  view: AttendanceMonthView;
+  /** No `role`: an authorization result is never persisted. */
+  view: CachedMonthView;
   /** Baseline fingerprint per date, so a remote change is detectable by date. */
   baselineHashes: Record<string, string>;
 }
@@ -53,6 +73,7 @@ export interface CachedDraftRecord {
 export interface BuildMonthRecordInput {
   context: CacheContext;
   schemaVersion: number;
+  /** Accepted whole; the authorization outcome is stripped before storing. */
   view: AttendanceMonthView;
   checkedAt: string;
   revision: number;
@@ -70,7 +91,7 @@ export function buildMonthRecord(input: BuildMonthRecordInput): CachedMonthRecor
     month: input.context.month,
     revision: input.revision,
     checkedAt: input.checkedAt,
-    view: input.view,
+    view: stripAuthorization(input.view),
     baselineHashes,
   };
 }
@@ -131,10 +152,16 @@ function hasScope(value: Record<string, unknown>): boolean {
 export function isCachedMonthRecord(value: unknown): value is CachedMonthRecord {
   if (!isRecord(value) || !hasScope(value)) return false;
 
+  const view = value.view;
+
   return (
     isNonEmptyString(value.checkedAt) &&
-    isRecord(value.view) &&
-    Array.isArray((value.view as Record<string, unknown>).days) &&
+    isRecord(view) &&
+    Array.isArray(view.days) &&
+    // A record carrying an authorization outcome is not one this build wrote.
+    // Refusing it here means a tampered or foreign record cannot hand a role
+    // back to a caller either — it reads as `corrupt`, never as a role.
+    view.role === undefined &&
     isRecord(value.baselineHashes)
   );
 }

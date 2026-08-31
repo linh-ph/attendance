@@ -48,6 +48,7 @@ import { emptyDay, STATUS_OPTIONS, type AttendanceDay, type TimeSlot } from "./m
 import { diffDay, type CellPatch } from "./range-mapper";
 import { TIME_SLOTS } from "./slots";
 import { calculateWorkHours, validateAttendanceDay, type ValidationIssue } from "./validation";
+import { normalizeSpreadsheetTimeZone } from "./zone";
 
 /* -------------------------------------------------------------------------- */
 /* Errors                                                                      */
@@ -107,6 +108,24 @@ export interface AttendanceMonthView {
   sheetTitle: string;
   /** `YYYY-MM`, from the protected configuration. */
   month: string;
+  /**
+   * The spreadsheet's own IANA timezone, from
+   * `spreadsheet.properties.timeZone`, validated here — or `null` when it is
+   * missing or is not a real IANA identifier.
+   *
+   * `Today` is derived from this and from nothing else. A `null` means the
+   * client leaves the calendar navigable, disables `Today`, and says the
+   * spreadsheet timezone could not be determined. It must never be replaced
+   * with UTC or with the browser's zone: two people in different countries
+   * looking at the same workbook have to agree on which row is today.
+   *
+   * `readAttendanceMonth` always sets it, and a test asserts the key is
+   * present rather than merely absent-and-therefore-`undefined`. It is
+   * declared optional only so month-view fixtures written before this field
+   * existed still typecheck; treat `undefined` exactly as `null` —
+   * `todayInZone` already does.
+   */
+  spreadsheetTimeZone?: string | null;
   role: AttendanceRole;
   statuses: ConfigStatus[];
   days: AttendanceDay[];
@@ -305,6 +324,8 @@ interface AttendanceTarget {
   config: AppConfig;
   month: string;
   dates: string[];
+  /** Validated IANA zone, or `null`. Taken from the snapshot already fetched. */
+  spreadsheetTimeZone: string | null;
 }
 
 /**
@@ -387,6 +408,7 @@ async function resolveOpenTarget(
     config,
     month,
     dates: monthDates(month),
+    spreadsheetTimeZone: normalizeSpreadsheetTimeZone(spreadsheet.timeZone),
   };
 }
 
@@ -419,6 +441,9 @@ async function resolveTarget(
     config,
     month: config.month,
     dates: monthDates(config.month),
+    // Reuses the snapshot the configuration read already fetched, so surfacing
+    // the timezone costs no extra Sheets call.
+    spreadsheetTimeZone: normalizeSpreadsheetTimeZone(spreadsheet.timeZone),
   };
 }
 
@@ -456,6 +481,7 @@ export async function readAttendanceMonth(
     sheetId: target.sheetId,
     sheetTitle: target.sheetTitle,
     month: target.month,
+    spreadsheetTimeZone: target.spreadsheetTimeZone,
     role: target.role,
     statuses: target.config.statuses,
     days,

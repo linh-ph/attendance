@@ -35,7 +35,7 @@ export const FILE_PEOPLE_FIELDS =
   "nextPageToken,permissions(id,type,role,emailAddress,displayName)";
 
 export const SPREADSHEET_SNAPSHOT_FIELDS =
-  "spreadsheetId,sheets(properties(sheetId,title,index,hidden),protectedRanges(protectedRangeId,range(sheetId)))";
+  "spreadsheetId,properties(timeZone),sheets(properties(sheetId,title,index,hidden),protectedRanges(protectedRangeId,range(sheetId)))";
 
 export const DRIVE_PAGE_SIZE = 100;
 
@@ -105,6 +105,17 @@ export interface SheetSummary {
 
 export interface SpreadsheetSnapshot {
   spreadsheetId: string;
+  /**
+   * `spreadsheet.properties.timeZone`, exactly as Sheets reports it, or `null`
+   * when it is absent or blank.
+   *
+   * This is the *raw* value: Sheets documents a custom form such as
+   * `GMT-07:00` for zones it does not recognize, so it is not necessarily an
+   * IANA identifier. The domain validates it — see
+   * `src/lib/attendance/zone.ts`. Optional so the many snapshots built in tests
+   * and fakes stay valid; the real gateway always sets it.
+   */
+  timeZone?: string | null;
   sheets: SheetSummary[];
 }
 
@@ -297,6 +308,7 @@ export interface SheetResource {
 
 export interface SpreadsheetResource {
   spreadsheetId?: string | null;
+  properties?: { timeZone?: string | null } | null;
   sheets?: SheetResource[] | null;
 }
 

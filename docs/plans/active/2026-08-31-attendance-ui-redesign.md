@@ -754,12 +754,14 @@ a change there stops and reports.
 
 ## Progress
 
-- [ ] F1 design foundation, CSS split, token contract
-- [ ] F3 AttendanceCache
-- [ ] F4 spreadsheet timezone and day-state rule
-- [ ] F2 AppShell
-- [ ] F5 SyncStatus, ErrorNotice, state gallery
-- [ ] F6 WizardShell
+- [x] F1 design foundation, CSS split, token contract — `redesign/f1-design-foundation` (`3fa82d1`), verify EXIT=0, e2e 29/29
+- [x] F3 AttendanceCache — `redesign/f3-attendance-cache` (`dddb177`), verify EXIT=0, 790 tests
+- [x] F4 spreadsheet timezone and day-state rule — `redesign/f4-timezone-day-state` (`a32146d`), verify EXIT=0, 758 tests
+- [x] F2 AppShell — `redesign/f2-app-shell` (`d116053`), verify EXIT=0, e2e 41 passed
+- [x] F5 SyncStatus, ErrorNotice, state gallery — `redesign/f5-sync-status-states` (`f64a27b`), verify EXIT=0, 822 tests
+- [x] F6 WizardShell — `redesign/f6-wizard-shell` (`14ff5ee`), verify EXIT=0, e2e 29 passed
+- [x] F7 server diagnostic redaction (added mid-flight) — `redesign/f7-diagnostic-redaction` (`7ea2aeb`), verify EXIT=0, 747 tests
+- [ ] **Combine the foundation branches into one base — owner decision, blocks everything below**
 - [ ] S1 login
 - [ ] S2 calendar dashboard
 - [ ] S3 timesheets
@@ -1006,6 +1008,36 @@ a change there stops and reports.
   documented with agents steered to `.state-pill` outside a wizard. Converging
   them is an F6 change and a candidate for a later simplification pass — not
   worth an agent mid-flight.
+
+- 2026-08-31: **F7 landed** on `redesign/f7-diagnostic-redaction` (`7ea2aeb`),
+  `verify` `EXIT=0`, 747 tests. `sanitizeDiagnosticText` is now a five-stage
+  pipeline: percent-decode **per escape run** inside try/catch (so a literal
+  `100%` can neither throw nor smuggle anything past the rules); exact known
+  secrets matched in raw **and** `encodeURIComponent` form; URL query strings
+  collapsed; labeled credentials consumed **whole** to the next `;`/`,`/newline
+  across every scheme and in underscore *or* hyphen spelling; then opaque
+  shapes — `ya29.`, `1//`, `GOCSPX-`, `AIza`, JWTs, and any ≥32-char
+  base64/base64url/hex run. A field left with fewer than three readable letters
+  returns `null`, which is spec §8.3's "omit it rather than returning it".
+
+  The module had **no test file at all** before this. The new one fails
+  **17 of 28** against the pre-fix implementation — genuine assertion failures,
+  not import errors — and passes 30 after. The mutation table is trustworthy for
+  a specific reason: two mutations (the narrow header rule, the query-string
+  rule) **initially survived** because the opaque-run rule masked them, so the
+  tests were strengthened with credentials short enough that only the rule under
+  test can catch them, re-proved RED, and only then re-mutated.
+
+  The pre-existing `api/dashboard/route.test.ts` assertion on the exact debug
+  envelope still passes byte-for-byte: F7 kept the label-plus-separator capture
+  precisely so that contract, in a file it does not own, did not move.
+
+  **Judgement call to revisit if debugging suffers:** a Drive/Sheets file id is
+  33 or 44 characters of the same base64url alphabet as a secret, so no
+  threshold separates them and ids are now redacted —
+  `File not found: [REDACTED]`. The reasoning is that the gate must be able to
+  *prove* a value safe, and F5's browser gate would strip a preserved id anyway.
+  Restoring ids is a decision for both layers at once, not one branch.
 
 ### Blocked: Wave 2 needs a combined base
 

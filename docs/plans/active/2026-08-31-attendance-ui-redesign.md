@@ -945,14 +945,59 @@ a change there stops and reports.
   gate stopping it. Dispatched **F7** (`redesign/f7-diagnostic-redaction`,
   owning `src/lib/google/errors.ts` and its test only) to fix the server side.
 
+- 2026-08-31: **F2 landed** on `redesign/f2-app-shell` (`d116053`), `verify`
+  `EXIT=0` (753 tests) and Playwright `EXIT=0` (41 passed: 29 pre-existing plus
+  12 new). Four deliberate mutations produced 9 failing assertions, then were
+  reverted. **Wave 1 is complete.**
+
+  The slot contract every Wave 2 screen renders into is
+  `src/components/app-shell/page-shell.tsx`:
+  `<PageShell eyebrow? title titleId? lede? status? actions? contentClassName?
+  footer?>`. **It renders the page's only `<main>` and only `<h1>`** — a screen
+  must not nest another, and sections inside `children` start at `<h2>`. Unused
+  slots are omitted from the DOM. The `footer` slot is for Save/Back/Continue
+  rows and is already lifted clear of the mobile bottom bar and the home
+  indicator. `AppShell` exports `MAIN_CONTENT_ID`.
+
+  Proven rather than asserted: one `<nav aria-label="Main">` with the other
+  shell's entries removed from both the a11y tree and the tab order, so exactly
+  one shell is navigable; no horizontal overflow at all five widths, measured on
+  `body.scrollWidth` because `html` would lie (it is `overflow-x: hidden`);
+  ≥44 × 44 px boxes on all four mobile targets; skip link first in the tab
+  order; `aria-current="page"` maintained across navigation.
+
+  Two judgement calls worth keeping: **the mockup shows Help and Settings
+  destinations and the spec forbids them, so the spec won**, and the mockup's
+  "Today" became "Calendar". `/more` was implemented fully rather than stubbed —
+  no Wave 2 task owns it and it is shell chrome by definition.
+
+  Token behaviour screens must respect: `--app-bar-height` is re-declared as
+  `0rem` on `main` at `min-width: 64rem`, because the sticky brand bar exists
+  only on the compact shell; `.app-main .sticky-actions` is lifted by
+  `--bottom-nav-height + --safe-bottom` there. **Read the tokens; never
+  hard-code a bar height.**
+
 ### Pending: refresh the contract document once
 
-`docs/patterns/ui-redesign-contract.md` is F1's file, and F6 has already made
-its `wizard.css` inventory stale; F2 and F5 will do the same for `shell.css` and
-`states.css`. **Do not let three agents each edit F1's file.** Resume F1 once,
-after F2 and F5 land, to refresh all three per-surface inventories together.
-Wave 2 agents read this document as their only guide to what exists, so it must
-be current before they start.
+`docs/patterns/ui-redesign-contract.md` is F1's file, and all three Wave 1 tasks
+made a per-surface inventory in it stale. Rather than let three agents edit one
+owner's file, their reports were held and handed to F1 in a single pass
+(dispatched 2026-08-31, in flight). Wave 2 agents read this document as their
+only guide to what exists, so it must be current before they start.
+
+### Blocked: Wave 2 needs a combined base
+
+F2, F5 and F6 are **siblings off F1**, and every Wave 2 screen needs all four —
+it renders inside F2's `PageShell`, reports through F5's `SyncStatus`, and the
+wizard tasks build on F6's shell. Branch-chaining carried the plan this far
+without a single merge, but three siblings cannot be chained: combining them is
+a merge, and no agent may perform one on the user's behalf.
+
+**This is a decision for the repository owner**, recorded here so it is not lost:
+either they merge `f1 + f2 + f5 + f6` (and `f7`) into `redesign/integration`
+themselves, or they authorize the integrator to do it. Wave 2's eight agents
+cannot start until a combined base exists. Everything up to that point is
+delivered and independently verified on its own branch.
 
 ### The cache-first render rule (binding on S2 and S4)
 

@@ -184,10 +184,22 @@
   cursor: not-allowed;
 }
 
+/*
+ * Carries its own row layout rather than borrowing it from `.field`, which is
+ * a column elsewhere and stretches its children apart inside the create
+ * wizard's card. `justify-content` keeps the box beside its label instead of at
+ * opposite ends of the row.
+ */
 .field-checkbox {
+  display: flex;
   flex-direction: row;
+  justify-content: flex-start;
   gap: var(--space-xs);
   align-items: center;
+}
+
+.field-checkbox label {
+  flex: 0 1 auto;
 }
 
 .field-checkbox label {

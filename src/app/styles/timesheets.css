@@ -1,0 +1,142 @@
+/**
+ * Timesheets — opening a sheet by link, and returning to a recent one.
+ *
+ * Owned by S3 (`(authenticated)/timesheets/*`, `dashboard/open-by-link.tsx`,
+ * `dashboard/recent-files.tsx`).
+ *
+ * `.open-file-panel` is here rather than in `manage.css` because it is the
+ * frame around exactly these two controls; the dashboard renders it today and
+ * the timesheets route takes it over.
+ *
+ * A pasted link is a shortcut, never an access path: it resolves only against
+ * files the dashboard already listed, its `gid` is discarded, and the
+ * destination re-authorizes. Nothing in this file may suggest otherwise.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Open a file                                                                 */
+/* -------------------------------------------------------------------------- */
+
+.open-file-panel {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.open-by-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.open-by-link label {
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.open-by-link-row {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.open-by-link-row input {
+  flex: 1 1 24rem;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: var(--text-base);
+  transition: border-color var(--duration) var(--ease);
+}
+
+.open-by-link-row input::placeholder {
+  color: var(--ink-500);
+}
+
+.open-by-link-row input:hover {
+  border-color: var(--ink-500);
+}
+
+.open-by-link-row input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--primary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Recently opened                                                             */
+/* -------------------------------------------------------------------------- */
+
+.recent-files {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.recent-files-title {
+  margin: 0 0 var(--space-xs);
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.recent-files-list {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-files-list a {
+  display: inline-flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition:
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.recent-files-list a:hover {
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  background: var(--primary-wash);
+  transform: translateY(-1px);
+}
+
+.recent-files-list a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.recent-files-tab {
+  color: var(--ink-500);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recent-files-list a:hover {
+    transform: none;
+  }
+}

@@ -1,0 +1,103 @@
+/**
+ * The wizard grammar — create a month, import a workbook, set up a legacy file.
+ *
+ * Owned by F6 (`WizardShell`, `components/setup-progress.tsx`). S7a and S7b
+ * own the feature wizards' data and validation, not this shell.
+ *
+ * All three wizards are the same shape — a stack of steps, each a card, ending
+ * in one commit action — so they share one set of rules rather than three. The
+ * step card itself is the `.step` primitive; only what is particular to a
+ * wizard is defined here.
+ *
+ * Recovery is part of the grammar, not an afterthought: a created or converted
+ * Drive file is never auto-deleted as rollback, so a partly-finished wizard
+ * always has a Resume path and this file must keep room for it.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Step stack                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.import-wizard,
+.legacy-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: min(100%, 44rem);
+  margin-top: var(--space-md);
+}
+
+/* Inside a stack the step supplies its own gap, not a second top margin. */
+.import-wizard .step,
+.legacy-setup .step {
+  width: 100%;
+  margin-top: 0;
+}
+
+/*
+ * A caution above a step: what this wizard is about to change that the user
+ * cannot see. Amber, because it wants attention rather than announcing a
+ * failure.
+ */
+.section-note {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-control);
+  background: var(--warning-wash);
+  color: var(--ink-900);
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Legacy mapping                                                              */
+/* -------------------------------------------------------------------------- */
+
+.mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mapping-row {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-items: end;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+/* The tab being mapped names the whole row, so it spans it. */
+.mapping-sheet {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-900);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Result                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * What the wizard actually created, with the links to reach it. Mint, because
+ * this is the successful end of the flow — and it is a panel with words, not a
+ * green tick on its own.
+ */
+.setup-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-card);
+  background: var(--success-wash);
+}

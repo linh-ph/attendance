@@ -1,19 +1,32 @@
-/* App shell, page container, sign-in hero, controls, sections, cards. */
+/**
+ * The application shell — the chrome that is the same on every signed-in page.
+ *
+ * Owned by F2 (`AppShell`). Today that is a sticky top bar plus the page
+ * container; the redesign replaces it with a desktop sidebar and a mobile
+ * bottom navigation. The tokens those need — `--sidebar-width`,
+ * `--bottom-nav-height`, `--app-bar-height`, `--surface-inverse`, `--z-app-bar`
+ * — are already published in `tokens.css`, so no token change is required to
+ * build them.
+ *
+ * Screen content belongs in the per-surface stylesheets, not here.
+ */
 
 /* -------------------------------------------------------------------------- */
-/* App shell                                                                   */
+/* Top bar                                                                     */
 /* -------------------------------------------------------------------------- */
 
 .app-bar {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: var(--z-app-bar);
   display: flex;
-  gap: var(--space-md);
+  gap: var(--space-sm) var(--space-md);
   align-items: center;
-  padding: var(--space-sm) clamp(1rem, 4vw, 2.5rem);
+  min-height: var(--app-bar-height);
+  padding: var(--space-xs) clamp(var(--space-md), 4vw, var(--space-2xl));
+  padding-top: calc(var(--space-xs) + var(--safe-top));
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--paper) 93%, transparent);
+  background: color-mix(in srgb, var(--canvas) 93%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -24,15 +37,21 @@
   text-decoration: none;
 }
 
+.brand:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-xs);
+}
+
 .brand-mark {
-  color: var(--primary);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  color: var(--primary-ink);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-snug);
 }
 
 .brand-name {
   color: var(--ink-500);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.02em;
 }
 
@@ -42,7 +61,8 @@
 
 .app-bar-user {
   color: var(--ink-500);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
 }
 
 /* The sign-out control is secondary chrome, not a primary action. */
@@ -52,17 +72,18 @@
 
 .app-bar button {
   margin: 0;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--border-strong);
+  padding: var(--space-2xs) var(--space-sm);
+  border-color: var(--border-strong);
   color: var(--ink-700);
   background: var(--surface);
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 
-.app-bar button:hover {
+.app-bar button:hover:not(:disabled) {
   color: var(--ink-900);
-  border-color: var(--ink-500);
+  border-color: var(--primary);
+  background: var(--primary-wash);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -70,552 +91,8 @@
 /* -------------------------------------------------------------------------- */
 
 main {
-  width: min(100%, 72rem);
+  width: min(100%, var(--content-max));
   margin-inline: auto;
-  padding: var(--space-lg) clamp(1rem, 4vw, 2.5rem) var(--space-xl);
+  padding: var(--space-lg) clamp(var(--space-md), 4vw, var(--space-2xl))
+    calc(var(--space-2xl) + var(--safe-bottom));
 }
-
-/* Sign-in and other single-card screens centre their hero instead. */
-.page-centered {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-}
-
-.eyebrow {
-  margin: 0 0 var(--space-2xs);
-  color: var(--primary);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-}
-
-/* The sign-in screen keeps its editorial display size. */
-.hero h1 {
-  font-size: clamp(2.25rem, 8vw, 4.5rem);
-  letter-spacing: -0.05em;
-}
-
-.page-lede {
-  max-width: 46ch;
-  margin: var(--space-xs) 0 0;
-  color: var(--ink-500);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Sign-in hero                                                                */
-/* -------------------------------------------------------------------------- */
-
-.hero {
-  width: min(100%, 42rem);
-  padding: clamp(2rem, 8vw, 4rem);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-}
-
-.hero-split {
-  display: grid;
-  gap: clamp(1.5rem, 4vw, 3rem);
-  align-items: center;
-  width: min(100%, 56rem);
-}
-
-@media (min-width: 48rem) {
-  .hero-split {
-    grid-template-columns: 1fr auto;
-  }
-}
-
-.hero-art {
-  justify-self: center;
-  width: min(100%, 15rem);
-  height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.hero > p:not(.eyebrow),
-.hero-copy > p:not(.eyebrow) {
-  max-width: 35rem;
-  color: var(--ink-500);
-  font-size: 1.125rem;
-  line-height: 1.6;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Controls                                                                    */
-/* -------------------------------------------------------------------------- */
-
-button {
-  padding: 0.625rem 1rem;
-  border: 0;
-  border-radius: var(--radius-control);
-  color: var(--surface);
-  background: var(--primary);
-  font: inherit;
-  font-weight: 650;
-  cursor: pointer;
-  transition:
-    background var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
-}
-
-button:hover {
-  background: var(--primary-ink);
-}
-
-button:active {
-  transform: translateY(1px);
-}
-
-button:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.hero button,
-.hero-copy button {
-  margin-top: var(--space-md);
-  padding: 0.75rem 1.25rem;
-}
-
-/* Link-shaped actions inside cards. */
-.action {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4375rem 0.75rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  color: var(--ink-700);
-  background: var(--surface);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    border-color var(--duration) var(--ease),
-    color var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
-}
-
-.action:hover {
-  color: var(--ink-900);
-  border-color: var(--ink-500);
-  transform: translateY(-1px);
-}
-
-.action:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.action-primary {
-  color: var(--surface);
-  border-color: transparent;
-  background: var(--primary);
-}
-
-.action-primary:hover {
-  color: var(--surface);
-  border-color: transparent;
-  background: var(--primary-ink);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Sections                                                                    */
-/* -------------------------------------------------------------------------- */
-
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
-  margin-top: var(--space-lg);
-}
-
-.section-header {
-  display: flex;
-  gap: var(--space-md);
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: var(--space-md);
-  padding-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--border);
-}
-
-.section-header h2 {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-500);
-}
-
-.section-actions,
-.section-header .folder-control {
-  display: flex;
-  gap: var(--space-xs);
-  align-items: center;
-  flex-wrap: wrap;
-  /* Pushed right only in the dashboard header; elsewhere it is a normal field. */
-  margin-left: auto;
-}
-
-.folder-control {
-  display: flex;
-  gap: var(--space-xs);
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-.folder-name {
-  margin: 0;
-  padding: 0.25rem 0.625rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  color: var(--ink-700);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.empty-state {
-  margin: 0;
-  padding: var(--space-md);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-card);
-  color: var(--ink-500);
-  text-align: center;
-}
-
-.section-error,
-.page-error,
-.card-error,
-.google-picker-error,
-.open-by-link-error {
-  margin: var(--space-xs) 0 0;
-  color: var(--danger);
-  font-size: 0.875rem;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Cards — the time rail                                                       */
-/* -------------------------------------------------------------------------- */
-
-.card-list {
-  display: grid;
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-@media (min-width: 60rem) {
-  .card-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  overflow: hidden;
-  padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition:
-    box-shadow var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
-}
-
-/* The rail: a timeline edge that fills in on hover. */
-.card::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 3px;
-  background: var(--border-strong);
-  transform-origin: top;
-  transition: transform var(--duration) var(--ease);
-}
-
-.card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-.card:hover::before {
-  transform: scaleX(1.8);
-}
-
-.card-title {
-  margin: 0;
-  font-size: 1.0625rem;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-}
-
-/* Status pill: colour carries the meaning, and the rail matches it. */
-.card-state {
-  align-self: flex-start;
-  margin: 0;
-  padding: 0.1875rem 0.625rem;
-  border-radius: var(--radius-pill);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.card-state-ready {
-  color: var(--success);
-  background: var(--success-wash);
-}
-
-.card-state-needs-setup {
-  color: var(--warning);
-  background: var(--warning-wash);
-}
-
-.card-state-needs-repair {
-  color: var(--danger);
-  background: var(--danger-wash);
-}
-
-.card-state-unknown {
-  color: var(--ink-500);
-  background: var(--neutral-wash);
-}
-
-.card:has(.card-state-ready)::before {
-  background: var(--success);
-}
-
-.card:has(.card-state-needs-setup)::before {
-  background: var(--warning);
-}
-
-.card:has(.card-state-needs-repair)::before {
-  background: var(--danger);
-}
-
-/* Facts as a labelled micro-grid, not a paragraph. */
-.card-facts {
-  display: grid;
-  gap: var(--space-sm) var(--space-md);
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  margin: 0;
-}
-
-.card-fact dt {
-  margin: 0;
-  color: var(--ink-500);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.card-fact dd {
-  margin: 0.125rem 0 0;
-  color: var(--ink-900);
-  font-size: 0.875rem;
-  /* Wrap addresses on their own boundaries, never mid-word. */
-  overflow-wrap: anywhere;
-}
-
-/* Numeric facts carry the monospaced column treatment; names do not. */
-.card-fact-numeric {
-  font-family: var(--font-numeric);
-  overflow-wrap: normal;
-}
-
-.card-actions {
-  display: flex;
-  gap: var(--space-xs);
-  align-items: center;
-  flex-wrap: wrap;
-  margin-top: auto;
-  padding-top: var(--space-xs);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Open a file — a wide inset band that breaks the card grid                   */
-/* -------------------------------------------------------------------------- */
-
-.open-file-panel {
-  padding: var(--space-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: linear-gradient(180deg, var(--surface), var(--surface-sunken));
-  box-shadow: var(--shadow-sm);
-}
-
-.open-by-link {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.open-by-link label {
-  color: var(--ink-500);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.open-by-link-row {
-  display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
-}
-
-.open-by-link-row input {
-  flex: 1 1 24rem;
-  min-width: 0;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--ink-900);
-  font: inherit;
-  font-size: 0.9375rem;
-  transition: border-color var(--duration) var(--ease);
-}
-
-.open-by-link-row input::placeholder {
-  color: var(--ink-500);
-}
-
-.open-by-link-row input:hover {
-  border-color: var(--ink-500);
-}
-
-.open-by-link-row input:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 1px;
-  border-color: var(--primary);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Recently opened                                                             */
-/* -------------------------------------------------------------------------- */
-
-.recent-files {
-  margin-top: var(--space-md);
-  padding-top: var(--space-sm);
-  border-top: 1px solid var(--border);
-}
-
-.recent-files-title {
-  margin: 0 0 var(--space-xs);
-  color: var(--ink-500);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.recent-files-list {
-  display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recent-files-list a {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2xs);
-  padding: 0.3125rem 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--ink-700);
-  font-size: 0.8125rem;
-  text-decoration: none;
-  transition:
-    border-color var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
-}
-
-.recent-files-list a:hover {
-  border-color: var(--primary);
-  color: var(--primary-ink);
-  transform: translateY(-1px);
-}
-
-.recent-files-list a:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.recent-files-tab {
-  color: var(--ink-500);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Picker + diagnostics                                                        */
-/* -------------------------------------------------------------------------- */
-
-.google-picker {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
-}
-
-/*
- * Picker buttons select or navigate; they never commit anything. Primary is
- * reserved for the one creating action in a view, so these read as secondary
- * and match the outline `.action` links they sit beside.
- */
-.google-picker button {
-  padding: 0.4375rem 0.75rem;
-  border: 1px solid var(--border-strong);
-  color: var(--ink-700);
-  background: var(--surface);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.google-picker button:hover {
-  color: var(--ink-900);
-  border-color: var(--ink-500);
-  background: var(--surface);
-}
-
-.debug-error {
-  width: min(100%, 56rem);
-  max-height: 50vh;
-  margin: var(--space-md) 0 0;
-  padding: var(--spacing);
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--danger);
-  font-family: var(--font-numeric);
-  font-size: 0.8125rem;
-  white-space: pre-wrap;
-  word-break: break-word;

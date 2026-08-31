@@ -1,0 +1,261 @@
+/**
+ * System states — the notices, and the waiting screen.
+ *
+ * Owned by F5 (`SyncStatus`, `ErrorNotice`, the loading ghosts). Everything a
+ * screen shows when it is *not* showing the thing the user came for lives
+ * here: errors, statuses, results, and the ghosts that hold the page while a
+ * first remote load runs.
+ *
+ * Every notice states what happened and what to do next, and none of them uses
+ * colour alone: each carries a left rule, a word, and — where the primitive
+ * supplies one — a shape.
+ *
+ * The skeleton primitive lives in `primitives.css`; this file styles the
+ * *scenes* built from it.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Inline error and status text                                                */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Short, in-place messages. They sit beside the thing that failed, so they
+ * stay text rather than becoming a panel.
+ */
+.section-error,
+.page-error,
+.card-error,
+.google-picker-error,
+.open-by-link-error {
+  margin: var(--space-xs) 0 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* A neutral progress or result line. Not a state on its own. */
+.form-status {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Notice panels                                                               */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The four notice shapes share a grammar: a 3px left rule in the semantic
+ * colour, the matching wash, and body text in ink so the message itself is
+ * always high contrast.
+ */
+.form-error,
+.api-error {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-control);
+  background: var(--danger-wash);
+  color: var(--ink-900);
+}
+
+.form-error {
+  list-style-position: inside;
+}
+
+.api-error p {
+  margin: 0 0 var(--space-2xs);
+}
+
+.api-error p:last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sanitized debug disclosure                                                  */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Only rendered when the server-side `APP_DEBUG_ERRORS` switch is on. It shows
+ * an allowlisted provider diagnostic, so it is the one place a monospace face
+ * is correct: the reader is looking at machine output, not prose.
+ */
+.debug-error {
+  width: min(100%, 56rem);
+  max-height: 50vh;
+  margin: var(--space-md) 0 0;
+  padding: var(--space-md);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Waiting state — ghosts on their way to clock in                             */
+/* -------------------------------------------------------------------------- */
+
+.loading-ghosts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xl) 0;
+}
+
+/*
+ * The perspective lives here, so each ghost's `translateZ` is projected by the
+ * browser: depth scales and parallaxes them for free, with no per-ghost scale
+ * to keep in sync.
+ */
+.ghost-scene {
+  position: relative;
+  width: min(100%, 34rem);
+  height: 9rem;
+  overflow: hidden;
+  perspective: 620px;
+  transform-style: preserve-3d;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.ghost-drift {
+  position: absolute;
+  left: 0;
+  opacity: var(--ghost-opacity);
+  will-change: transform;
+  animation: ghost-drift var(--ghost-duration) linear var(--ghost-delay) infinite;
+}
+
+.ghost-bob {
+  animation: ghost-bob 2.6s ease-in-out infinite;
+}
+
+.ghost-turn {
+  transform-style: preserve-3d;
+  animation: ghost-turn 3.4s ease-in-out infinite;
+}
+
+.ghost {
+  display: block;
+  width: 3.25rem;
+  height: auto;
+  filter: drop-shadow(0 6px 10px rgb(25 33 59 / 14%));
+}
+
+.ghost-body {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.ghost-eyes {
+  fill: var(--ink-900);
+  transform-origin: center 42px;
+  animation: ghost-blink 5.2s ease-in-out infinite;
+}
+
+/* The far ghosts read as cooler and flatter, the way distance actually looks. */
+.ghost-drift:nth-child(n + 3) .ghost-body {
+  fill: var(--primary-wash);
+  stroke: var(--primary);
+  stroke-opacity: 0.35;
+}
+
+.ghost-canvas {
+  width: min(100%, 34rem);
+  /* Ghosts wrap around at the edges; the fade hides the seam. */
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+
+/*
+ * Once WebGL is drawing, the CSS scene collapses out of the flow rather than
+ * being unmounted, so nothing reflows underneath at the moment of the swap.
+ */
+.ghost-scene-replaced {
+  display: none;
+}
+
+.loading-ghosts-label {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+@keyframes ghost-drift {
+  from {
+    transform: translate3d(-6rem, 0, var(--ghost-depth));
+  }
+
+  to {
+    transform: translate3d(40rem, 0, var(--ghost-depth));
+  }
+}
+
+@keyframes ghost-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-0.7rem);
+  }
+}
+
+@keyframes ghost-turn {
+  0%,
+  100% {
+    transform: rotateY(-20deg);
+  }
+
+  50% {
+    transform: rotateY(20deg);
+  }
+}
+
+@keyframes ghost-blink {
+  0%,
+  90%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+
+/*
+ * The global reduced-motion override in `primitives.css` collapses every
+ * duration, which would leave the ghosts parked at the end of their drift —
+ * off screen. They are placed by hand instead, so the scene still reads as a
+ * scene while holding still.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ghost-drift,
+  .ghost-bob,
+  .ghost-turn,
+  .ghost-eyes {
+    animation: none !important;
+  }
+
+  .ghost-drift {
+    transform: translate3d(var(--ghost-rest, 6rem), 0, var(--ghost-depth));
+  }
+
+  .ghost-drift:nth-child(2) {
+    --ghost-rest: 14rem;
+  }
+
+  .ghost-drift:nth-child(3) {
+    --ghost-rest: 22rem;
+  }
+
+  .ghost-drift:nth-child(4) {
+    --ghost-rest: 29rem;
+  }
+}

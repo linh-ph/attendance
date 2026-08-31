@@ -761,7 +761,7 @@ a change there stops and reports.
 - [x] F5 SyncStatus, ErrorNotice, state gallery — `redesign/f5-sync-status-states` (`f64a27b`), verify EXIT=0, 822 tests
 - [x] F6 WizardShell — `redesign/f6-wizard-shell` (`14ff5ee`), verify EXIT=0, e2e 29 passed
 - [x] F7 server diagnostic redaction (added mid-flight) — `redesign/f7-diagnostic-redaction` (`7ea2aeb`), verify EXIT=0, 747 tests
-- [ ] **Combine the foundation branches into one base — owner decision, blocks everything below**
+- [x] Combine the foundation branches — merged into `redesign/integration`, conflict-free; merged tree verify EXIT=0 (1021 tests) and e2e EXIT=0 (41 specs); browser-verified
 - [ ] S1 login
 - [ ] S2 calendar dashboard
 - [ ] S3 timesheets
@@ -1039,19 +1039,60 @@ a change there stops and reports.
   *prove* a value safe, and F5's browser gate would strip a preserved id anyway.
   Restoring ids is a decision for both layers at once, not one branch.
 
-### Blocked: Wave 2 needs a combined base
+- 2026-08-31: **All seven foundation branches merged** into
+  `redesign/integration` on the owner's instruction, in the order f1 → f2 → f5
+  → f6 → f3 → f4 → f7. **Every merge was conflict-free.** `main` was already an
+  ancestor, so merging it was a no-op.
 
-F2, F5 and F6 are **siblings off F1**, and every Wave 2 screen needs all four —
-it renders inside F2's `PageShell`, reports through F5's `SyncStatus`, and the
-wizard tasks build on F6's shell. Branch-chaining carried the plan this far
-without a single merge, but three siblings cannot be chained: combining them is
-a merge, and no agent may perform one on the user's behalf.
+  The merged tree — which is the first time any of this ran together — is green:
+  `verify` `EXIT=0` with **1021 tests passed / 13 skipped** and a clean
+  production build, then `test:e2e` `EXIT=0` with **41 Playwright specs passed**.
+  Individually-green branches can still break in combination, so this run is the
+  proof that matters.
 
-**This is a decision for the repository owner**, recorded here so it is not lost:
-either they merge `f1 + f2 + f5 + f6` (and `f7`) into `redesign/integration`
-themselves, or they authorize the integrator to do it. Wave 2's eight agents
-cannot start until a combined base exists. Everything up to that point is
-delivered and independently verified on its own branch.
+### Browser verification of the merged tree
+
+Driven manually against a real Chrome at `127.0.0.1:3100`, with the app in
+`E2E_TEST_MODE` behind the deterministic Google adapter (no real Drive call has
+ever been made from this repository — see `CLAUDE.md` Status).
+
+Confirmed by looking, not by inference:
+
+- **Login** renders in the Calm productivity palette, and `public/meme.jpeg` is
+  present, complete, and uncropped — spec §2.3's requirement that the image is
+  retained rather than restyled away.
+- **Desktop sidebar** (≥64rem) shows Calendar, Timesheets, a labelled
+  **MANAGEMENT** group with Managed files and Members, and the account block
+  with Sign out at the foot.
+- **Mobile bottom navigation** shows exactly Calendar, Timesheets, Manage, More,
+  with the current item marked; the desktop-only entries are absent from the
+  DOM's measurable box (width and height 0), not merely hidden by colour.
+- **New routes** `/timesheets`, `/manage`, `/more` resolve and carry
+  current-page marking. Their placeholders say plainly that the page is still
+  being built — honest, and replaced by Wave 2.
+- **Route-to-nav mapping** is right where it is least obvious: `/files/new`
+  highlights *Managed files*.
+- **Accessibility structure** in the a11y tree: a skip link as the first node, a
+  `banner`, one `navigation "Main"`, one `main`, one `h1` with `h2` section
+  headings beneath it, and a live region present.
+- **Zero console errors or warnings** on the dashboard.
+- No horizontal overflow at any width reachable through the tool.
+
+Two honest limits on this manual pass:
+
+1. The browser tooling clamps the viewport at 500 px, so **320 and 390 could not
+   be measured by hand**. All five widths (320/390/768/1024/1440) *are* asserted
+   in F2's `tests/e2e/app-shell.spec.ts`, which passed in the merged e2e run.
+2. Switching from the manager to the employee session mid-browser failed:
+   Auth.js reissues its session cookie as **httpOnly**, which JavaScript can
+   then neither overwrite nor delete. So **the employee attendance edit/save
+   flow was not exercised by hand** — it is covered by the merged Playwright
+   run, including `a failed save keeps the edits and retries in place`.
+
+What the browser cannot show yet is the redesign's *content*: the screens still
+render their pre-redesign markup inside the new shell and palette, because
+Wave 2 has not run. The calendar dashboard, day preview, day editor, timesheets,
+managed-files hub, members, and the ported wizards are all still ahead.
 
 ### The cache-first render rule (binding on S2 and S4)
 

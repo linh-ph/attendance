@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { CalendarPanel } from "@/components/calendar-panel/calendar-panel";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,15 @@ export default async function DashboardPage() {
         <p className="page-lede">
           Create and share the month, or open your own timesheet.
         </p>
+
+        {/*
+          The calendar loads itself: it draws this browser's cached month first,
+          discovers the authorized files in the background, and then reads the
+          current month from Google Sheets. It is mounted above the file lists
+          because it is the thing most people came for.
+        */}
+        <CalendarPanel email={email} />
+
         <DashboardClient email={email} />
       </section>
     </main>

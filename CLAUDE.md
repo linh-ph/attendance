@@ -84,6 +84,8 @@ src/lib/
                 monthly,legacy}, member-service, import-service ← orchestration
   discovery/    file-discovery                                 ← folder-scoped listing
   dashboard/    folder-preference                              ← browser-only, non-authoritative
+  cache/        engine, keys, records, calendar-{state,cache}  ← acknowledged IndexedDB
+  sync/         calendar-sync, sync-transport, shared-fetch    ← one load path, injected
   auth/         session, google-token, proxy, paths
   testing/      runtime-guard, fake-google-{store,state,seed,requests}
 src/app/api/    health, auth, dashboard, folders/validate, google/picker-token,
@@ -230,11 +232,14 @@ from this app.
   no-store`, held in component memory only.
 - Browser storage never holds a token or an authorization result. It holds the
   selected folder ID/name in `localStorage`, and — in the `attendance-local`
-  IndexedDB database — unsaved day drafts, the last loaded month per sheet, and
-  recently opened sheets. Every record is keyed by normalized email so two
-  accounts sharing a browser profile cannot read each other's, and none of it
-  is authoritative: the server re-reads the sheet and re-authorizes every
-  request. These records deliberately **survive sign-out** (an explicit product
+  IndexedDB database — unsaved day drafts, the last loaded month per sheet,
+  recently opened sheets, and the calendar's quick-info records (which month
+  the calendar is on, and one small per-date state for it). Every record is
+  keyed by normalized email so two accounts sharing a browser profile cannot
+  read each other's, and none of it is authoritative: the server re-reads the
+  sheet and re-authorizes every request. `findCredentialMaterial` refuses any
+  write carrying a token **or an authorization result** — `role` is on that
+  deny list, so no cached role can ever be read back. These records deliberately **survive sign-out** (an explicit product
   decision on 2026-08-29), so a shared machine keeps one user's work-hour
   drafts until that profile is cleared.
 - A stored draft carries the baseline it was made against and is restored only

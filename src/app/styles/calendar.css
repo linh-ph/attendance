@@ -173,3 +173,165 @@
 .day-multi-calendar {
   user-select: none;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Month grid — the dashboard calendar                                         */
+/* -------------------------------------------------------------------------- */
+
+.calendar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/*
+ * The grid is the panel's dominant surface, so it gets the width and the
+ * vertical rhythm rather than sitting inside a card of its own. It scrolls
+ * inside itself on a narrow phone instead of pushing the page sideways.
+ */
+.month-grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: var(--space-2xs);
+  table-layout: fixed;
+}
+
+.month-grid-caption {
+  margin-block-end: var(--space-sm);
+  color: var(--ink-700);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  text-align: start;
+}
+
+.month-grid thead th {
+  padding-block: var(--space-2xs);
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.month-grid-cell {
+  position: relative;
+  height: var(--touch-target, 2.75rem);
+  padding: var(--space-2xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  vertical-align: top;
+}
+
+.month-grid-cell.is-empty {
+  border-color: transparent;
+  background: none;
+}
+
+.month-grid-date {
+  display: block;
+  color: var(--ink-900);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+}
+
+.month-grid-hours {
+  display: block;
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+}
+
+/*
+ * State is never colour alone. `recorded` draws a filled dot, a non-working
+ * day a hollow one, and today an outline on the whole cell — three different
+ * shapes, so the grid survives greyscale and colour-blind vision.
+ */
+.month-grid-mark {
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-block-start: var(--space-3xs);
+  border-radius: var(--radius-pill);
+  background: none;
+}
+
+[data-record="recorded"] .month-grid-mark,
+.month-grid-legend [data-record="recorded"] .month-grid-mark {
+  background: var(--success);
+}
+
+[data-record="not-recorded"] .month-grid-mark,
+.month-grid-legend [data-record="not-recorded"] .month-grid-mark {
+  border: 1px solid var(--border-strong);
+}
+
+.month-grid-cell[data-record="recorded"] {
+  background: var(--success-wash);
+  border-color: var(--success-line);
+}
+
+.month-grid-cell[data-non-working],
+.month-grid-legend [data-non-working] .month-grid-mark {
+  background: var(--surface-sunken);
+}
+
+.month-grid-cell[data-non-working] .month-grid-date {
+  color: var(--ink-500);
+}
+
+.month-grid-cell[data-today="true"],
+.month-grid-legend [data-today="true"] .month-grid-mark {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.month-grid-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-700);
+  font-size: var(--text-xs);
+}
+
+.month-grid-legend li {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: center;
+}
+
+.month-grid-legend .month-grid-mark {
+  margin-block-start: 0;
+}
+
+.calendar-month-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+  padding-block-start: var(--space-md);
+  border-block-start: 1px solid var(--border);
+}
+
+.calendar-month-form label {
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+}
+
+@media (width <= 30rem) {
+  /* A seven-column grid cannot shrink below a usable hit area, so it scrolls. */
+  .calendar-panel {
+    overflow-x: auto;
+  }
+
+  .month-grid {
+    min-width: 20rem;
+  }
+
+  .calendar-month-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

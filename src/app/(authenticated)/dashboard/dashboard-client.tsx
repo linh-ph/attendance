@@ -12,6 +12,7 @@ import {
 } from "@/lib/dashboard/folder-preference";
 import type { DashboardSetupState, ManagedFile, Timesheet } from "@/lib/discovery/file-discovery";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
+import { sharedFetch } from "@/lib/sync/shared-fetch";
 import type { RecentFile } from "@/lib/dashboard/local-records";
 import { OpenByLink } from "./open-by-link";
 import { RecentFiles } from "./recent-files";
@@ -284,7 +285,10 @@ async function fetchDashboard(folderId: string | null): Promise<LoadState> {
 
   let response: Response;
   try {
-    response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+    // `sharedFetch` joins this to the calendar's identical in-flight request
+    // when there is one, so the dashboard performs one Drive scan rather than
+    // two. It shares only while in flight, so nothing stale can be returned.
+    response = await sharedFetch(url, { cache: "no-store", credentials: "same-origin" });
   } catch {
     return { status: "failed", message: LOAD_FAILED, canRetry: true };
   }

@@ -69,6 +69,14 @@ export async function GET(request: Request): Promise<Response> {
         folder: dashboard.folder,
         managed: dashboard.managed,
         timesheets: dashboard.timesheets,
+        /*
+         * Files this actor can see but whose contents could not be read this
+         * request. Sent so the browser can say "Google Sheets could not be
+         * reached" instead of "you have no timesheets" — two states that used
+         * to be the same empty list. Only the ID and name Drive already gave
+         * this actor cross the wire; the provider error stays server-side.
+         */
+        unreadable: dashboard.unreadable,
         ...(dashboard.folderError ? { folderError: dashboard.folderError.message } : {}),
       },
       {

@@ -101,11 +101,32 @@ export interface FolderError {
   message: string;
 }
 
+/**
+ * An attendance file Drive listed but whose contents could not be read this
+ * request.
+ *
+ * It exists because the alternative was worse: the employee scan used to drop
+ * such a file silently, so a total Sheets outage — a disabled API, a throttle,
+ * an expired grant — was indistinguishable from "nobody has shared a timesheet
+ * with you". One is a system fault with a recovery step and the other is a
+ * normal empty state, and a person cannot act on the first if it is dressed as
+ * the second.
+ *
+ * The entry carries only what Drive already told this actor: the ID and name of
+ * a file they can see. The underlying provider error stays server-side.
+ */
+export interface UnreadableFile {
+  id: string;
+  name: string;
+}
+
 export interface DashboardData {
   folder: DriveFolder | null;
   folderError: FolderError | null;
   managed: ManagedFile[];
   timesheets: Timesheet[];
+  /** Empty when every candidate read cleanly. Never a substitute for an error. */
+  unreadable: UnreadableFile[];
 }
 
 export interface LoadDashboardRequest {
@@ -307,12 +328,16 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
    * is exactly the file people record hours in. Drive returning the file is
    * the access decision.
    */
-  async function loadTimesheets(actorEmail: string): Promise<Timesheet[]> {
+  async function loadTimesheets(
+    actorEmail: string,
+  ): Promise<{ timesheets: Timesheet[]; unreadable: UnreadableFile[] }> {
     const candidates = (await drive.listEmployeeCandidates()).filter((file) =>
       hasAttendanceName(file.name),
     );
 
     const timesheets: Timesheet[] = [];
+    const unreadable: UnreadableFile[] = [];
+
     for (const file of candidates) {
       const outcome = await readConfigOutcome(config, file.id);
 
@@ -323,7 +348,10 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
       }
 
       // No configuration: read the tab list directly so the file is still
-      // openable. A file whose tabs cannot be read at all is skipped.
+      // openable. A file whose tabs cannot be read at all is not offered — but
+      // it is *named*, so the caller can distinguish a provider failure from an
+      // account with no timesheets. Swallowing it here is what made a Sheets
+      // outage look like an empty Drive.
       try {
         const spreadsheet = await sheets.getSpreadsheet(file.id);
         timesheets.push({
@@ -333,11 +361,11 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
           tabs: toTabs(spreadsheet.sheets),
         });
       } catch {
-        continue;
+        unreadable.push({ id: file.id, name: file.name });
       }
     }
 
-    return timesheets;
+    return { timesheets, unreadable };
   }
 
   return {
@@ -346,15 +374,15 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
       const folderId = request.folderId?.trim() ?? "";
 
       // The employee section is always computed, whatever the folder state is.
-      const timesheets = await loadTimesheets(actorEmail);
+      const { timesheets, unreadable } = await loadTimesheets(actorEmail);
 
       if (folderId === "") {
-        return { folder: null, folderError: null, managed: [], timesheets };
+        return { folder: null, folderError: null, managed: [], timesheets, unreadable };
       }
 
       try {
         const { folder, managed } = await loadManaged(folderId);
-        return { folder, folderError: null, managed, timesheets };
+        return { folder, folderError: null, managed, timesheets, unreadable };
       } catch (error) {
         if (error instanceof FolderUnavailableError) {
           return {
@@ -362,6 +390,7 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
             folderError: { reason: error.reason, message: FOLDER_UNAVAILABLE_MESSAGE },
             managed: [],
             timesheets,
+            unreadable,
           };
         }
 

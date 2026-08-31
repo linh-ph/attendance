@@ -70,6 +70,48 @@ longer writable, the manager section shows `Folder unavailable` and requires a
 new selection. It never falls back to scanning all of Drive. Employee discovery
 is unaffected.
 
+A candidate whose contents cannot be read this request — a Sheets outage, a
+throttle, a revoked grant — is **named** rather than dropped. Discovery returns
+it in `unreadable`, and the browser says how many files could not be read
+instead of showing an empty list. An empty list now means "you have none"; it no
+longer also means "Google could not be reached".
+
+## The calendar
+
+The dashboard opens on a month calendar, which loads itself in three steps:
+
+1. this browser's stored copy of the month is drawn first, so the grid is not a
+   blank wait;
+2. the authorized file list is fetched in the background;
+3. the current month is read from Google Sheets and replaces the stored copy.
+
+Each date shows `Recorded` or `Not recorded` — the same two-value rule the day
+editor uses, carried by a word and a shape as well as a colour — plus whether it
+is a non-working day, and `Today` when the spreadsheet reports a timezone.
+
+The calendar never guesses which file to open. Exactly one authorized file for
+the month opens directly; several require an explicit choice; a file with no
+configuration asks which tab is yours. When no file covers the month, the
+calendar says which month it looked for and offers the two things that help:
+pick another month, or create the file and press `Load files`.
+
+A failure is never shown as an empty month. `Offline`, an expired session, and a
+Google fault each get their own message and recovery step, and the stored copy
+stays on screen and usable.
+
+## Syncing to this browser
+
+`More → Data and sync → Sync now` re-reads the current month from Google Sheets
+into this browser's copy and reports what it stored: the month, the timesheet,
+how many dates it holds, how many are recorded, and how many working days are
+still empty.
+
+Google Sheets remains the only source of truth. The browser copy is a head
+start, never an authority: the server re-reads the sheet and re-authorizes every
+request, and no authorization result is ever stored. A sync that read the sheet
+but could not write the local copy says exactly that rather than reporting
+`Synced`.
+
 ## Workbook contract
 
 Every employee sheet uses the reference workbook's layout.

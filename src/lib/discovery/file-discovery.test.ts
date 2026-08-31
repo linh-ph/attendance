@@ -245,6 +245,8 @@ function createHarness(
   options: {
     configs?: Map<string, ConfigReadResult | Error>;
     folderError?: Error;
+    /** Makes the direct tab read fail, as a Sheets outage does for every file. */
+    sheetsError?: Error;
   } = {},
 ): Harness {
   const configs = options.configs ?? defaultConfigs();
@@ -301,6 +303,7 @@ function createHarness(
 
   const sheets = {
     async getSpreadsheet(fileId: string): Promise<SpreadsheetSnapshot> {
+      if (options.sheetsError) throw options.sheetsError;
       return {
         spreadsheetId: fileId,
         sheets: [
@@ -653,13 +656,45 @@ describe("attendance files that carry no app configuration", () => {
     expect(timesheets[0].month).toBe("2026-07");
   });
 
-  it("skips a file whose tabs cannot be read at all", async () => {
+  it("reports a file whose tabs cannot be read instead of silently dropping it", async () => {
     const discovery = createFileDiscovery(
       unconfiguredDeps([corpusFile({ id: "plain", name: "202607勤怠管理表" })], true),
     );
 
-    const { timesheets } = await discovery.load({ actorEmail: EMPLOYEE });
+    const { timesheets, unreadable } = await discovery.load({ actorEmail: EMPLOYEE });
+
+    // Still not offered as a timesheet — there is nothing to open it at.
+    expect(timesheets).toEqual([]);
+    // But the caller can tell "could not be read" from "you have none", which
+    // is the difference between a Sheets outage and an empty Drive.
+    expect(unreadable).toEqual([{ id: "plain", name: "202607勤怠管理表" }]);
+  });
+});
+
+describe("FileDiscovery.load — a Sheets outage is never reported as an empty Drive", () => {
+  it("names every candidate it could not read when the whole API is failing", async () => {
+    const harness = createHarness({
+      // No configuration anywhere, and the direct tab read fails too — exactly
+      // what a disabled or throttled Sheets API looks like from here.
+      configs: new Map(),
+      sheetsError: new GoogleApiError("Google request failed: sheets.get.", { status: 403 }),
+    });
+
+    const { timesheets, unreadable } = await createFileDiscovery(harness).load({
+      actorEmail: EMPLOYEE,
+    });
 
     expect(timesheets).toEqual([]);
+    expect(unreadable.length).toBeGreaterThan(0);
+    expect(unreadable.map((file) => file.id)).toContain("shared-mapped");
+  });
+
+  it("reports nothing unreadable when every candidate reads cleanly", async () => {
+    const { unreadable } = await createFileDiscovery(createHarness()).load({
+      actorEmail: EMPLOYEE,
+      folderId: FOLDER_ID,
+    });
+
+    expect(unreadable).toEqual([]);
   });
 });

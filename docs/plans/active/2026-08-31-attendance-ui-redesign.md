@@ -762,8 +762,9 @@ a change there stops and reports.
 - [x] F6 WizardShell — `redesign/f6-wizard-shell` (`14ff5ee`), verify EXIT=0, e2e 29 passed
 - [x] F7 server diagnostic redaction (added mid-flight) — `redesign/f7-diagnostic-redaction` (`7ea2aeb`), verify EXIT=0, 747 tests
 - [x] Combine the foundation branches — merged into `redesign/integration`, conflict-free; merged tree verify EXIT=0 (1021 tests) and e2e EXIT=0 (41 specs); browser-verified
-- [ ] S1 login
-- [ ] S2 calendar dashboard
+- [x] S1 login
+- [x] **Calendar first-load, quick-info cache, and manual sync** (user-requested, landed ahead of S2 — see the note below); verify EXIT=0 (1101 tests), e2e EXIT=0 (53 specs)
+- [ ] S2 calendar dashboard — **read the note below before starting**
 - [ ] S3 timesheets
 - [ ] S4 day editor
 - [ ] S5 managed files
@@ -1101,6 +1102,42 @@ What the browser cannot show yet is the redesign's *content*: the screens still
 render their pre-redesign markup inside the new shell and palette, because
 Wave 2 has not run. The calendar dashboard, day preview, day editor, timesheets,
 managed-files hub, members, and the ported wizards are all still ahead.
+
+### What landed ahead of S2 (binding on S2)
+
+The user asked for the calendar's data flow and a manual sync before S2 was
+dispatched, so parts of S2's data work already exist. S2 **absorbs** these; it
+does not rebuild them, and it does not add a second way to do any of it.
+
+- `src/lib/cache/calendar-state.ts` — the quick-info projection: which month the
+  calendar is on, and one `CalendarDayState` per date (`record`, `nonWorking`,
+  `workHours`, `statusCode`). It delegates to F4's `dayRecordState` and
+  `nonWorkingDaySource` rather than re-deciding either, and it carries **no**
+  `role`; the guard refuses a record that does.
+- `src/lib/cache/calendar-cache.ts` — acknowledged storage for a snapshot per
+  (account, file, sheet, month) plus one pointer per account, written in one
+  transaction so the pointer can never name a month whose snapshot failed.
+  `engine.ts` gained `CALENDAR_STORE` and `DB_VERSION` rose 3 → 4.
+- `src/lib/sync/calendar-sync.ts` — **the one load path**. Discovery, month
+  resolution, the sheet read, and the cache write, dependency-injected. It never
+  guesses between candidates, never addresses a file discovery did not list, and
+  never reports a failure as an empty state. S2's month navigation should call
+  this rather than growing its own fetch.
+- `src/lib/sync/shared-fetch.ts` — in-flight coalescing for `/api/dashboard`.
+  Measured: 84 → 29 dashboard calls across the same 49 e2e specs. It shares only
+  while a request is in flight, so it can never serve a stale answer.
+- `src/components/calendar-panel/*` — the month grid, its legend, and the
+  first-load orchestration, mounted by `dashboard/page.tsx`. **This is the
+  placeholder S2 replaces**: it has no day preview (option A), no keyboard date
+  movement, and no per-cell interaction. Its data flow and its states are the
+  contract; its interaction is not.
+- `src/components/settings/sync-settings.tsx` on `/more` — `Sync now`. It is a
+  *section*, not a navigation destination: spec §3.2's shell is unchanged.
+
+Server-side, `file-discovery` now returns `unreadable: UnreadableFile[]` and
+`/api/dashboard` forwards it. This closes a documented silent failure — a Sheets
+outage used to make every candidate vanish, so "the API is down" and "nothing is
+shared with you" were the same empty list.
 
 ### The cache-first render rule (binding on S2 and S4)
 

@@ -22,11 +22,14 @@ export { CacheStorageError } from "./results";
 export const DB_NAME = "attendance-local";
 
 /**
- * Raised to 3 for the two acknowledged-cache stores. `onupgradeneeded` only
- * runs when this changes; the four legacy stores are created here too so a
- * profile that has never opened the app gets all of them at once.
+ * Raised to 4 for the calendar quick-info store. `onupgradeneeded` only runs
+ * when this changes; every other store is created there too so a profile that
+ * has never opened the app gets all of them at once, and a profile upgrading
+ * from 3 gains only the store it is missing — the handler adds what is absent
+ * and touches nothing that already exists, so no cached month or pending draft
+ * is disturbed by the bump.
  */
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 /** Legacy stores, still read and written by the compatibility adapter. */
 export const DRAFT_STORE = "drafts";
@@ -38,6 +41,14 @@ export const MEMBER_STORE = "members";
 export const CACHE_MONTH_STORE = "cache-months";
 export const CACHE_DRAFT_STORE = "cache-drafts";
 
+/**
+ * The calendar's quick-info store: which month the calendar is on, and one
+ * small state per date. Separate from `cache-months` on purpose — the calendar
+ * reads it on its first frame and must not pull a whole month of work slots
+ * into memory to draw a grid.
+ */
+export const CALENDAR_STORE = "calendar";
+
 export const ALL_STORES = [
   DRAFT_STORE,
   MONTH_STORE,
@@ -45,6 +56,7 @@ export const ALL_STORES = [
   MEMBER_STORE,
   CACHE_MONTH_STORE,
   CACHE_DRAFT_STORE,
+  CALENDAR_STORE,
 ] as const;
 
 export type TransactionMode = "readonly" | "readwrite";

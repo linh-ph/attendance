@@ -75,11 +75,17 @@ function dashboardBody(overrides: Record<string, unknown> = {}) {
 }
 
 function jsonResponse(status: number, body: unknown): Response {
-  return {
+  const response = {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
-  } as Response;
+    // `sharedFetch` hands every caller its own clone, because a real body can
+    // be read only once. This fake's `json` is re-readable, so the clone can be
+    // the response itself — but the method has to exist.
+    clone: () => response,
+  };
+
+  return response as Response;
 }
 
 const fetchMock = vi.fn();

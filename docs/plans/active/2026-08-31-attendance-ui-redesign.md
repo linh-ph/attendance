@@ -809,6 +809,41 @@ a change there stops and reports.
   the dependency order without any merge, so no integration merge is performed
   by an agent; the final assembly is a human decision.
 
+- 2026-08-31: **F3 landed** on `redesign/f3-attendance-cache` (`015e5cd`),
+  `verify` `EXIT=0`, 785 tests. Every method returns
+  `CacheResult<T>` = `{ok:true,value}` | `{ok:false,reason,message}` with
+  `reason ∈ unavailable | blocked | corrupt | quota | migration-refused |
+  forbidden-content`. There is no no-op path: `resolveAttendanceCache()` falls
+  back to `createUnavailableCache`, whose every method answers `ok:false`.
+  Key methods for S2/S4: `readMonth` (a `null` is a **successful** miss),
+  `writeMonth` (returns `changedDates` and `conflictedDates` — the latter drives
+  `Remote changes detected`), `writeDraft` (**success is the only thing that may
+  show `Saved locally`**), `restoreDraft` (byte-for-byte baseline rule;
+  a discard must be disclosed), and `commitSave` (one transaction; a failure
+  here is the composite `Saved to Google Sheets · local cache unavailable` and
+  **must not re-issue the Sheet write**).
+
+  All four spec §5.5 races are proven, and eight deliberate mutations were each
+  caught and reverted — including "rejected write returns success", "epoch check
+  dropped", and "credential guard disabled". The compatibility adapter keeps
+  `LocalStore` signatures unchanged, so six existing call sites compile and
+  behave as before without F3 editing any of them.
+
+  Known limits carried forward: the races are proven on an in-repo memory engine
+  because the repo has no `fake-indexeddb` and F3 added no dependency, so
+  `createIndexedDbEngine` has **no browser-level test — V3 should cover it**.
+
+- 2026-08-31: **Invariant defect found and assigned.** F3 flagged rather than
+  silently decided that `AttendanceMonthView.role` was still being persisted.
+  Verified: `role` is assigned directly from `authorizeFile` in
+  `attendance/service.ts`, so it **is** an authorization result. Spec §5.1 and
+  `CLAUDE.md` both forbid one in IndexedDB, and `access/policy.ts:173` already
+  says "never a cached role". Pre-existing, but not compliant. F3 is stripping
+  it from the persisted record and extending the credential guard to refuse it.
+  **Consumers must take `role` from the fresh server response on every load,
+  never from cache** — which costs nothing, because every request re-authorizes
+  anyway. S2 and S4 must not reintroduce a cached-role read.
+
 ### Watch at integration
 
 - The base `button` rule now carries `min-height: var(--touch-target)` (44 px)

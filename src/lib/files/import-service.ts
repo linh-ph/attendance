@@ -276,7 +276,8 @@ export function createImportService(dependencies: ImportServiceDependencies): Im
       }
 
       try {
-        const permissionId = await drive.createWriterPermission(fileId, member.email);
+        // Import always announces itself; only the create wizard offers the choice.
+        const permissionId = await drive.createWriterPermission(fileId, member.email, true);
         await config.updateMemberProgress(fileId, {
           email: member.email,
           permissionId,

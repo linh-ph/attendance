@@ -264,7 +264,7 @@ function createFakeDriveGateway(store: FakeGoogleStore, actorEmail: string): Dri
       return { id, name: input.name };
     },
 
-    async createWriterPermission(fileId, email) {
+    async createWriterPermission(fileId, email, notify) {
       const file = requireFile(fileId);
       const normalized = normalizeEmail(email);
 

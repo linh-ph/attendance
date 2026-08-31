@@ -277,11 +277,11 @@ export function createDriveGateway(drive: DriveClient): DriveGateway {
       }
     },
 
-    async createWriterPermission(fileId, email) {
+    async createWriterPermission(fileId, email, notify) {
       try {
         const { data } = await drive.permissions.create({
           fileId,
-          sendNotificationEmail: true,
+          sendNotificationEmail: notify,
           requestBody: {
             type: "user",
             role: "writer",

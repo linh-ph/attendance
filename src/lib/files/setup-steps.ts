@@ -72,6 +72,8 @@ export interface SetupSteps {
     fileName: string,
     folder: DriveFolder,
     planned: readonly PlannedMember[],
+    /** False shares the file without letting Drive email anybody about it. */
+    notify: boolean,
   ): Promise<MonthlySetupResult>;
 }
 
@@ -82,6 +84,7 @@ export function createSetupSteps(dependencies: SetupServiceDependencies): SetupS
   async function inviteMembers(
     fileId: string,
     members: readonly MemberSetupProgress[],
+    notify: boolean,
   ): Promise<MemberSetupProgress[]> {
     const results: MemberSetupProgress[] = [];
 
@@ -92,7 +95,7 @@ export function createSetupSteps(dependencies: SetupServiceDependencies): SetupS
       }
 
       try {
-        const permissionId = await drive.createWriterPermission(fileId, member.email);
+        const permissionId = await drive.createWriterPermission(fileId, member.email, notify);
         await config.updateMemberProgress(fileId, {
           email: member.email,
           permissionId,
@@ -123,6 +126,7 @@ export function createSetupSteps(dependencies: SetupServiceDependencies): SetupS
     fileName: string,
     folder: DriveFolder,
     planned: readonly PlannedMember[],
+    notify: boolean,
   ): Promise<MonthlySetupResult> {
     const { config: stored } = await config.read(fileId);
     const byEmail = new Map(stored.members.map((member) => [member.email, member]));
@@ -138,7 +142,7 @@ export function createSetupSteps(dependencies: SetupServiceDependencies): SetupS
       return toProgress(found);
     });
 
-    const members = await inviteMembers(fileId, current);
+    const members = await inviteMembers(fileId, current, notify);
     const complete = members.every((member) => member.setupStatus === "ready");
 
     if (complete) {

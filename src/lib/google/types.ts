@@ -167,7 +167,12 @@ export interface DriveGateway {
   listPeople(fileId: string): Promise<DrivePerson[]>;
   createSpreadsheetFile(input: CreateDriveSpreadsheetInput): Promise<CreatedDriveFile>;
   convertXlsx(input: ConvertXlsxInput): Promise<CreatedDriveFile>;
-  createWriterPermission(fileId: string, email: string): Promise<string>;
+  /**
+   * Grants write access. `notify` decides whether Drive also emails the person:
+   * the grant itself is identical either way, so a silent grant still puts the
+   * file in their Drive — it just does not announce itself.
+   */
+  createWriterPermission(fileId: string, email: string, notify: boolean): Promise<string>;
   updateAppProperties(fileId: string, properties: Record<string, string>): Promise<void>;
 }
 

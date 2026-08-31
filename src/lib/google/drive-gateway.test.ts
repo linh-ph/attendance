@@ -264,7 +264,7 @@ describe("createWriterPermission", () => {
     const gateway = createDriveGateway(fakeDrive);
 
     await expect(
-      gateway.createWriterPermission("file-1", "Employee@Blended-Asia.com"),
+      gateway.createWriterPermission("file-1", "Employee@Blended-Asia.com", true),
     ).resolves.toBe("permission-1");
 
     expect(fakeDrive.permissionCalls).toEqual([
@@ -285,8 +285,8 @@ describe("createWriterPermission", () => {
     const fakeDrive = createFakeDriveClient();
     const gateway = createDriveGateway(fakeDrive);
 
-    await gateway.createWriterPermission("file-1", "a@blended-asia.com");
-    await gateway.createWriterPermission("file-1", "b@blended-asia.com");
+    await gateway.createWriterPermission("file-1", "a@blended-asia.com", true);
+    await gateway.createWriterPermission("file-1", "b@blended-asia.com", true);
 
     expect(fakeDrive.permissionCalls.map((call) => call.requestBody.emailAddress)).toEqual([
       "a@blended-asia.com",
@@ -440,5 +440,24 @@ describe("listPeople", () => {
     const gateway = createDriveGateway(createFakeDriveClient({ permissions: [] }));
 
     await expect(gateway.listPeople("file-1")).resolves.toEqual([]);
+  });
+});
+
+describe("createWriterPermission notification", () => {
+  it("shares without emailing when the caller asks it not to", async () => {
+    const fakeDrive = createFakeDriveClient({ permissionId: "permission-1" });
+    const gateway = createDriveGateway(fakeDrive);
+
+    await expect(
+      gateway.createWriterPermission("file-1", "employee@blended-asia.com", false),
+    ).resolves.toBe("permission-1");
+
+    // The grant is identical; only the announcement is suppressed.
+    expect(fakeDrive.permissionCalls[0].sendNotificationEmail).toBe(false);
+    expect(fakeDrive.permissionCalls[0].requestBody).toEqual({
+      type: "user",
+      role: "writer",
+      emailAddress: "employee@blended-asia.com",
+    });
   });
 });

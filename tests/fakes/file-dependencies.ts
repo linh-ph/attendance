@@ -158,6 +158,8 @@ export interface FileDependenciesFake {
   gridResizes: GridResize[];
   /** Every `permissions.create` target, in call order. */
   invitedEmails: string[];
+  /** One entry per invitation: whether Drive was asked to email that person. */
+  invitationNotices: boolean[];
   createdFiles: Array<{ id: string; name: string; folderId: string }>;
 
   /** Live sheet titles of the created file, in order. */
@@ -182,6 +184,7 @@ export function createFileDependenciesFake(
   const deletedSheetIds: number[] = [];
   const gridResizes: GridResize[] = [];
   const invitedEmails: string[] = [];
+  const invitationNotices: boolean[] = [];
   const createdFiles: Array<{ id: string; name: string; folderId: string }> = [];
 
   let nextFileNumber = 0;
@@ -442,10 +445,11 @@ export function createFileDependenciesFake(
       throw new Error("convertXlsx is not part of the create flow.");
     },
 
-    async createWriterPermission(fileId: string, email: string): Promise<string> {
+    async createWriterPermission(fileId: string, email: string, notify: boolean): Promise<string> {
       requireFile(fileId);
       events.push(`invite:${email}`);
       invitedEmails.push(email);
+      invitationNotices.push(notify);
 
       const failure = inviteFailures.get(email);
       if (failure !== undefined) {
@@ -506,6 +510,7 @@ export function createFileDependenciesFake(
     deletedSheetIds,
     gridResizes,
     invitedEmails,
+    invitationNotices,
     createdFiles,
     sheetTitles(fileId = firstFileId()) {
       return requireFile(fileId).sheets.map((sheet) => sheet.title);

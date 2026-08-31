@@ -132,6 +132,8 @@ interface WizardState {
   folderFailure: ApiFailure | null;
   detailErrors: DetailErrors;
   members: DraftMember[];
+  /** Whether Drive emails each member that the file was shared with them. */
+  sendInvitations: boolean;
   memberErrors: Record<string, DraftMemberErrors>;
   rosterError: string | null;
   nextMemberId: number;
@@ -148,6 +150,7 @@ type WizardAction =
   | { type: "member-added" }
   | { type: "member-filled"; displayName: string; email: string }
   | { type: "member-removed"; id: string }
+  | { type: "invitations-toggled"; send: boolean }
   | { type: "advance" }
   | { type: "back" }
   | { type: "submitting" }
@@ -174,6 +177,8 @@ function createInitialState(ownerEmail: string): WizardState {
     folderFailure: null,
     detailErrors: {},
     members: [{ ...draftMember(1), email: ownerEmail }],
+    // Matches what creating a file did before the choice existed.
+    sendInvitations: true,
     memberErrors: {},
     rosterError: null,
     nextMemberId: 2,
@@ -339,6 +344,9 @@ function reduce(state: WizardState, action: WizardAction): WizardState {
       };
     }
 
+    case "invitations-toggled":
+      return { ...state, sendInvitations: action.send };
+
     case "member-removed":
       return { ...state, members: state.members.filter((member) => member.id !== action.id) };
 
@@ -382,6 +390,7 @@ function toCreateInput(state: WizardState, folder: FolderPreference): CreateFile
       displayName: member.displayName.trim(),
       email: member.email.trim().toLowerCase(),
     })),
+    sendInvitations: state.sendInvitations,
   };
 }
 
@@ -640,6 +649,29 @@ export function NewFileWizard({
           </li>
         ))}
       </ul>
+
+      {/*
+        * The one thing on this page that reaches people other than the manager,
+        * so it sits on the confirmation step rather than buried among the member
+        * rows. Clearing it does not withhold access — the file is still shared,
+        * and still appears in each member's Drive — it only stops Google
+        * emailing them about it.
+        */}
+      <div className="field-checkbox">
+        <input
+          id="send-invitations"
+          type="checkbox"
+          checked={state.sendInvitations}
+          disabled={state.isSubmitting}
+          onChange={(event) =>
+            dispatch({ type: "invitations-toggled", send: event.target.checked })
+          }
+        />
+        <label htmlFor="send-invitations">Email each member that the file is shared</label>
+      </div>
+      <p className="field-hint">
+        Members can always open the file from their own Drive, whether or not this is sent.
+      </p>
 
       <ApiErrorNotice failure={state.failure} fallbackMessage={CREATE_FAILED} />
 

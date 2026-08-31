@@ -510,7 +510,30 @@ describe("NewFileWizard — review and create", () => {
       month: "2026-07",
       destinationFolder: REMEMBERED_FOLDER,
       members: [{ displayName: "Employee A", email: "employee-a@blended-asia.com" }],
+      sendInvitations: true,
     });
+  });
+
+  /*
+   * The one control on this wizard that reaches anybody but the manager. It is
+   * on by default, which is what creating a file did before the choice existed,
+   * and clearing it withholds only the email — the file is still shared.
+   */
+  it("offers the invitation email as a choice, on by default", async () => {
+    await reachReview();
+
+    expect(screen.getByLabelText("Email each member that the file is shared")).toBeChecked();
+  });
+
+  it("creates without emailing anybody when the choice is cleared", async () => {
+    const harness = await reachReview();
+
+    fireEvent.click(screen.getByLabelText("Email each member that the file is shared"));
+    click("Create file");
+
+    await waitFor(() => expect(harness.createCalls).toHaveLength(1));
+    expect(harness.createCalls[0].sendInvitations).toBe(false);
+    expect(harness.createCalls[0].members).toHaveLength(1);
   });
 
   it("disables the create button while the request is in flight", async () => {

@@ -137,6 +137,26 @@ describe("SetupService.create", () => {
     expect(fake.addedProtections).toEqual([{ sheetId: 3, editors: [OWNER_EMAIL] }]);
   });
 
+  it("asks Drive to email every member by default", async () => {
+    const fake = createFileDependenciesFake();
+
+    await serviceFor(fake).create({ ownerEmail: OWNER_EMAIL, request: validRequest });
+
+    expect(fake.invitedEmails).toEqual([EMPLOYEE_A, EMPLOYEE_B]);
+    expect(fake.invitationNotices).toEqual([true, true]);
+  });
+
+  it("shares with every member and emails nobody when invitations are declined", async () => {
+    const fake = createFileDependenciesFake();
+    const silent = createFileInputSchema.parse({ ...validRequest, sendInvitations: false });
+
+    const result = await serviceFor(fake).create({ ownerEmail: OWNER_EMAIL, request: silent });
+
+    expect(fake.invitedEmails).toEqual([EMPLOYEE_A, EMPLOYEE_B]);
+    expect(fake.invitationNotices).toEqual([false, false]);
+    expect(result.complete).toBe(true);
+  });
+
   it("rejects duplicate member emails before any Google mutation", async () => {
     const fake = createFileDependenciesFake();
 
@@ -189,7 +209,7 @@ describe("SetupService.create", () => {
         peak = Math.max(peak, active);
         try {
           await Promise.resolve();
-          return await fake.drive.createWriterPermission(fileId, email);
+          return await fake.drive.createWriterPermission(fileId, email, true);
         } finally {
           active -= 1;
         }

@@ -25,6 +25,13 @@ export const createFileInputSchema = z.object({
       }),
     )
     .min(1),
+  /*
+   * Whether Drive emails each member that the file has been shared with them.
+   * The sharing itself happens either way — the file lands in their Drive
+   * regardless — so this decides only whether the message goes out. It defaults
+   * to true, which is what creating a file did before this existed.
+   */
+  sendInvitations: z.boolean().default(true),
 });
 
 export type CreateFileInput = z.infer<typeof createFileInputSchema>;

@@ -261,11 +261,17 @@ server session, re-reads current Drive ownership and access metadata, re-reads
 the file's protected mapping, authorizes the requested role, and restricts
 employee writes to the mapped sheet and approved ranges.
 
-The spreadsheet itself is protected as well: `__APP_CONFIG` is owner-only, and
-each employee sheet is protected with the owner and the mapped employee as
-permitted editors. Employees hold Drive writer permission so they can save under
-their own identity. Protection prevents edits to other tabs but does not hide
-them from view — an accepted limitation of this design.
+Inside the spreadsheet only `__APP_CONFIG` is protected, and only for the owner:
+it is app metadata rather than anybody's timesheet. Employee tabs are created
+open. Employees hold Drive writer permission so they can save under their own
+identity, and who may edit which tab is a Google Sheets sharing question, not
+one this app answers.
+
+Creating a file offers one choice about the world outside it: **Email each
+member that the file is shared**, on the review step, ticked by default. The
+sharing happens either way — the file appears in every member's own Drive — so
+clearing it withholds only Google's notification message, not access. Importing
+a workbook and adding a member to a live file always notify.
 
 Application secrets live in a gitignored `.env`. Client secrets and refresh
 tokens never reach browser JavaScript or a `NEXT_PUBLIC_` variable; per-user

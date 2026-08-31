@@ -184,7 +184,7 @@ export function createMonthlySetup(
       })),
     });
 
-    return await finishSetup(file.id, file.name, folder, planned);
+    return await finishSetup(file.id, file.name, folder, planned, request.sendInvitations);
   }
 
   async function readResumableConfig(fileId: string): Promise<ConfigReadResult> {
@@ -248,7 +248,7 @@ export function createMonthlySetup(
       }
     }
 
-    return await finishSetup(fileId, request.fileName, folder, planned);
+    return await finishSetup(fileId, request.fileName, folder, planned, request.sendInvitations);
   }
 
   return {

@@ -334,7 +334,8 @@ export function createLegacySetup(
         await resumeExistingFile(input.fileId, ownerEmail, tabs, stored);
       }
 
-      return await finishSetup(input.fileId, fileName, folder, tabs);
+      // Adopting an existing workbook always announces itself.
+      return await finishSetup(input.fileId, fileName, folder, tabs, true);
     },
   };
 }

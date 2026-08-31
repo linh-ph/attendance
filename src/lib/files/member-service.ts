@@ -259,7 +259,8 @@ export function createMemberService(dependencies: MemberServiceDependencies): Me
     let permissionId: string | null = null;
 
     try {
-      permissionId = await drive.createWriterPermission(fileId, email);
+      // Adding one member to a live file always announces itself.
+      permissionId = await drive.createWriterPermission(fileId, email, true);
     } catch {
       // The tab, the mapping, and the protection stay intact so this one
       // member can be retried on their own.

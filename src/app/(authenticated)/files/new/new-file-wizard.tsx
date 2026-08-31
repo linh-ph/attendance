@@ -12,6 +12,7 @@ import {
   validateDestinationFolder,
 } from "@/components/destination-folder";
 import { MemberInputs, type DraftMember, type DraftMemberErrors } from "@/components/member-inputs";
+import { MonthInput } from "@/components/month-input";
 import { MonthLabel } from "@/components/month-label";
 import { SetupProgress } from "@/components/setup-progress";
 import type { SetupState } from "@/lib/config/schema";
@@ -553,14 +554,11 @@ export function NewFileWizard({
 
         <div className="field">
           <label htmlFor="attendance-month">Month</label>
-          <input
+          <MonthInput
             id="attendance-month"
-            type="month"
             value={state.month}
-            aria-invalid={state.detailErrors.month !== undefined}
-            onChange={(event) =>
-              dispatch({ type: "field", field: "month", value: event.target.value })
-            }
+            invalid={state.detailErrors.month !== undefined}
+            onChange={(value) => dispatch({ type: "field", field: "month", value })}
           />
           {state.detailErrors.month === undefined ? null : (
             <p role="alert" className="field-error">

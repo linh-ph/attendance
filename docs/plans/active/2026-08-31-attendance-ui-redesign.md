@@ -1050,6 +1050,14 @@ a change there stops and reports.
   Individually-green branches can still break in combination, so this run is the
   proof that matters.
 
+- 2026-08-31: **CI added** at `.github/workflows/ci.yml` — three jobs on push to
+  `main`/`redesign/**` and on every pull request: `verify` (lint, typecheck,
+  vitest, `next build`), `e2e` (Playwright against the `test` stage), and
+  `image` (the production `runner` target, then boot it and `GET /api/health`).
+  It runs inside the repository's own Docker stages so CI executes what a
+  developer executes, and no step is piped into `grep`/`tail`. A Wave 2 agent
+  whose branch is red here has not finished.
+
 ### Browser verification of the merged tree
 
 Driven manually against a real Chrome at `127.0.0.1:3100`, with the app in

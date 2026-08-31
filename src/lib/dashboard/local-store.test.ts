@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { AttendanceDay } from "@/lib/attendance/model";
-import { createMemoryStore, createNullStore } from "./local-store";
+import { CacheStorageError, createMemoryEngine } from "@/lib/cache/engine";
+import {
+  createAcknowledgedStore,
+  createMemoryStore,
+  createNullStore,
+  toLegacyStore,
+} from "./local-store";
 import type { RecentFile } from "./local-records";
 
 const day = (over: Partial<AttendanceDay> = {}) =>
@@ -146,5 +152,70 @@ describe("null store", () => {
     expect(await store.readDraft("a@b.com", "file-1", "101", "2026-07-03")).toBe(null);
     expect(await store.readMonth("a@b.com", "file-1", "101")).toBe(null);
     expect(await store.readRecent("a@b.com")).toEqual([]);
+  });
+});
+
+/*
+ * The legacy shape above is a compatibility surface for screens that have not
+ * migrated yet. Underneath it, the acknowledged store must already be telling
+ * the truth — otherwise the screens have nothing honest to migrate onto.
+ */
+describe("the acknowledged store under the legacy adapter", () => {
+  const rejecting = () =>
+    createAcknowledgedStore(
+      createMemoryEngine({
+        fail: ({ mode }) => (mode === "readwrite" ? new CacheStorageError("quota", "disk full") : null),
+      }),
+    );
+
+  it("reports a rejected draft write as a typed failure, never as a success", async () => {
+    const result = await rejecting().writeDraft("a@b.com", "file-1", "101", "2026-07-03", {
+      day: day(),
+      baseline: day(),
+    });
+
+    expect(result).toEqual({ ok: false, reason: "quota", message: "disk full" });
+  });
+
+  it("acknowledges an ordinary write", async () => {
+    const store = createAcknowledgedStore(createMemoryEngine());
+
+    expect(
+      await store.writeDraft("a@b.com", "file-1", "101", "2026-07-03", { day: day(), baseline: day() }),
+    ).toEqual({ ok: true, value: undefined });
+
+    expect(await store.readDraft("a@b.com", "file-1", "101", "2026-07-03")).toEqual({
+      ok: true,
+      value: { day: day(), baseline: day() },
+    });
+  });
+
+  it("refuses to store credential-shaped material", async () => {
+    const store = createAcknowledgedStore(createMemoryEngine());
+
+    const result = await store.writeMonth("a@b.com", "file-1", "101", {
+      month: "2026-07",
+      accessToken: "ya29.secret",
+    } as never);
+
+    expect(result).toMatchObject({ ok: false, reason: "forbidden-content" });
+    expect(await store.readMonth("a@b.com", "file-1", "101")).toEqual({ ok: true, value: null });
+  });
+
+  it("still degrades to the old fallback through the legacy adapter, and only there", async () => {
+    const legacy = toLegacyStore(rejecting());
+
+    // The legacy call site sees the historical no-op...
+    await expect(
+      legacy.writeDraft("a@b.com", "file-1", "101", "2026-07-03", { day: day(), baseline: day() }),
+    ).resolves.toBe(undefined);
+
+    // ...while the acknowledged layer it wraps reported a typed failure.
+    expect(
+      await rejecting().writeDraft("a@b.com", "file-1", "101", "2026-07-03", {
+        day: day(),
+        baseline: day(),
+      }),
+    ).toMatchObject({ ok: false, reason: "quota" });
   });
 });

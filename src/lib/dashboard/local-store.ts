@@ -1,25 +1,49 @@
 /**
- * Browser-local attendance store.
+ * Browser-local attendance store — **the compatibility surface.**
  *
- * Holds three convenience records, all scoped to the normalized signed-in
+ * The authoritative browser cache is now `@/lib/cache/attendance-cache`, which
+ * acknowledges every operation with an explicit success or a typed failure, and
+ * closes the revalidation/Save/multi-tab races in spec §5.5. This module stays
+ * because six screens still call the older shape, and this task does not own
+ * those files: it keeps them compiling and behaving exactly as before while
+ * they migrate to `AttendanceCache` one surface at a time.
+ *
+ * It holds three convenience records, all scoped to the normalized signed-in
  * email (see `local-records.ts`):
  *
  * - unsaved day drafts, so work survives a reload or a dropped connection;
  * - the last loaded month per sheet, so reopening renders before the network;
- * - recently opened sheets, so the paste-a-link shortcut has a history.
+ * - recently opened sheets, so the paste-a-link shortcut has a history;
+ * - the browser-local roster, so a file can be created without retyping people.
  *
  * None of it is authoritative. The server re-reads the sheet and re-authorizes
  * every request, so a tampered record can at worst show a stale month to the
  * person who tampered with it. Tokens and authorization results are never
- * stored.
+ * stored — `findCredentialMaterial` refuses the write outright.
  *
- * Every operation degrades to a no-op when IndexedDB is unavailable (private
- * mode, disabled storage, or a browser that refuses the upgrade), so the editor
- * works exactly as before when there is no store.
+ * **Two layers, deliberately.** `AcknowledgedLocalStore` is the real one: it
+ * returns `CacheResult`, so a rejected write is a typed failure and never a
+ * false `Saved locally`. `LocalStore` is the legacy shape, and `toLegacyStore`
+ * is the single, named place where that failure is turned back into the old
+ * fallback value. New code must not use `LocalStore`.
  */
 
 import type { AttendanceDay } from "@/lib/attendance/model";
 import type { AttendanceMonthView } from "@/lib/attendance/service";
+import {
+  DRAFT_STORE,
+  MEMBER_STORE,
+  MONTH_STORE,
+  RECENT_STORE,
+  createIndexedDbEngine,
+  createMemoryEngine,
+  resolveCacheEngine,
+  type CacheEngine,
+  type CacheTransaction,
+  type TransactionMode,
+} from "@/lib/cache/engine";
+import { findCredentialMaterial } from "@/lib/cache/keys";
+import { classifyStorageError, fail, ok, type CacheResult } from "@/lib/cache/results";
 import {
   addRecentFile,
   addStoredMember,
@@ -32,23 +56,26 @@ import {
   monthCacheKey,
   recentKey,
   removeStoredMember,
+  scopeKey,
   type RecentFile,
   type StoredMember,
 } from "./local-records";
 
-export const DB_NAME = "attendance-local";
-// Raised for the roster store; `onupgradeneeded` only runs when this changes.
-export const DB_VERSION = 2;
-export const DRAFT_STORE = "drafts";
-export const MONTH_STORE = "months";
-export const RECENT_STORE = "recent";
-export const MEMBER_STORE = "members";
+export {
+  DB_NAME,
+  DB_VERSION,
+  DRAFT_STORE,
+  MEMBER_STORE,
+  MONTH_STORE,
+  RECENT_STORE,
+} from "@/lib/cache/engine";
 
 export interface StoredDraft {
   day: AttendanceDay;
   baseline: AttendanceDay;
 }
 
+/** @deprecated Use `AttendanceCache`; failures are invisible through here. */
 export interface LocalStore {
   readDraft(
     email: string,
@@ -78,285 +105,273 @@ export interface LocalStore {
   removeMember(email: string, memberEmail: string): Promise<StoredMember[]>;
 }
 
+/** The same operations, each answering with an acknowledged result. */
+export interface AcknowledgedLocalStore {
+  readDraft(
+    email: string,
+    fileId: string,
+    sheetId: string,
+    date: string,
+  ): Promise<CacheResult<StoredDraft | null>>;
+  writeDraft(
+    email: string,
+    fileId: string,
+    sheetId: string,
+    date: string,
+    draft: StoredDraft,
+  ): Promise<CacheResult<void>>;
+  clearDraft(
+    email: string,
+    fileId: string,
+    sheetId: string,
+    date: string,
+  ): Promise<CacheResult<void>>;
+  readMonth(
+    email: string,
+    fileId: string,
+    sheetId: string,
+  ): Promise<CacheResult<AttendanceMonthView | null>>;
+  writeMonth(
+    email: string,
+    fileId: string,
+    sheetId: string,
+    view: AttendanceMonthView,
+  ): Promise<CacheResult<void>>;
+  readRecent(email: string): Promise<CacheResult<RecentFile[]>>;
+  addRecent(email: string, entry: RecentFile): Promise<CacheResult<RecentFile[]>>;
+  readMembers(email: string): Promise<CacheResult<StoredMember[]>>;
+  addMember(email: string, member: StoredMember): Promise<CacheResult<StoredMember[]>>;
+  removeMember(email: string, memberEmail: string): Promise<CacheResult<StoredMember[]>>;
+}
+
 /* -------------------------------------------------------------------------- */
-/* In-memory store                                                            */
+/* Acknowledged implementation                                                 */
+/* -------------------------------------------------------------------------- */
+
+function refuseCredentials(value: unknown): CacheResult<never> | null {
+  const found = findCredentialMaterial(value);
+  if (found === null) return null;
+
+  return fail(
+    "forbidden-content",
+    `Refused to store credential-shaped material at "${found}". Tokens, cookies, and secrets never enter IndexedDB.`,
+  );
+}
+
+export function createAcknowledgedStore(engine: CacheEngine): AcknowledgedLocalStore {
+  async function run<T>(
+    stores: readonly string[],
+    mode: TransactionMode,
+    body: (tx: CacheTransaction) => Promise<T>,
+  ): Promise<CacheResult<T>> {
+    try {
+      return ok(await engine.transact(stores, mode, body));
+    } catch (error) {
+      return classifyStorageError(error);
+    }
+  }
+
+  async function readList<T>(
+    tx: CacheTransaction,
+    store: string,
+    key: string,
+    guard: (value: unknown) => value is T,
+  ): Promise<T[]> {
+    const stored = await tx.get(store, key);
+    return Array.isArray(stored) ? stored.filter(guard) : [];
+  }
+
+  return {
+    readDraft(email, fileId, sheetId, date) {
+      return run([DRAFT_STORE], "readonly", async (tx) => {
+        const stored = await tx.get(DRAFT_STORE, draftKey(email, fileId, sheetId, date));
+        return isDraftRecord(stored) ? { day: stored.day, baseline: stored.baseline } : null;
+      });
+    },
+
+    writeDraft(email, fileId, sheetId, date, draft) {
+      const refused = refuseCredentials(draft);
+      if (refused) return Promise.resolve(refused);
+
+      return run([DRAFT_STORE], "readwrite", (tx) =>
+        tx.put(
+          DRAFT_STORE,
+          draftKey(email, fileId, sheetId, date),
+          { email: scopeKey(email), day: draft.day, baseline: draft.baseline },
+        ),
+      );
+    },
+
+    clearDraft(email, fileId, sheetId, date) {
+      return run([DRAFT_STORE], "readwrite", (tx) =>
+        tx.delete(DRAFT_STORE, draftKey(email, fileId, sheetId, date)),
+      );
+    },
+
+    readMonth(email, fileId, sheetId) {
+      return run([MONTH_STORE], "readonly", async (tx) => {
+        const stored = await tx.get(MONTH_STORE, monthCacheKey(email, fileId, sheetId));
+        return isMonthCacheRecord(stored) ? stored.view : null;
+      });
+    },
+
+    writeMonth(email, fileId, sheetId, view) {
+      const refused = refuseCredentials(view);
+      if (refused) return Promise.resolve(refused);
+
+      return run([MONTH_STORE], "readwrite", (tx) =>
+        tx.put(MONTH_STORE, monthCacheKey(email, fileId, sheetId), {
+          email: scopeKey(email),
+          view,
+        }),
+      );
+    },
+
+    readRecent(email) {
+      return run([RECENT_STORE], "readonly", (tx) =>
+        readList(tx, RECENT_STORE, recentKey(email), isRecentFile),
+      );
+    },
+
+    addRecent(email, entry) {
+      const refused = refuseCredentials(entry);
+      if (refused) return Promise.resolve(refused);
+
+      return run([RECENT_STORE], "readwrite", async (tx) => {
+        const next = addRecentFile(await readList(tx, RECENT_STORE, recentKey(email), isRecentFile), entry);
+        await tx.put(RECENT_STORE, recentKey(email), next);
+        return next;
+      });
+    },
+
+    readMembers(email) {
+      return run([MEMBER_STORE], "readonly", (tx) =>
+        readList(tx, MEMBER_STORE, memberKey(email), isStoredMember),
+      );
+    },
+
+    addMember(email, member) {
+      const refused = refuseCredentials(member);
+      if (refused) return Promise.resolve(refused);
+
+      return run([MEMBER_STORE], "readwrite", async (tx) => {
+        const next = addStoredMember(
+          await readList(tx, MEMBER_STORE, memberKey(email), isStoredMember),
+          member,
+        );
+        await tx.put(MEMBER_STORE, memberKey(email), next);
+        return next;
+      });
+    },
+
+    removeMember(email, memberEmail) {
+      return run([MEMBER_STORE], "readwrite", async (tx) => {
+        const next = removeStoredMember(
+          await readList(tx, MEMBER_STORE, memberKey(email), isStoredMember),
+          memberEmail,
+        );
+        await tx.put(MEMBER_STORE, memberKey(email), next);
+        return next;
+      });
+    },
+  };
+}
+
+/** A store that refuses everything, for a browser with no IndexedDB at all. */
+export function createUnavailableStore(message: string): AcknowledgedLocalStore {
+  const refusal = async () => fail("unavailable", message);
+
+  return {
+    readDraft: refusal,
+    writeDraft: refusal,
+    clearDraft: refusal,
+    readMonth: refusal,
+    writeMonth: refusal,
+    readRecent: refusal,
+    addRecent: refusal,
+    readMembers: refusal,
+    addMember: refusal,
+    removeMember: refusal,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Legacy adapter                                                              */
 /* -------------------------------------------------------------------------- */
 
 /**
- * The store the editor falls back to, and the one tests inject. It keeps the
- * same key scoping as the IndexedDB adapter so a test proves real behavior.
+ * The one place a typed failure becomes the old fallback value.
+ *
+ * Every legacy call site treats storage as best-effort and already ignores
+ * rejections, so preserving that is what "keeps behaving" means here. It is
+ * also exactly the honesty problem the redesign is fixing, which is why this
+ * conversion is named, isolated, and deprecated rather than spread through an
+ * adapter that quietly swallows errors in ten places.
  */
-export function createMemoryStore(): LocalStore {
-  const drafts = new Map<string, StoredDraft>();
-  const months = new Map<string, AttendanceMonthView>();
-  const recents = new Map<string, RecentFile[]>();
-  const members = new Map<string, StoredMember[]>();
+function orFallback<T>(result: CacheResult<T>, fallback: T): T {
+  return result.ok ? result.value : fallback;
+}
 
+/** @deprecated Wraps an acknowledged store in the pre-redesign shape. */
+export function toLegacyStore(store: AcknowledgedLocalStore): LocalStore {
   return {
     async readDraft(email, fileId, sheetId, date) {
-      return drafts.get(draftKey(email, fileId, sheetId, date)) ?? null;
+      return orFallback(await store.readDraft(email, fileId, sheetId, date), null);
     },
     async writeDraft(email, fileId, sheetId, date, draft) {
-      drafts.set(draftKey(email, fileId, sheetId, date), draft);
+      await store.writeDraft(email, fileId, sheetId, date, draft);
     },
     async clearDraft(email, fileId, sheetId, date) {
-      drafts.delete(draftKey(email, fileId, sheetId, date));
+      await store.clearDraft(email, fileId, sheetId, date);
     },
     async readMonth(email, fileId, sheetId) {
-      return months.get(monthCacheKey(email, fileId, sheetId)) ?? null;
+      return orFallback(await store.readMonth(email, fileId, sheetId), null);
     },
     async writeMonth(email, fileId, sheetId, view) {
-      months.set(monthCacheKey(email, fileId, sheetId), view);
+      await store.writeMonth(email, fileId, sheetId, view);
     },
     async readRecent(email) {
-      return recents.get(recentKey(email)) ?? [];
+      return orFallback(await store.readRecent(email), []);
     },
     async addRecent(email, entry) {
-      const key = recentKey(email);
-      const next = addRecentFile(recents.get(key) ?? [], entry);
-      recents.set(key, next);
-      return next;
+      // The optimistic echo the old null store returned, so a caller that
+      // renders the result still shows the entry the person just opened.
+      return orFallback(await store.addRecent(email, entry), [entry]);
     },
     async readMembers(email) {
-      return members.get(memberKey(email)) ?? [];
+      return orFallback(await store.readMembers(email), []);
     },
     async addMember(email, member) {
-      const key = memberKey(email);
-      const next = addStoredMember(members.get(key) ?? [], member);
-      members.set(key, next);
-      return next;
+      return orFallback(await store.addMember(email, member), [member]);
     },
     async removeMember(email, memberEmail) {
-      const key = memberKey(email);
-      const next = removeStoredMember(members.get(key) ?? [], memberEmail);
-      members.set(key, next);
-      return next;
+      return orFallback(await store.removeMember(email, memberEmail), []);
     },
   };
+}
+
+/**
+ * The store tests inject. It keeps the same key scoping and the same
+ * transactional engine as the IndexedDB adapter, so a test proves real
+ * behavior rather than a simplified double.
+ */
+export function createMemoryStore(): LocalStore {
+  return toLegacyStore(createAcknowledgedStore(createMemoryEngine()));
 }
 
 /** A store that holds nothing, used when IndexedDB cannot be opened at all. */
 export function createNullStore(): LocalStore {
-  return {
-    async readDraft() {
-      return null;
-    },
-    async writeDraft() {},
-    async clearDraft() {},
-    async readMonth() {
-      return null;
-    },
-    async writeMonth() {},
-    async readRecent() {
-      return [];
-    },
-    async addRecent(_email, entry) {
-      return [entry];
-    },
-    async readMembers() {
-      return [];
-    },
-    async addMember(_email, member) {
-      return [member];
-    },
-    async removeMember() {
-      return [];
-    },
-  };
-}
-
-/* -------------------------------------------------------------------------- */
-/* IndexedDB adapter                                                          */
-/* -------------------------------------------------------------------------- */
-
-function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = factory.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      for (const name of [DRAFT_STORE, MONTH_STORE, RECENT_STORE, MEMBER_STORE]) {
-        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error("IndexedDB upgrade blocked."));
-  });
-}
-
-/**
- * Opens the database lazily and only once. A failure is remembered as `null`
- * so a browser that refuses storage is not re-asked on every keystroke.
- */
-function createConnection(factory: IDBFactory) {
-  let pending: Promise<IDBDatabase | null> | null = null;
-
-  return () => {
-    pending ??= openDatabase(factory).catch(() => null);
-    return pending;
-  };
-}
-
-async function withStore<T>(
-  connect: () => Promise<IDBDatabase | null>,
-  storeName: string,
-  mode: IDBTransactionMode,
-  run: (store: IDBObjectStore) => IDBRequest,
-  fallback: T,
-): Promise<T> {
-  try {
-    const db = await connect();
-    if (!db) return fallback;
-
-    const transaction = db.transaction(storeName, mode);
-    const result = await requestToPromise(run(transaction.objectStore(storeName)));
-    return result as T;
-  } catch {
-    // Storage is unavailable or the record is unreadable; behave as if empty.
-    return fallback;
-  }
+  return toLegacyStore(createUnavailableStore("This browser has no IndexedDB."));
 }
 
 export function createIndexedDbStore(factory: IDBFactory): LocalStore {
-  const connect = createConnection(factory);
-
-  return {
-    async readDraft(email, fileId, sheetId, date) {
-      const stored = await withStore<unknown>(
-        connect,
-        DRAFT_STORE,
-        "readonly",
-        (store) => store.get(draftKey(email, fileId, sheetId, date)),
-        null,
-      );
-
-      return isDraftRecord(stored) ? { day: stored.day, baseline: stored.baseline } : null;
-    },
-
-    async writeDraft(email, fileId, sheetId, date, draft) {
-      await withStore(
-        connect,
-        DRAFT_STORE,
-        "readwrite",
-        (store) =>
-          store.put(
-            { email: email.trim().toLowerCase(), day: draft.day, baseline: draft.baseline },
-            draftKey(email, fileId, sheetId, date),
-          ),
-        undefined,
-      );
-    },
-
-    async clearDraft(email, fileId, sheetId, date) {
-      await withStore(
-        connect,
-        DRAFT_STORE,
-        "readwrite",
-        (store) => store.delete(draftKey(email, fileId, sheetId, date)),
-        undefined,
-      );
-    },
-
-    async readMonth(email, fileId, sheetId) {
-      const stored = await withStore<unknown>(
-        connect,
-        MONTH_STORE,
-        "readonly",
-        (store) => store.get(monthCacheKey(email, fileId, sheetId)),
-        null,
-      );
-
-      return isMonthCacheRecord(stored) ? stored.view : null;
-    },
-
-    async writeMonth(email, fileId, sheetId, view) {
-      await withStore(
-        connect,
-        MONTH_STORE,
-        "readwrite",
-        (store) =>
-          store.put({ email: email.trim().toLowerCase(), view }, monthCacheKey(email, fileId, sheetId)),
-        undefined,
-      );
-    },
-
-    async readRecent(email) {
-      const stored = await withStore<unknown>(
-        connect,
-        RECENT_STORE,
-        "readonly",
-        (store) => store.get(recentKey(email)),
-        null,
-      );
-
-      return Array.isArray(stored) ? stored.filter(isRecentFile) : [];
-    },
-
-    async addRecent(email, entry) {
-      const next = addRecentFile(await this.readRecent(email), entry);
-
-      await withStore(
-        connect,
-        RECENT_STORE,
-        "readwrite",
-        (store) => store.put(next, recentKey(email)),
-        undefined,
-      );
-
-      return next;
-    },
-
-    async readMembers(email) {
-      const stored = await withStore<unknown>(
-        connect,
-        MEMBER_STORE,
-        "readonly",
-        (store) => store.get(memberKey(email)),
-        null,
-      );
-
-      return Array.isArray(stored) ? stored.filter(isStoredMember) : [];
-    },
-
-    async addMember(email, member) {
-      const next = addStoredMember(await this.readMembers(email), member);
-      await writeMembers(connect, email, next);
-      return next;
-    },
-
-    async removeMember(email, memberEmail) {
-      const next = removeStoredMember(await this.readMembers(email), memberEmail);
-      await writeMembers(connect, email, next);
-      return next;
-    },
-  };
-}
-
-function writeMembers(
-  connect: () => Promise<IDBDatabase | null>,
-  email: string,
-  members: readonly StoredMember[],
-): Promise<void> {
-  return withStore(
-    connect,
-    MEMBER_STORE,
-    "readwrite",
-    (store) => store.put([...members], memberKey(email)),
-    undefined,
-  );
+  return toLegacyStore(createAcknowledgedStore(createIndexedDbEngine(factory)));
 }
 
 /** The store the browser uses, or a null store when IndexedDB is absent. */
 export function resolveLocalStore(): LocalStore {
-  if (typeof indexedDB === "undefined") return createNullStore();
-  return createIndexedDbStore(indexedDB);
+  const engine = resolveCacheEngine();
+  if (engine === null) return createNullStore();
+
+  return toLegacyStore(createAcknowledgedStore(engine));
 }

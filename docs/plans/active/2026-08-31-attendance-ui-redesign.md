@@ -546,6 +546,14 @@ Proof: `Saved locally` only after an acknowledged write; the storage-failure and
 save-succeeded-cache-failed paths asserted directly; existing attendance
 validation and smallest-cell write tests still green.
 
+**Handoff from F3:** make `attendance-draft.ts`'s `loaded` action accept a
+role-free cached view (or have the editor take `role` only from the API
+response). That is a two-line change on your side, needs no coordination, and
+lets the integrator narrow both `toLegacyStore.readMonth`'s documented cast and
+the legacy `LocalStore.readMonth` signature to `CachedMonthView`. Follow **the
+cache-first render rule** above: cached data renders at once, role-gated
+controls stay absent until the server answers.
+
 **Handoff from F4:** `AttendanceMonthView.spreadsheetTimeZone` is declared
 optional only because two fixtures you own — `attendance-editor.test.tsx` and
 `bulk-apply-panel.test.tsx` — predate the field and F4 could not edit them. Add
@@ -843,6 +851,32 @@ a change there stops and reports.
   **Consumers must take `role` from the fresh server response on every load,
   never from cache** — which costs nothing, because every request re-authorizes
   anyway. S2 and S4 must not reintroduce a cached-role read.
+
+- 2026-08-31: **Cached-role defect fixed** (`dddb177`), `verify` `EXIT=0`,
+  790 tests, with all four new tests mutation-verified. The persisted type is
+  now `CachedMonthView = Omit<AttendanceMonthView, "role">`, so a consumer
+  cannot read a role that is not there; `role`, `roles`, `authorized`,
+  `permission` and `permissions` joined the credential deny list; and **both
+  guards fail closed on read**, so a month cached by the currently shipped build
+  is treated as corrupt/miss and refetched role-free rather than trusted. One
+  extra fetch on upgrade, which is the right trade.
+
+  No runtime consumer ever read a role off a cached month — every `role` in the
+  attendance screens is an ARIA attribute — so what remains is one named,
+  documented cast in `toLegacyStore.readMonth`, kept only because narrowing the
+  type would fail typecheck in a file S4 owns.
+
+### The cache-first render rule (binding on S2 and S4)
+
+A cached month carries everything needed to draw the calendar and the day data,
+including F4's `spreadsheetTimeZone` (a sheet property, not an authorization
+result, so it stays cached). A role gates only manager-only affordances.
+
+**Render the cached data immediately with role-gated controls absent, then
+reveal them when the network response arrives with the real role.** Never draw
+them optimistically from a cached role and retract them, and do not invent a
+cached "was I a manager last time" hint — that is the same invariant violation
+wearing a different name.
 
 ### Watch at integration
 

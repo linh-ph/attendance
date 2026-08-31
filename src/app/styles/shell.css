@@ -277,7 +277,9 @@ main {
  * than paying for it twice.
  */
 .app-main .sticky-actions {
-  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  /* Include the fixed navigation's 1px top border so the two layers touch
+   * without overlapping at mobile viewport edges. */
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 1px);
   padding-bottom: var(--space-sm);
 }
 

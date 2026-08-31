@@ -45,6 +45,7 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
   const [roster, setRoster] = useState<StoredMember[] | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [importState, setImportState] = useState<ImportState>({ status: "idle", people: [] });
 
@@ -116,15 +117,27 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
 
   const known = new Set(roster.map((member) => member.email));
   const suggestions = importState.people.filter((person) => !known.has(person.email));
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleRoster = roster.filter((member) =>
+    normalizedQuery === "" ||
+    member.displayName.toLowerCase().includes(normalizedQuery) ||
+    member.email.includes(normalizedQuery),
+  );
 
   return (
-    <>
-      <p className="page-lede">
-        The colleagues offered when you create a file. They are kept in this browser only, under
-        your own address.
-      </p>
+    <div className="member-roster-workspace">
+      <section className="surface-panel member-add-panel" aria-labelledby="add-roster-member">
+        <div className="member-section-heading">
+          <div>
+            <p className="eyebrow">Roster</p>
+            <h2 id="add-roster-member">Add member</h2>
+          </div>
+          <p className="page-lede">
+            Browser-local shortcuts only. Adding someone here never grants Drive access.
+          </p>
+        </div>
 
-      <form className="member-form" noValidate onSubmit={handleSubmit}>
+        <form className="member-form" noValidate onSubmit={handleSubmit}>
         <div className="field">
           <label htmlFor="roster-name">Name</label>
           <input
@@ -158,26 +171,51 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
         <button type="submit" className="action action-primary">
           Add member
         </button>
-      </form>
+        </form>
 
-      {error === null ? null : (
-        <p role="alert" className="field-error">
-          {error}
-        </p>
-      )}
+        {error === null ? null : (
+          <p role="alert" className="field-error">
+            {error}
+          </p>
+        )}
+      </section>
 
-      {roster.length === 0 ? (
-        <p className="page-lede">No members yet.</p>
-      ) : (
-        <ul className="card-list">
-          {roster.map((member) => (
-            <li className="card" key={member.email}>
-              <h2 className="card-title">{member.displayName}</h2>
-              <p className="card-detail">{member.email}</p>
-              <div className="card-actions">
+      <section className="surface-panel" aria-labelledby="saved-members-title">
+        <div className="member-list-toolbar">
+          <div>
+            <p className="eyebrow">Saved in this browser</p>
+            <h2 id="saved-members-title">Members</h2>
+          </div>
+          <label className="member-search">
+            <span className="sr-only">Search members</span>
+            <input
+              type="search"
+              aria-label="Search members"
+              placeholder="Search name or email"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+        </div>
+
+        {roster.length === 0 ? (
+          <p className="page-lede">No members yet.</p>
+        ) : visibleRoster.length === 0 ? (
+          <p className="empty-state">No members match this search.</p>
+        ) : (
+          <ul className="member-roster-list">
+            {visibleRoster.map((member) => (
+              <li className="member-roster-card" key={member.email}>
+                <div className="member-avatar" aria-hidden="true">
+                  {member.displayName.trim().slice(0, 1).toUpperCase()}
+                </div>
+                <div className="member-roster-identity">
+                  <h2>{member.displayName}</h2>
+                  <p>{member.email}</p>
+                </div>
                 <button
                   type="button"
-                  className="action"
+                  className="btn-ghost btn-sm"
                   onClick={() => {
                     void localStore
                       .removeMember(email, member.email)
@@ -187,13 +225,13 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
                 >
                   Remove {member.displayName}
                 </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-      <section aria-labelledby="import-title" className="section">
+      <section aria-labelledby="import-title" className="surface-panel member-import-panel">
         <h2 id="import-title">Import from Drive</h2>
         <p className="page-lede">
           Reads who else can reach the attendance files you can already open. Nothing is added
@@ -219,15 +257,19 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
           suggestions.length === 0 ? (
             <p className="page-lede">Everyone Drive knows about is already on your list.</p>
           ) : (
-            <ul className="card-list">
+            <ul className="member-roster-list member-suggestion-list">
               {suggestions.map((person) => (
-                <li className="card" key={person.email}>
-                  <h3 className="card-title">{person.displayName ?? person.email}</h3>
-                  <p className="card-detail">{person.email}</p>
-                  <div className="card-actions">
+                <li className="member-roster-card" key={person.email}>
+                  <div className="member-avatar" aria-hidden="true">
+                    {(person.displayName ?? person.email).slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="member-roster-identity">
+                    <h3>{person.displayName ?? person.email}</h3>
+                    <p>{person.email}</p>
+                  </div>
                     <button
                       type="button"
-                      className="action"
+                      className="btn-secondary btn-sm"
                       onClick={() =>
                         add({
                           email: person.email,
@@ -239,13 +281,12 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
                     >
                       Add {person.displayName ?? person.email}
                     </button>
-                  </div>
                 </li>
               ))}
             </ul>
           )
         ) : null}
       </section>
-    </>
+    </div>
   );
 }

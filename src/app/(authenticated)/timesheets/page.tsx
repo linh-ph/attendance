@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PageShell } from "@/components/app-shell/page-shell";
+import { TimesheetsClient } from "./timesheets-client";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +19,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function TimesheetsPage() {
   const session = await auth();
+  const email = session?.user?.email?.trim().toLowerCase();
 
-  if (!session?.user?.email) {
+  if (!email) {
     redirect("/login");
   }
 
@@ -28,16 +29,9 @@ export default async function TimesheetsPage() {
     <PageShell
       eyebrow="blended-asia"
       title="Timesheets"
-      lede="Every month you record hours in, with Open by link and Recent files."
+      lede="Open an attendance month, return to a recent file, or paste an authorized Google Sheets link."
     >
-      <div className="empty-state">
-        <p>Your timesheets are on the calendar dashboard while this page is being built.</p>
-        <p>
-          <Link className="action action-primary" href="/dashboard">
-            Open the calendar
-          </Link>
-        </p>
-      </div>
+      <TimesheetsClient email={email} />
     </PageShell>
   );
 }

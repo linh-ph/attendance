@@ -762,20 +762,43 @@ a change there stops and reports.
 - [x] F6 WizardShell — `redesign/f6-wizard-shell` (`14ff5ee`), verify EXIT=0, e2e 29 passed
 - [x] F7 server diagnostic redaction (added mid-flight) — `redesign/f7-diagnostic-redaction` (`7ea2aeb`), verify EXIT=0, 747 tests
 - [x] Combine the foundation branches — merged into `redesign/integration`, conflict-free; merged tree verify EXIT=0 (1021 tests) and e2e EXIT=0 (41 specs); browser-verified
-- [ ] S1 login
-- [ ] S2 calendar dashboard
-- [ ] S3 timesheets
-- [ ] S4 day editor
-- [ ] S5 managed files
-- [ ] S6 members
-- [ ] S7a create wizard
-- [ ] S7b import and legacy setup wizards
+- [x] S1 login — responsive retained-photo layout and login states
+- [x] S2 calendar dashboard — cache-first month grid and day quick preview
+- [x] S3 timesheets — reachable-file list with owner identity
+- [x] S4 day editor — Calendar return path, sync state, sticky Save & sync
+- [x] S5 managed files — destination and file-management hub
+- [x] S6 members — roster and file-member surfaces
+- [x] S7a create wizard — real four-step WizardShell flow
+- [x] S7b import and legacy setup wizards — real preflight/mapping and review gates
 - [ ] V1 responsive sweep
 - [ ] V2 accessibility
-- [ ] V3 e2e and documentation
-- [ ] Integration gate: `verify` green, e2e green
+- [x] V3 e2e and documentation — Calendar → preview → editor → save on desktop/mobile; product and repository docs updated
+- [x] Integration gate: `verify` green (1,036 tests plus production build), e2e 51/51 green
 
 ## Execution log
+
+- 2026-09-01: Wave 2 screen implementation completed on
+  `redesign/screens-completion`. Calendar became the primary dashboard;
+  Timesheets, Managed files, Members, the day editor, and all three wizards now
+  use the approved Calm-productivity shell and responsive navigation. Import
+  now has distinct Upload, Preflight, Details, Review, and Setup states; legacy
+  setup has a real Review gate, so neither workflow mutates Drive early.
+- 2026-09-01: Browser QA used the installed Chrome profile
+  `linh.np@blended-asia.com` against the local Docker app. Desktop and 390 px
+  mobile checks covered Calendar, Timesheets, Managed files, Members, Import,
+  and the real legacy day editor. No page overflow or console errors were
+  observed. The mobile sticky Save row was found one pixel under the bottom-nav
+  border and corrected.
+- 2026-09-01: Full deterministic Playwright proof is green, 51/51, including
+  the Calendar → quick preview → day editor → Save & sync path on desktop and
+  mobile, create/import/legacy flows, authorization, shell breakpoints, and
+  login artwork. V1 remains open for the exhaustive every-state screenshot
+  matrix; V2 remains open for the dedicated screen-reader, 200% zoom, contrast,
+  and reduced-motion manual audit.
+- 2026-09-01: Final repository gate passed: ESLint, TypeScript, 1,036
+  unit/integration tests, and the Next.js production build all completed
+  successfully. `git diff --check` also passed; import and legacy wizard files
+  remain below the 800-line repository limit.
 
 - 2026-08-31: `redesign/integration` pushed as the shared base — main plus this
   plan and the checked-in mockups. Every task branches from it as
@@ -1173,4 +1196,6 @@ Two things a fresh worktree does not inherit, both discovered the hard way:
 
 ## Result
 
-Complete after implementation.
+Screen implementation and automated integration proof are complete. This plan
+stays active until the exhaustive V1 responsive-state and V2 manual
+accessibility audits are complete.

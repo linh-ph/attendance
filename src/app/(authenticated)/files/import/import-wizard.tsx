@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useReducer, type ChangeEvent } from "react";
+import Link from "next/link";
+import { useEffect, useReducer, useState, type ChangeEvent } from "react";
 import {
   ApiErrorNotice,
   requestApi,
@@ -11,6 +12,7 @@ import { DestinationFolder, validateDestinationFolder } from "@/components/desti
 import { MonthInput } from "@/components/month-input";
 import { formatMonthLabel } from "@/components/month-label";
 import { SetupProgress } from "@/components/setup-progress";
+import { WizardShell, type WizardSummaryItem } from "@/components/wizard-shell";
 import type { SetupState } from "@/lib/config/schema";
 import {
   readFolderPreference,
@@ -19,6 +21,7 @@ import {
 } from "@/lib/dashboard/folder-preference";
 import type { MemberSetupStatus, MemberSummary } from "@/lib/files/member-service";
 import { ATTENDANCE_NAME_MARKER } from "@/lib/google/types";
+import { IMPORT_STEPS, IMPORT_STEP_COPY, type ImportFlowStep } from "./import-wizard-flow";
 
 /**
  * Import-an-`.xlsx`-workbook wizard (section 2.4).
@@ -151,10 +154,6 @@ const PARTIAL_DESCRIPTION =
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-/* -------------------------------------------------------------------------- */
-/* State                                                                       */
-/* -------------------------------------------------------------------------- */
 
 type Stage = "upload" | "confirm" | "created" | "partial";
 
@@ -410,6 +409,8 @@ export function ImportWizard({
   navigate = defaultNavigate,
 }: ImportWizardProps) {
   const [state, dispatch] = useReducer(reduce, undefined, createInitialState);
+  const [flowStep, setFlowStep] = useState<ImportFlowStep>("upload");
+  const [submitAttempt, setSubmitAttempt] = useState(0);
 
   /** The remembered folder is a convenience; Drive revalidates it on mount. */
   useEffect(() => {
@@ -444,11 +445,13 @@ export function ImportWizard({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setFlowStep("upload");
     dispatch({ type: "file-selected", file });
 
     try {
       const inspection = await api.inspect(file);
       dispatch({ type: "inspected", sheets: inspection.sheets });
+      setFlowStep("preflight");
     } catch (error) {
       dispatch({ type: "inspect-failed", failure: toApiFailure(error) });
     }
@@ -498,6 +501,18 @@ export function ImportWizard({
     });
   }
 
+  function continueToReview(): void {
+    const { fieldErrors, emailErrors } = validate(state);
+    setSubmitAttempt((attempt) => attempt + 1);
+
+    if (Object.keys(fieldErrors).length > 0 || Object.keys(emailErrors).length > 0) {
+      dispatch({ type: "rejected", fieldErrors, emailErrors });
+      return;
+    }
+
+    setFlowStep("review");
+  }
+
   /** Resumes the retained conversion rather than uploading a second file. */
   async function retry(): Promise<void> {
     if (state.file === null || state.result === null || state.folder === null) return;
@@ -511,6 +526,14 @@ export function ImportWizard({
       resumeFileId: state.result.fileId,
     });
   }
+
+  const summary: readonly WizardSummaryItem[] = [
+    { label: "Workbook", value: state.file ? `${state.file.name} selected` : "Not selected" },
+    { label: "Sheets", value: `${state.sheets.length} recognized` },
+    { label: "Output", value: state.fileName ? `${state.fileName} file` : "Not set" },
+    { label: "Month", value: state.month ? `${state.month} selected` : "Not set" },
+    { label: "Folder", value: state.folder ? `${state.folder.name} selected` : "Not selected" },
+  ];
 
   if (state.stage === "created" && state.result !== null) {
     return (
@@ -534,30 +557,104 @@ export function ImportWizard({
     );
   }
 
+  const currentStep: ImportFlowStep = state.stage === "upload" ? "upload" : flowStep;
+  const { title: stepTitle, lede: stepLede } = IMPORT_STEP_COPY[currentStep];
+
   return (
-    <div className="import-wizard">
-      <section className="section step" aria-labelledby="upload-heading">
-        <h2 id="upload-heading">Workbook</h2>
-
-        <div className="field">
-          <label htmlFor="workbook">Excel workbook (.xlsx)</label>
-          <input
-            id="workbook"
-            type="file"
-            accept=".xlsx"
-            disabled={state.isInspecting || state.isSaving}
-            onChange={(event) => void inspect(event)}
+    <WizardShell
+      title="Import workbook"
+      purpose="Inspect an existing XLSX file before converting it into a managed attendance file."
+      steps={IMPORT_STEPS}
+      currentStepId={currentStep}
+      stepTitle={stepTitle}
+      stepLede={stepLede}
+      summary={summary}
+      summaryTitle="Import summary"
+      summaryNote="Google Drive is changed only after Save to Google Drive."
+      banner={
+        state.inspectFailure || state.failure ? (
+          <ApiErrorNotice
+            failure={state.inspectFailure ?? state.failure}
+            fallbackMessage={state.inspectFailure ? INSPECT_FAILED : IMPORT_FAILED}
           />
-          <p className="field-hint">The workbook must be 20 MB or smaller.</p>
-        </div>
+        ) : undefined
+      }
+      status={
+        state.isInspecting
+          ? "Reading the workbook…"
+          : state.isSaving
+            ? "Saving to Google Drive…"
+            : null
+      }
+      busy={state.isInspecting || state.isSaving}
+      submitAttempt={submitAttempt}
+      actions={
+        currentStep === "upload" ? (
+          <Link className="action" href="/manage">
+            Back to manage
+          </Link>
+        ) : currentStep === "preflight" ? (
+          <>
+            <button type="button" className="action" onClick={() => setFlowStep("upload")}>
+              Back to upload
+            </button>
+            <button type="button" className="action action-primary" onClick={() => setFlowStep("details")}>
+              Continue to details
+            </button>
+          </>
+        ) : currentStep === "details" ? (
+          <>
+            <button type="button" className="action" onClick={() => setFlowStep("preflight")}>
+              Back to preflight
+            </button>
+            <button type="button" className="action action-primary" onClick={continueToReview}>
+              Continue to review
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="action"
+              disabled={state.isSaving}
+              onClick={() => setFlowStep("details")}
+            >
+              Back to details
+            </button>
+            <button
+              type="button"
+              className="action action-primary"
+              disabled={state.isSaving}
+              onClick={() => void save()}
+            >
+              {state.isSaving ? "Saving to Google Drive…" : "Save to Google Drive"}
+            </button>
+          </>
+        )
+      }
+    >
+      <div className="import-wizard">
+        {currentStep === "upload" ? (
+          <section className="section step" aria-labelledby="upload-heading">
+            <h2 id="upload-heading">Workbook</h2>
 
-        {state.isInspecting ? <p role="status">Reading the workbook…</p> : null}
+            <div className="field">
+              <label htmlFor="workbook">Excel workbook (.xlsx)</label>
+              <input
+                id="workbook"
+                type="file"
+                accept=".xlsx"
+                disabled={state.isInspecting || state.isSaving}
+                onChange={(event) => void inspect(event)}
+              />
+              <p className="field-hint">The workbook must be 20 MB or smaller.</p>
+            </div>
 
-        <ApiErrorNotice failure={state.inspectFailure} fallbackMessage={INSPECT_FAILED} />
-      </section>
+            {state.isInspecting ? <p role="status">Reading the workbook…</p> : null}
+          </section>
+        ) : null}
 
-      {state.stage === "confirm" ? (
-        <>
+        {currentStep === "preflight" ? (
           <section className="section step" aria-labelledby="sheets-heading">
             <h2 id="sheets-heading">Recognized sheets</h2>
 
@@ -569,8 +666,14 @@ export function ImportWizard({
                 </li>
               ))}
             </ul>
+            <p className="section-note">
+              Preflight passed: every listed sheet has the required attendance structure and a detected month.
+            </p>
           </section>
+        ) : null}
 
+        {currentStep === "details" ? (
+          <>
           <section className="section step" aria-labelledby="output-heading">
             <h2 id="output-heading">Output file</h2>
 
@@ -660,21 +763,34 @@ export function ImportWizard({
               })}
             </ul>
 
-            <ApiErrorNotice failure={state.failure} fallbackMessage={IMPORT_FAILED} />
-
-            <div className="card-actions">
-              <button
-                type="button"
-                className="action action-primary"
-                disabled={state.isSaving}
-                onClick={() => void save()}
-              >
-                {state.isSaving ? "Saving to Google Drive…" : "Save to Google Drive"}
-              </button>
-            </div>
           </section>
-        </>
-      ) : null}
-    </div>
+          </>
+        ) : null}
+
+        {currentStep === "review" ? (
+          <section className="section step" aria-labelledby="import-review-heading">
+            <h2 id="import-review-heading">Import plan</h2>
+            <dl className="card-facts">
+              <div className="card-fact"><dt>Workbook</dt><dd>{state.file?.name}</dd></div>
+              <div className="card-fact"><dt>Output file</dt><dd>{state.fileName.trim()}</dd></div>
+              <div className="card-fact"><dt>Month</dt><dd>{formatMonthLabel(state.month) ?? state.month}</dd></div>
+              <div className="card-fact"><dt>Destination folder</dt><dd>{state.folder?.name}</dd></div>
+              <div className="card-fact"><dt>Recognized sheets</dt><dd>{state.sheets.length}</dd></div>
+            </dl>
+            <ul className="member-list" aria-label="Sheet owners to import">
+              {state.sheets.map((sheet) => (
+                <li className="member-row" key={sheet.title} aria-label={sheet.title}>
+                  <strong>{sheet.title}</strong>
+                  <span>{state.emails[sheet.title]?.trim().toLowerCase()}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="section-note">
+              Google Drive is changed only when you select Save to Google Drive.
+            </p>
+          </section>
+        ) : null}
+      </div>
+    </WizardShell>
   );
 }

@@ -135,6 +135,11 @@ function click(name: string): void {
   fireEvent.click(screen.getByRole("button", { name }));
 }
 
+function reviewAndSave(): void {
+  click("Continue to review");
+  click("Save to Google Drive");
+}
+
 function typeEmail(sheetTitle: string, email: string): void {
   fireEvent.change(screen.getByLabelText(`Email for ${sheetTitle}`), {
     target: { value: email },
@@ -148,6 +153,7 @@ async function reachConfirmed(harness: Harness = createHarness(), file = workboo
 
   selectWorkbook(file);
   await screen.findByRole("heading", { name: "Recognized sheets" });
+  click("Continue to details");
   await screen.findByText(REMEMBERED_FOLDER.name);
 
   typeEmail("Employee A", "employee-a@blended-asia.com");
@@ -171,6 +177,14 @@ afterEach(() => {
 /* -------------------------------------------------------------------------- */
 
 describe("ImportWizard — upload", () => {
+  it("uses the shared wizard chrome and exposes upload through setup", () => {
+    renderWizard();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Import workbook" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Import workbook progress" })).toBeVisible();
+    expect(screen.getByText(/Step 1 of 5/u)).toBeVisible();
+  });
+
   it("accepts .xlsx only and documents the size limit", async () => {
     rememberFolder();
     renderWizard();
@@ -189,15 +203,21 @@ describe("ImportWizard — upload", () => {
     selectWorkbook(file);
 
     await screen.findByRole("heading", { name: "Recognized sheets" });
+    expect(screen.getByText(/Step 2 of 5/u)).toBeVisible();
+    expect(screen.queryByLabelText("Output file name")).toBeNull();
+    click("Continue to details");
+    expect(screen.getByLabelText("Output file name")).toBeVisible();
     await screen.findByText(REMEMBERED_FOLDER.name);
     expect(harness.inspectCalls).toEqual([file]);
     expect(harness.saveCalls).toEqual([]);
   });
 
   it("shows every recognized sheet before anything is uploaded to Drive", async () => {
-    await reachConfirmed();
+    rememberFolder();
+    renderWizard();
+    selectWorkbook(workbook());
 
-    const sheets = screen.getByRole("list", { name: "Recognized sheets" });
+    const sheets = await screen.findByRole("list", { name: "Recognized sheets" });
     expect(within(sheets).getByText("Employee A")).toBeVisible();
     expect(within(sheets).getByText("Employee B")).toBeVisible();
     expect(within(sheets).getAllByText("31 rows · July 2026")).toHaveLength(2);
@@ -250,7 +270,7 @@ describe("ImportWizard — confirmed metadata", () => {
     fireEvent.change(screen.getByLabelText("Output file name"), {
       target: { value: "July attendance" },
     });
-    click("Save to Google Drive");
+    click("Continue to review");
 
     expect(screen.getByText("The file name must contain 勤怠管理表.")).toBeVisible();
     expect(harness.saveCalls).toEqual([]);
@@ -276,6 +296,7 @@ describe("ImportWizard — confirmed metadata", () => {
 
     selectWorkbook(workbook());
     await screen.findByRole("heading", { name: "Recognized sheets" });
+    click("Continue to details");
     await screen.findByText(REMEMBERED_FOLDER.name);
 
     expect(screen.getByLabelText("Month")).toHaveValue("");
@@ -300,7 +321,7 @@ describe("ImportWizard — sheet mappings", () => {
     const harness = await reachConfirmed();
 
     fireEvent.change(screen.getByLabelText("Email for Employee B"), { target: { value: "" } });
-    click("Save to Google Drive");
+    click("Continue to review");
 
     expect(screen.getByText("Enter a valid Google Workspace email address.")).toBeVisible();
     expect(harness.saveCalls).toEqual([]);
@@ -310,7 +331,7 @@ describe("ImportWizard — sheet mappings", () => {
     const harness = await reachConfirmed();
 
     typeEmail("Employee B", "Employee-A@Blended-Asia.com");
-    click("Save to Google Drive");
+    click("Continue to review");
 
     expect(screen.getByText("Each sheet needs a different email address.")).toBeVisible();
     expect(harness.saveCalls).toEqual([]);
@@ -321,7 +342,7 @@ describe("ImportWizard — sheet mappings", () => {
 
     expect(screen.queryByLabelText("Sheet name 1")).toBeNull();
 
-    click("Save to Google Drive");
+    reviewAndSave();
 
     await waitFor(() => expect(harness.saveCalls).toHaveLength(1));
     expect(harness.saveCalls[0].mappings).toEqual([
@@ -341,7 +362,7 @@ describe("ImportWizard — save", () => {
     const harness = await reachConfirmed(createHarness(), file);
 
     fireEvent.change(screen.getByLabelText("Output file name"), { target: { value: FILE_NAME } });
-    click("Save to Google Drive");
+    reviewAndSave();
 
     await waitFor(() => expect(harness.saveCalls).toHaveLength(1));
     expect(harness.saveCalls[0]).toEqual({
@@ -368,7 +389,7 @@ describe("ImportWizard — save", () => {
       }),
     );
 
-    click("Save to Google Drive");
+    reviewAndSave();
     const button = screen.getByRole("button", { name: "Saving to Google Drive…" });
     expect(button).toBeDisabled();
 
@@ -382,7 +403,7 @@ describe("ImportWizard — save", () => {
   it("activates the destination folder and opens the file when setup completes", async () => {
     const harness = await reachConfirmed();
 
-    click("Save to Google Drive");
+    reviewAndSave();
 
     await waitFor(() =>
       expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/files/converted-file/members"),
@@ -410,7 +431,7 @@ describe("ImportWizard — partial setup", () => {
   it("keeps the converted file, activates its folder, and offers Resume setup", async () => {
     const harness = await reachConfirmed(createHarness({ onSave: async () => partial }));
 
-    click("Save to Google Drive");
+    reviewAndSave();
 
     expect(await screen.findByRole("heading", { name: "Setup did not finish" })).toBeVisible();
     expect(
@@ -429,7 +450,7 @@ describe("ImportWizard — partial setup", () => {
   it("shows which member setup step Google retained, named by its workbook sheet", async () => {
     await reachConfirmed(createHarness({ onSave: async () => partial }));
 
-    click("Save to Google Drive");
+    reviewAndSave();
     await screen.findByRole("heading", { name: "Setup did not finish" });
 
     const failedRow = screen.getByRole("listitem", { name: "Employee B" });
@@ -444,7 +465,7 @@ describe("ImportWizard — partial setup", () => {
     const file = workbook();
     const harness = await reachConfirmed(createHarness({ onSave: async () => partial }), file);
 
-    click("Save to Google Drive");
+    reviewAndSave();
     await screen.findByRole("heading", { name: "Setup did not finish" });
 
     click("Retry setup");
@@ -477,11 +498,12 @@ describe("ImportWizard — API failures", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Output file name"), { target: { value: FILE_NAME } });
-    click("Save to Google Drive");
+    reviewAndSave();
 
     expect(
       await screen.findByText("Each member must have a different email address."),
     ).toBeVisible();
+    click("Back to details");
     expect(screen.getByLabelText("Output file name")).toHaveValue(FILE_NAME);
     expect(screen.getByLabelText("Email for Employee A")).toHaveValue(
       "employee-a@blended-asia.com",
@@ -498,7 +520,7 @@ describe("ImportWizard — API failures", () => {
       }),
     );
 
-    click("Save to Google Drive");
+    reviewAndSave();
 
     expect(
       await screen.findByText("Your Google session expired. Sign in again to continue."),
@@ -517,7 +539,7 @@ describe("ImportWizard — API failures", () => {
       }),
     );
 
-    click("Save to Google Drive");
+    reviewAndSave();
 
     expect(await screen.findByText("Could not import the attendance file.")).toBeVisible();
     expect(screen.queryByText(/googleapis/)).toBeNull();

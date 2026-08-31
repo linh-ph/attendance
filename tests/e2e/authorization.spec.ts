@@ -134,9 +134,10 @@ test.describe("the test bypass is not a way in", () => {
 
     await page.goto("/dashboard");
 
-    // Still the employee: no managed file appeared.
+    // Still the employee: the shell identity did not change and no manager-only
+    // file content appeared.
     await expect(
-      page.getByText("Select a dashboard folder to see the attendance files you manage."),
+      page.getByRole("link", { name: `Account ${E2E_FIXTURE.employeeEmail}` }),
     ).toBeVisible();
     await expect(page.getByText(E2E_FIXTURE.legacyFile.name)).toHaveCount(0);
   });

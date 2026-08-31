@@ -45,14 +45,14 @@ test("the manager creates a monthly file and finds it in the destination folder"
 }) => {
   await page.goto("/files/new");
 
-  await expect(page.getByRole("heading", { name: "Create a monthly file" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create monthly file", level: 1 })).toBeVisible();
 
   await page.getByLabel("File name").fill(NEW_FILE_NAME);
   await page.getByLabel("Month", { exact: true }).fill(NEW_FILE_MONTH);
 
   await queuePick(page, E2E_FIXTURE.activeFolder);
   await page.getByRole("button", { name: "Select destination folder" }).click();
-  await expect(page.getByText(E2E_FIXTURE.activeFolder.name)).toBeVisible();
+  await expect(page.getByText(E2E_FIXTURE.activeFolder.name, { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Continue to members" }).click();
 
@@ -71,10 +71,11 @@ test("the manager creates a monthly file and finds it in the destination folder"
 
   // The destination folder became the remembered dashboard folder, and the new
   // file is a direct child of it.
-  await page.goto("/dashboard");
-  await expect(page.getByRole("listitem", { name: NEW_FILE_NAME })).toBeVisible();
+  await page.goto("/manage");
+  const createdRow = page.getByRole("row").filter({ hasText: NEW_FILE_NAME });
+  await expect(createdRow).toBeVisible();
   await expect(
-    page.getByRole("listitem", { name: NEW_FILE_NAME }).getByText("Ready"),
+    createdRow.getByText("Ready", { exact: true }),
   ).toBeVisible();
 });
 
@@ -88,7 +89,7 @@ test("the manager imports an in-memory workbook and finds the converted file in 
 
   await page.goto("/files/import");
 
-  await expect(page.getByRole("heading", { name: "Import an Excel workbook" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Import workbook", level: 1 })).toBeVisible();
 
   await page.getByLabel("Excel workbook (.xlsx)").setInputFiles({
     name: `${IMPORT_FILE_NAME}.xlsx`,
@@ -101,6 +102,7 @@ test("the manager imports an in-memory workbook and finds the converted file in 
   const recognized = page.getByRole("list", { name: "Recognized sheets" });
   await expect(recognized.getByRole("listitem", { name: "Employee A" })).toBeVisible();
   await expect(recognized.getByRole("listitem", { name: "Employee B" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to details" }).click();
 
   // The month is suggested from the workbook's own date rows, never its name.
   await expect(page.getByLabel("Month", { exact: true })).toHaveValue(IMPORT_MONTH);
@@ -108,17 +110,18 @@ test("the manager imports an in-memory workbook and finds the converted file in 
 
   await queuePick(page, E2E_FIXTURE.activeFolder);
   await page.getByRole("button", { name: "Select destination folder" }).click();
-  await expect(page.getByText(E2E_FIXTURE.activeFolder.name)).toBeVisible();
+  await expect(page.getByText(E2E_FIXTURE.activeFolder.name, { exact: true })).toBeVisible();
 
   await page.getByLabel("Email for Employee A").fill(E2E_FIXTURE.employeeEmail);
   await page.getByLabel("Email for Employee B").fill(E2E_FIXTURE.teammateEmail);
 
+  await page.getByRole("button", { name: "Continue to review" }).click();
   await page.getByRole("button", { name: "Save to Google Drive" }).click();
 
   await expect(page.getByRole("heading", { name: "Manage members", level: 1 })).toBeVisible();
 
-  await page.goto("/dashboard");
-  await expect(page.getByRole("listitem", { name: IMPORT_FILE_NAME })).toBeVisible();
+  await page.goto("/manage");
+  await expect(page.getByRole("row").filter({ hasText: IMPORT_FILE_NAME })).toBeVisible();
 });
 
 test("a partial import keeps the converted file and retries setup on that same file", async ({
@@ -139,13 +142,15 @@ test("a partial import keeps the converted file and retries setup on that same f
   });
 
   await expect(page.getByRole("heading", { name: "Recognized sheets" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to details" }).click();
 
   await queuePick(page, E2E_FIXTURE.activeFolder);
   await page.getByRole("button", { name: "Select destination folder" }).click();
-  await expect(page.getByText(E2E_FIXTURE.activeFolder.name)).toBeVisible();
+  await expect(page.getByText(E2E_FIXTURE.activeFolder.name, { exact: true })).toBeVisible();
 
   await page.getByLabel("Email for Employee A").fill(E2E_FIXTURE.employeeEmail);
   await page.getByLabel("Email for Employee B").fill(E2E_FIXTURE.teammateEmail);
+  await page.getByRole("button", { name: "Continue to review" }).click();
   await page.getByRole("button", { name: "Save to Google Drive" }).click();
 
   await expect(page.getByRole("heading", { name: "Setup did not finish" })).toBeVisible();
@@ -160,29 +165,29 @@ test("a partial import keeps the converted file and retries setup on that same f
   await page.getByRole("button", { name: "Retry setup" }).click();
   await expect(page.getByRole("heading", { name: "Manage members", level: 1 })).toBeVisible();
 
-  await page.goto("/dashboard");
-  await expect(page.getByRole("listitem", { name: IMPORT_FILE_NAME })).toHaveCount(1);
+  await page.goto("/manage");
+  await expect(page.getByRole("row").filter({ hasText: IMPORT_FILE_NAME })).toHaveCount(1);
 });
 
 test("a legacy file stays read-only until the manager picks that same file", async ({ page }) => {
   await rememberActiveFolder(page);
-  await page.goto("/dashboard");
+  await page.goto("/manage");
 
-  const legacyCard = page.getByRole("listitem", { name: E2E_FIXTURE.legacyFile.name });
+  const legacyCard = page.getByRole("row").filter({ hasText: E2E_FIXTURE.legacyFile.name });
   await expect(legacyCard.getByText("Needs setup")).toBeVisible();
-  await expect(legacyCard.getByRole("link", { name: "Continue setup" })).toHaveCount(0);
+  await expect(legacyCard.getByRole("link", { name: "Resume" })).toHaveCount(0);
 
   // Picking a different file proves nothing and unlocks nothing.
   await queuePick(page, { id: E2E_FIXTURE.readyFile.id, name: E2E_FIXTURE.readyFile.name });
-  await legacyCard.getByRole("button", { name: "Set up" }).click();
+  await legacyCard.getByRole("button", { name: "Confirm file" }).click();
   await expect(
-    legacyCard.getByText("Select this same file in Google Picker to start setup."),
+    legacyCard.getByText("Select this same file in Google Picker to continue setup."),
   ).toBeVisible();
-  await expect(legacyCard.getByRole("link", { name: "Continue setup" })).toHaveCount(0);
+  await expect(legacyCard.getByRole("link", { name: "Resume" })).toHaveCount(0);
 
   await queuePick(page, { id: E2E_FIXTURE.legacyFile.id, name: E2E_FIXTURE.legacyFile.name });
-  await legacyCard.getByRole("button", { name: "Set up" }).click();
-  await expect(legacyCard.getByRole("link", { name: "Continue setup" })).toBeVisible();
+  await legacyCard.getByRole("button", { name: "Confirm file" }).click();
+  await expect(legacyCard.getByRole("link", { name: "Resume" })).toBeVisible();
 });
 
 test("legacy setup reads nothing before the Picker confirmation and configures after it", async ({
@@ -191,7 +196,10 @@ test("legacy setup reads nothing before the Picker confirmation and configures a
   await rememberActiveFolder(page);
   await page.goto(`/files/${E2E_FIXTURE.legacyFile.id}/setup`);
 
-  await expect(page.getByRole("heading", { name: "Confirm this file" })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Confirm this file" })
+      .getByRole("heading", { name: "Confirm this file" }),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Map every sheet to a member" })).toHaveCount(0);
 
   // The application's own API refuses a mismatched pick before it reads Drive.
@@ -216,12 +224,17 @@ test("legacy setup reads nothing before the Picker confirmation and configures a
     .getByLabel(`Google Workspace email for ${E2E_FIXTURE.teammateSheetTitle}`)
     .fill(E2E_FIXTURE.teammateEmail);
 
+  await page.getByRole("button", { name: "Review setup" }).click();
+  await expect(page.getByRole("heading", { name: "Review setup" })).toBeVisible();
   await page.getByRole("button", { name: "Save setup" }).click();
 
-  await expect(page.getByText("Setup complete. This file is ready.")).toBeVisible();
-
-  await page.goto("/dashboard");
   await expect(
-    page.getByRole("listitem", { name: E2E_FIXTURE.legacyFile.name }).getByText("Ready"),
+    page.getByRole("status").filter({ hasText: "Setup complete. This file is ready." }),
+  ).toBeVisible();
+
+  await page.goto("/manage");
+  await expect(
+    page.getByRole("row").filter({ hasText: E2E_FIXTURE.legacyFile.name })
+      .getByText("Ready", { exact: true }),
   ).toBeVisible();
 });

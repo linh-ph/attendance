@@ -41,7 +41,7 @@ for (const { width, height, shell } of BREAKPOINTS) {
   test(`the ${shell} shell fits ${width}px without pushing the page sideways`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
 
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
   });
@@ -110,7 +110,7 @@ test("no Help or Settings destination exists on either shell", async ({ page }) 
 test("the skip link is the first stop and jumps into the content", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
 
   await page.keyboard.press("Tab");
 
@@ -128,7 +128,7 @@ test("the skip link is the first stop and jumps into the content", async ({ page
 test("every sidebar destination is reachable in reading order", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
 
   const navigation = page.getByRole("navigation", { name: "Main" });
 
@@ -184,7 +184,7 @@ test("the compact shell reaches Members and Sign out through Manage and More", a
 
   await page.getByRole("link", { name: "Manage", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Managed files", level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Members" })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("link", { name: "Members" }).first()).toBeVisible();
 
   await page.getByRole("link", { name: "More" }).click();
   await expect(page.getByRole("heading", { name: "More", level: 1 })).toBeVisible();

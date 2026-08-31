@@ -13,10 +13,10 @@ import { E2E_FIXTURE, EMPLOYEE_STORAGE_STATE, resetStore } from "../../playwrigh
 
 test.use({ storageState: EMPLOYEE_STORAGE_STATE });
 
-const TIMESHEET_LABEL = `${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle} — ${E2E_FIXTURE.managerEmail}`;
 const ATTENDANCE_URL = `/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.employeeSheetId}`;
 const WORK_DESCRIPTION = "Sprint planning";
 const NOTES = "Reviewed the July timesheet";
+const CALENDAR_DATE = "2026-07-01";
 
 test.beforeEach(async ({ page }) => {
   await resetStore(page.request);
@@ -31,19 +31,22 @@ test.beforeEach(async ({ page }) => {
 test("the employee sees every reachable file and opens the mapped one at their tab", async ({
   page,
 }) => {
-  await page.goto("/dashboard");
+  await page.goto("/timesheets");
 
-  const timesheets = page.getByRole("region", { name: "My timesheets" });
+  const timesheets = page.getByRole("region", { name: "Your attendance months" });
+  const readyTimesheet = timesheets
+    .getByRole("listitem")
+    .filter({ hasText: E2E_FIXTURE.managerEmail });
 
-  await expect(timesheets.getByRole("listitem", { name: TIMESHEET_LABEL })).toBeVisible();
+  await expect(readyTimesheet).toBeVisible();
+  await expect(readyTimesheet.getByText(E2E_FIXTURE.employeeSheetTitle)).toBeVisible();
   await expect(timesheets.getByRole("listitem").first()).toBeVisible();
 
-  // An employee never sees a managed section with someone else's files in it.
-  await expect(
-    page.getByText("Select a dashboard folder to see the attendance files you manage."),
-  ).toBeVisible();
+  // The employee surface stays focused on authorized timesheets; management
+  // data lives on its own route instead of being mixed into this page.
+  await expect(page.getByRole("heading", { name: "Attendance files" })).toHaveCount(0);
 
-  await timesheets.getByRole("link", { name: "Open timesheet" }).first().click();
+  await readyTimesheet.getByRole("link", { name: "Open timesheet" }).click();
 
   await expect(page).toHaveURL(new RegExp(`${ATTENDANCE_URL}$`));
   await expect(page.getByRole("heading", { name: "Timesheet", level: 1 })).toBeVisible();
@@ -52,9 +55,9 @@ test("the employee sees every reachable file and opens the mapped one at their t
 });
 
 test("a file with no mapping offers a tab choice instead of being hidden", async ({ page }) => {
-  await page.goto("/dashboard");
+  await page.goto("/timesheets");
 
-  const timesheets = page.getByRole("region", { name: "My timesheets" });
+  const timesheets = page.getByRole("region", { name: "Your attendance months" });
   const chooser = timesheets.getByRole("link", { name: "Choose your tab" }).first();
 
   await expect(chooser).toBeVisible();
@@ -63,6 +66,56 @@ test("a file with no mapping offers a tab choice instead of being hidden", async
   await expect(page.getByRole("heading", { name: "Choose your tab", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open this tab" }).first()).toBeVisible();
 });
+
+for (const viewport of [
+  { name: "desktop", width: 1440, height: 900 },
+  { name: "mobile", width: 390, height: 844 },
+] as const) {
+  test(`the ${viewport.name} calendar opens a preview, edits the day, and syncs it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/dashboard");
+
+    await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "Previous month" }).click();
+
+    const choice = page.getByRole("button", {
+      name: `Use ${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle} — ${E2E_FIXTURE.managerEmail}`,
+    });
+    await expect(choice).toBeVisible();
+    await choice.click();
+
+    const calendar = page.getByRole("grid", { name: "July 2026 attendance calendar" });
+    await expect(calendar).toBeVisible();
+    await calendar.getByRole("gridcell", { name: /Wednesday, July 1, 2026/ }).click();
+
+    const preview = page.getByRole("dialog", { name: "Wednesday, July 1, 2026" });
+    await expect(preview).toBeVisible();
+    const detail = preview.getByRole("link", { name: "Open full detail" });
+    await expect(detail).toHaveAttribute("href", `${ATTENDANCE_URL}?date=${CALENDAR_DATE}`);
+    await detail.click();
+
+    await expect(page).toHaveURL(new RegExp(`${ATTENDANCE_URL}\\?date=${CALENDAR_DATE}$`));
+    await expect(page.getByRole("heading", { name: "Day summary" })).toBeVisible();
+    await page.getByLabel("Notes").fill(`Calendar ${viewport.name} proof`);
+    await page.getByRole("button", { name: "Save & sync" }).click();
+    await expect(page.getByText("Saved to Google Sheets.")).toBeVisible();
+
+    expect(
+      await page.evaluate(() => document.body.scrollWidth - window.innerWidth),
+    ).toBeLessThanOrEqual(0);
+
+    if (viewport.name === "mobile") {
+      const separation = await page.evaluate(() => {
+        const actions = document.querySelector(".attendance-actions")?.getBoundingClientRect();
+        const navigation = document.querySelector(".app-nav")?.getBoundingClientRect();
+        return actions && navigation ? navigation.top - actions.bottom : -1;
+      });
+      expect(separation).toBeGreaterThanOrEqual(0);
+    }
+  });
+}
 
 test("the employee edits one day with both methods and saves it to Google Sheets", async ({
   page,
@@ -102,7 +155,7 @@ test("the employee edits one day with both methods and saves it to Google Sheets
 
   await expect(page.getByText("Unsaved changes")).toBeVisible();
 
-  await page.getByRole("button", { name: "Save to Google Sheets" }).click();
+  await page.getByRole("button", { name: "Save & sync" }).click();
 
   await expect(page.getByText("Saved to Google Sheets.")).toBeVisible();
   await expect(page.getByText("Unsaved changes")).toHaveCount(0);
@@ -129,7 +182,7 @@ test("a failed save keeps the edits and retries in place", async ({ page }) => {
   await page.getByLabel("Clock out").selectOption("17:30");
   await page.getByLabel("Notes").fill(NOTES);
 
-  await page.getByRole("button", { name: "Save to Google Sheets" }).click();
+  await page.getByRole("button", { name: "Save & sync" }).click();
 
   await expect(
     page.getByRole("alert").filter({ hasText: "Google Sheets could not be reached. Try again." }),
@@ -155,7 +208,7 @@ test("an invalid day is refused before it leaves the browser", async ({ page }) 
   await page.getByLabel("Clock in").selectOption("18:00");
   await page.getByLabel("Clock out").selectOption("09:00");
 
-  await page.getByRole("button", { name: "Save to Google Sheets" }).click();
+  await page.getByRole("button", { name: "Save & sync" }).click();
 
   await expect(page.getByText("Clock out must be later than clock in.")).toBeVisible();
   await expect(page.getByText("Saved to Google Sheets.")).toHaveCount(0);

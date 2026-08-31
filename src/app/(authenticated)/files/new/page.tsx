@@ -21,12 +21,8 @@ export default async function NewFilePage() {
   }
 
   return (
-    <main>
-      <section aria-labelledby="new-file-title">
-        <p className="eyebrow">blended-asia</p>
-        <h1 id="new-file-title">Create a monthly file</h1>
-        <NewFileWizard email={email} />
-      </section>
+    <main className="page">
+      <NewFileWizard email={email} />
     </main>
   );
 }

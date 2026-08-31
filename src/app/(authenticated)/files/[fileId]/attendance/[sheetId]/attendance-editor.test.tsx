@@ -134,7 +134,7 @@ async function mount(
       today={today}
     />,
   );
-  await screen.findByRole("button", { name: "Save to Google Sheets" });
+  await screen.findByRole("button", { name: "Save & sync" });
   return store;
 }
 
@@ -166,7 +166,7 @@ function applyBlock(start: string, end: string, description: string): void {
 }
 
 function save(): void {
-  fireEvent.click(screen.getByRole("button", { name: "Save to Google Sheets" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save & sync" }));
 }
 
 function patchesOf(harness: Harness): AttendancePatch[] {
@@ -178,6 +178,32 @@ function patchesOf(harness: Harness): AttendancePatch[] {
 /* -------------------------------------------------------------------------- */
 
 describe("AttendanceEditor", () => {
+  it("uses the redesigned calendar return path and Save & sync footer", async () => {
+    const harness = createApi({
+      view: monthView({ spreadsheetTimeZone: "Asia/Ho_Chi_Minh" }),
+    });
+
+    render(
+      <AttendanceEditor
+        fileId={FILE_ID}
+        sheetId={SHEET_ID}
+        email={EMAIL}
+        store={createMemoryStore()}
+        api={harness.api}
+        today="2026-07-15"
+      />,
+    );
+
+    expect(await screen.findByRole("link", { name: /Back to calendar/u })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
+    const saveButton = screen.getByRole("button", { name: "Save & sync" });
+    expect(saveButton).toBeVisible();
+    expect(saveButton.closest(".attendance-actions")).toHaveClass("sticky-actions");
+    expect(screen.getByText("Last Sheet check")).toBeVisible();
+  });
+
   it("shows the whole English day surface for the loaded timesheet", async () => {
     await mount(createApi());
 
@@ -544,7 +570,7 @@ describe("AttendanceEditor", () => {
     await screen.findByText("Could not load this timesheet.");
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await screen.findByRole("button", { name: "Save to Google Sheets" });
+    await screen.findByRole("button", { name: "Save & sync" });
     expect(screen.getByText("Wednesday, July 15, 2026")).toBeInTheDocument();
   });
 
@@ -595,7 +621,7 @@ describe("browser-local drafts", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Work description")).toBeInTheDocument());
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save to Google Sheets" })).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Save & sync" })).toBeEnabled(),
     );
   });
 

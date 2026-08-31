@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { PageShell } from "@/components/app-shell/page-shell";
 import { MemberRoster } from "./member-roster";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +25,12 @@ export default async function MembersPage() {
   }
 
   return (
-    <main>
-      <section aria-labelledby="roster-title">
-        <p className="eyebrow">blended-asia</p>
-        <h1 id="roster-title">Members</h1>
-        <MemberRoster email={email} />
-      </section>
-    </main>
+    <PageShell
+      eyebrow="blended-asia"
+      title="Members"
+      lede="Keep a reusable, browser-local roster for attendance file setup."
+    >
+      <MemberRoster email={email} />
+    </PageShell>
   );
 }

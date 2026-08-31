@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { GooglePicker } from "@/components/google-picker";
 import { MemberRows } from "@/components/member-rows";
 import { LoadingGhosts } from "@/components/loading-ghosts";
+import { WizardShell, type WizardStep, type WizardSummaryItem } from "@/components/wizard-shell";
 import { readFolderPreference, type FolderPreference } from "@/lib/dashboard/folder-preference";
 import type { MemberSummary } from "@/lib/files/member-service";
 import type { MemberSetupProgress } from "@/lib/files/setup-service";
@@ -38,6 +40,13 @@ const PARTIAL_NOTICE = "Setup is incomplete. Retry setup to finish sharing this 
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+const LEGACY_SETUP_STEPS: readonly WizardStep[] = [
+  { id: "confirm", label: "Confirm", description: "Grant access to this file" },
+  { id: "mapping", label: "Mapping", description: "Adopt existing member tabs" },
+  { id: "review", label: "Review", description: "Check month and owners" },
+  { id: "setup", label: "Setup", description: "Protect, share, and recover" },
+];
 
 /* -------------------------------------------------------------------------- */
 /* API contract                                                                */
@@ -239,6 +248,7 @@ export function LegacySetupWizard({
   const [month, setMonth] = useState("");
   const [rows, setRows] = useState<MappingRows>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [reviewRequest, setReviewRequest] = useState<ConfigureExistingRequest | null>(null);
   const [lastRequest, setLastRequest] = useState<ConfigureExistingRequest | null>(null);
   const [result, setResult] = useState<LegacySetupResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -285,6 +295,7 @@ export function LegacySetupWizard({
   }
 
   function updateRow(sheetId: string, patch: Partial<MappingRow>): void {
+    setFormError(null);
     setRows((current) => ({
       ...current,
       [sheetId]: { ...(current[sheetId] ?? { displayName: "", email: "" }), ...patch },
@@ -306,7 +317,7 @@ export function LegacySetupWizard({
     }
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>, folderId: string): Promise<void> {
+  function handleReview(event: FormEvent<HTMLFormElement>, folderId: string): void {
     event.preventDefault();
     if (inspection === null) return;
 
@@ -317,7 +328,8 @@ export function LegacySetupWizard({
       return;
     }
 
-    await send(built.request);
+    setFormError(null);
+    setReviewRequest(built.request);
   }
 
   if (folderState.status === "checking") {
@@ -334,40 +346,141 @@ export function LegacySetupWizard({
     );
   }
 
+  const summary: readonly WizardSummaryItem[] | undefined = inspection
+    ? [
+        { label: "File", value: `${inspection.file.name} selected` },
+        { label: "Folder", value: `${inspection.folder.name} selected` },
+        { label: "Month", value: month ? `${month} selected` : "Not set" },
+        { label: "Sheets", value: `${inspection.sheets.length} existing tabs` },
+      ]
+    : undefined;
+
   return (
-    <div className="legacy-setup">
-      <section className="section step" aria-labelledby="confirm-file-heading">
-        <h2 id="confirm-file-heading">Confirm this file</h2>
-        <p>
-          Select this same attendance file in Google Picker. Until then this app can neither
-          read nor change it.
-        </p>
-
-        <GooglePicker
-          mode="spreadsheet"
-          label="Select this file in Google Picker"
-          onSelect={(item) => confirmFile(item.id, folder.id)}
-          disabled={isSaving}
-        />
-
-        {pickerError === null ? null : (
-          <p role="alert" className="section-error">
-            {pickerError}
+    <WizardShell
+      title="Set up attendance file"
+      purpose="Adopt this file's existing tabs without rebuilding or shrinking populated sheets."
+      steps={LEGACY_SETUP_STEPS}
+      currentStepId={
+        result ? "setup" : reviewRequest ? "review" : inspection ? "mapping" : "confirm"
+      }
+      stepTitle={
+        result
+          ? "Setup result"
+          : reviewRequest
+            ? "Review setup"
+            : inspection
+              ? "Map existing sheets"
+              : "Confirm this file"
+      }
+      stepLede={
+        result
+          ? "Check the retained setup state and continue or retry safely."
+          : reviewRequest
+            ? "Confirm the month and member ownership before the app changes this file."
+            : inspection
+              ? "Assign a month and one member to every existing employee sheet."
+              : "Select this exact file in Google Picker before the app reads or changes it."
+      }
+      summary={summary}
+      summaryTitle="Setup summary"
+      summaryNote="Existing attendance tabs are adopted in place; their populated rows are not rebuilt."
+      status={
+        isSaving
+          ? "Saving setup…"
+          : result
+            ? result.file.complete
+              ? COMPLETE_NOTICE
+              : PARTIAL_NOTICE
+            : null
+      }
+      busy={isSaving}
+      actions={
+        result?.file.complete ? (
+          <Link className="action action-primary" href={`/files/${fileId}/members`}>
+            Open members
+          </Link>
+        ) : result ? (
+          <button
+            type="button"
+            className="action action-primary"
+            disabled={isSaving || lastRequest === null}
+            onClick={() => {
+              if (lastRequest !== null) void send(lastRequest);
+            }}
+          >
+            Retry setup
+          </button>
+        ) : reviewRequest ? (
+          <>
+            <button
+              type="button"
+              className="action"
+              disabled={isSaving}
+              onClick={() => {
+                setFormError(null);
+                setReviewRequest(null);
+              }}
+            >
+              Back to mapping
+            </button>
+            <button
+              type="button"
+              className="action action-primary"
+              disabled={isSaving}
+              onClick={() => void send(reviewRequest)}
+            >
+              Save setup
+            </button>
+          </>
+        ) : inspection ? (
+          <button
+            type="submit"
+            form="legacy-setup-form"
+            className="action action-primary"
+            disabled={isSaving}
+          >
+            Review setup
+          </button>
+        ) : (
+          <Link className="action" href="/manage">
+            Back to manage
+          </Link>
+        )
+      }
+    >
+      <div className="legacy-setup">
+      {inspection === null ? (
+        <section className="section step" aria-labelledby="confirm-file-heading">
+          <h2 id="confirm-file-heading">Confirm this file</h2>
+          <p>
+            Select this same attendance file in Google Picker. Until then this app can neither
+            read nor change it.
           </p>
-        )}
 
-        {loadError === null ? null : (
-          <p role="alert" className="section-error">
-            {loadError}
-          </p>
-        )}
+          <GooglePicker
+            mode="spreadsheet"
+            label="Select this file in Google Picker"
+            onSelect={(item) => confirmFile(item.id, folder.id)}
+            disabled={isSaving}
+          />
 
-        {isConfirmed && inspection === null && loadError === null ? (
-          <LoadingGhosts label="Loading the sheets in this file…" />
-        ) : null}
-      </section>
+          {pickerError === null ? null : (
+            <p role="alert" className="section-error">
+              {pickerError}
+            </p>
+          )}
 
-      {inspection === null ? null : (
+          {loadError === null ? null : (
+            <p role="alert" className="section-error">
+              {loadError}
+            </p>
+          )}
+
+          {isConfirmed && loadError === null ? (
+            <LoadingGhosts label="Loading the sheets in this file…" />
+          ) : null}
+        </section>
+      ) : reviewRequest === null && result === null ? (
         <section className="section step" aria-labelledby="map-sheets-heading">
           <h2 id="map-sheets-heading">Map every sheet to a member</h2>
 
@@ -385,9 +498,10 @@ export function LegacySetupWizard({
           {inspection.hasUntrustedConfig ? <p className="section-note">{UNTRUSTED_CONFIG}</p> : null}
 
           <form
+            id="legacy-setup-form"
             className="member-form"
             noValidate
-            onSubmit={(event) => void handleSave(event, folder.id)}
+            onSubmit={(event) => handleReview(event, folder.id)}
           >
             <div className="field">
               <label htmlFor="setup-month">Month</label>
@@ -399,7 +513,10 @@ export function LegacySetupWizard({
                 placeholder="2026-07"
                 autoComplete="off"
                 value={month}
-                onChange={(event) => setMonth(event.target.value)}
+                onChange={(event) => {
+                  setFormError(null);
+                  setMonth(event.target.value);
+                }}
               />
             </div>
 
@@ -437,9 +554,6 @@ export function LegacySetupWizard({
               ))}
             </ul>
 
-            <button type="submit" className="action action-primary" disabled={isSaving}>
-              Save setup
-            </button>
           </form>
 
           {formError === null ? null : (
@@ -448,38 +562,63 @@ export function LegacySetupWizard({
             </p>
           )}
 
-          {result === null ? null : (
-            <div className="setup-result">
-              <p role="status" className="form-status">
-                {result.file.complete ? COMPLETE_NOTICE : PARTIAL_NOTICE}
-              </p>
-
-              <MemberRows
-                fileId={fileId}
-                members={result.members.map(toSummary)}
-                emptyMessage="This file has no members yet."
-              />
-
-              {result.file.complete ? (
-                <a className="action action-primary" href={`/files/${fileId}/members`}>
-                  Open members
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="action action-primary"
-                  disabled={isSaving || lastRequest === null}
-                  onClick={() => {
-                    if (lastRequest !== null) void send(lastRequest);
-                  }}
-                >
-                  Retry setup
-                </button>
-              )}
+        </section>
+      ) : reviewRequest !== null && result === null ? (
+        <section className="section step" aria-label="Setup review">
+          <dl className="card-facts">
+            <div className="card-fact">
+              <dt>File</dt>
+              <dd>{inspection.file.name}</dd>
             </div>
+            <div className="card-fact">
+              <dt>Folder</dt>
+              <dd>{inspection.folder.name}</dd>
+            </div>
+            <div className="card-fact">
+              <dt>Month</dt>
+              <dd>{reviewRequest.month}</dd>
+            </div>
+          </dl>
+
+          <ul className="mapping-list">
+            {reviewRequest.mappings.map((mapping) => {
+              const sheet = inspection.sheets.find((item) => item.sheetId === mapping.sheetId);
+              return (
+                <li className="mapping-row" key={mapping.sheetId}>
+                  <p className="mapping-sheet">{sheet?.title ?? mapping.sheetId}</p>
+                  <p>{mapping.displayName}</p>
+                  <p>{mapping.email}</p>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="section-note">
+            No Google Drive changes happen until you choose Save setup.
+          </p>
+
+          {formError === null ? null : (
+            <p role="alert" className="form-error">
+              {formError}
+            </p>
           )}
         </section>
-      )}
-    </div>
+      ) : result !== null ? (
+        <section className="section step" aria-label="Setup result">
+          <div className="setup-result">
+            <p className="form-status">
+              {result.file.complete ? COMPLETE_NOTICE : PARTIAL_NOTICE}
+            </p>
+
+            <MemberRows
+              fileId={fileId}
+              members={result.members.map(toSummary)}
+              emptyMessage="This file has no members yet."
+            />
+          </div>
+        </section>
+      ) : null}
+      </div>
+    </WizardShell>
   );
 }

@@ -83,13 +83,18 @@ src/lib/
   files/        schemas, import-schemas, setup-{service,contracts,steps,
                 monthly,legacy}, member-service, import-service ← orchestration
   discovery/    file-discovery                                 ← folder-scoped listing
-  dashboard/    folder-preference                              ← browser-only, non-authoritative
+  dashboard/    folder preference and compatibility cache adapter
+  cache/        acknowledged IndexedDB cache, epochs, revisions, migrations
+  directory/    browser-local member roster and Drive suggestions
   auth/         session, google-token, proxy, paths
   testing/      runtime-guard, fake-google-{store,state,seed,requests}
+src/components/ app-shell, month-calendar, day-quick-preview, wizard-shell,
+                sync-status, attendance editors and shared primitives
 src/app/api/    health, auth, dashboard, folders/validate, google/picker-token,
                 files/create, files/import[/inspect],
                 files/[fileId]/{setup,members,attendance/[sheetId]}, e2e/reset
-src/app/(authenticated)/  dashboard, files/new, files/import,
+src/app/(authenticated)/  dashboard, timesheets, manage, members, more,
+                          files/new, files/import,
                           files/[fileId]/{setup,members,attendance/[sheetId]}
 tests/          e2e/ (Playwright), fakes/, fixtures/, reference-workbook.test.ts
 ```
@@ -288,16 +293,20 @@ ripple through every route.
 
 ## Status
 
-All 13 planned tasks are complete; the plan is at
-[`docs/plans/completed/2026-08-28-google-sheets-attendance-app.md`](docs/plans/completed/2026-08-28-google-sheets-attendance-app.md)
-with per-task proof. 563 unit/integration tests, 26 Playwright specs, and 13
-reference-workbook assertions (skipped unless the workbook path is supplied).
+The original application plan is complete at
+[`docs/plans/completed/2026-08-28-google-sheets-attendance-app.md`](docs/plans/completed/2026-08-28-google-sheets-attendance-app.md).
+The Calendar-first redesign implementation is recorded in the active
+[`docs/plans/active/2026-08-31-attendance-ui-redesign.md`](docs/plans/active/2026-08-31-attendance-ui-redesign.md);
+its dedicated full responsive-state and manual accessibility audits remain
+open. Current automated proof is 1,036 passing unit/integration tests, 51
+passing Playwright tests, and 13 reference-workbook assertions that skip unless
+the workbook path is supplied.
 
-**Live Google proof has never run.** No OAuth client, Workspace test accounts,
-or organization approval for `drive.metadata.readonly` exists in this
-environment, so no real Drive, Sheets, or Picker call has ever been made. The
-application is proven against its specification with deterministic fakes and
-against the real supplied workbook for the file contract — **not** against
-Google. [`docs/runbooks/google-cloud-setup.md`](docs/runbooks/google-cloud-setup.md)
-carries the operator prerequisites and the smoke checklist that must be run
-once credentials exist.
+Read-only live browser QA has run with the installed Chrome profile
+`linh.np@blended-asia.com`: the signed-in session, dashboard discovery, legacy
+tab selection, and Sheets-backed day editor were observed on desktop and mobile
+layouts with no console error. Final redesign QA deliberately did not perform a
+write-side mutation against the live Google account; create/import/setup and
+Save mutations are proven by the deterministic Playwright adapter. The operator
+checklist remains in
+[`docs/runbooks/google-cloud-setup.md`](docs/runbooks/google-cloud-setup.md).

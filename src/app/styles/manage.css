@@ -56,3 +56,195 @@
     width: 100%;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Managed files hub                                                           */
+/* -------------------------------------------------------------------------- */
+
+.manage-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.manage-context,
+.manage-list-header {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.manage-context h2,
+.manage-list-header h2 {
+  margin: 0;
+  color: var(--ink-900);
+  font-size: var(--text-xl);
+}
+
+.manage-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.manage-filters {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 14rem);
+  gap: var(--space-sm);
+  margin: var(--space-lg) 0 var(--space-md);
+}
+
+.manage-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.manage-filters input,
+.manage-filters select {
+  min-height: var(--touch-target);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink-900);
+  background: var(--surface);
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.manage-filters input:focus-visible,
+.manage-filters select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.managed-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.managed-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.managed-table th,
+.managed-table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.managed-table th {
+  color: var(--ink-500);
+  background: var(--surface-sunken);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.managed-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.managed-table td:first-child {
+  min-width: 12rem;
+  color: var(--ink-900);
+}
+
+.managed-row-action {
+  text-align: right;
+}
+
+.managed-row-error {
+  max-width: 22rem;
+  margin: var(--space-2xs) 0 0;
+  color: var(--danger);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+@media (max-width: 48rem) {
+  .manage-context,
+  .manage-list-header {
+    flex-direction: column;
+  }
+
+  .manage-actions,
+  .manage-context .google-picker,
+  .manage-context .google-picker button {
+    width: 100%;
+  }
+
+  .manage-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .managed-table-wrap {
+    overflow: visible;
+    border: 0;
+  }
+
+  .managed-table,
+  .managed-table tbody,
+  .managed-table tr,
+  .managed-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .managed-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .managed-table tr {
+    margin-bottom: var(--space-sm);
+    padding: var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--surface);
+  }
+
+  .managed-table td,
+  .managed-table td:first-child {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: var(--space-sm);
+    min-width: 0;
+    padding: var(--space-xs) 0;
+    border: 0;
+    text-align: left;
+  }
+
+  .managed-table td::before {
+    content: attr(data-label);
+    color: var(--ink-500);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .managed-row-action .action,
+  .managed-row-action .google-picker,
+  .managed-row-action button {
+    width: 100%;
+  }
+}

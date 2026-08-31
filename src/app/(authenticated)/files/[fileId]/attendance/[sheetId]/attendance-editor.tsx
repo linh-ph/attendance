@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { DayCalendar } from "@/components/day-calendar";
 import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { WorkBlockForm } from "@/components/work-block-form";
 import { BulkApplyPanel } from "./bulk-apply-panel";
-import { LoadingGhosts } from "@/components/loading-ghosts";
+import { StateSkeleton, SyncStatus, type SyncState } from "@/components/sync-status";
+import { todayInZone } from "@/lib/attendance/zone";
 import { validateAttendanceDay } from "@/lib/attendance/validation";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
 import {
@@ -65,8 +67,10 @@ export interface AttendanceEditorProps {
   store?: LocalStore;
   /** Injected in tests; the browser uses the Route Handler client. */
   api?: AttendanceApiClient;
-  /** Injected in tests; defaults to the current UTC calendar date. */
+  /** Injected in tests; production derives Today from the spreadsheet timezone. */
   today?: string;
+  /** A date opened from the calendar quick preview. */
+  initialDate?: string;
 }
 
 export function AttendanceEditor({
@@ -75,7 +79,8 @@ export function AttendanceEditor({
   email,
   store: injectedStore,
   api = attendanceApiClient,
-  today = new Date().toISOString().slice(0, 10),
+  today,
+  initialDate,
 }: AttendanceEditorProps) {
   const [store] = useState<LocalStore>(() => injectedStore ?? resolveLocalStore());
   /**
@@ -84,6 +89,8 @@ export function AttendanceEditor({
    * otherwise a day edited before that read resolved would never be persisted.
    */
   const [restoredDate, setRestoredDate] = useState<string | null>(null);
+  const [draftStorageState, setDraftStorageState] = useState<"clean" | "saved" | "unavailable">("clean");
+  const [lastSheetCheck, setLastSheetCheck] = useState<string | null>(null);
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const { view, baseline, draft, selectedDate, saveState } = state;
 
@@ -101,7 +108,10 @@ export function AttendanceEditor({
     void store
       .readMonth(email, fileId, sheetId)
       .then((cached) => {
-        if (!cancelled && cached) dispatch({ type: "loaded", view: cached, today });
+        if (!cancelled && cached) {
+          const preferred = initialDate ?? today ?? todayInZone(cached.spreadsheetTimeZone) ?? cached.days[0]?.date ?? "";
+          dispatch({ type: "loaded", view: cached, today: preferred });
+        }
       })
       .catch(() => undefined);
 
@@ -110,7 +120,9 @@ export function AttendanceEditor({
       .then((loaded) => {
         if (cancelled) return;
 
-        dispatch({ type: "loaded", view: loaded, today });
+        const preferred = initialDate ?? today ?? todayInZone(loaded.spreadsheetTimeZone) ?? loaded.days[0]?.date ?? "";
+        dispatch({ type: "loaded", view: loaded, today: preferred });
+        setLastSheetCheck(new Date().toISOString());
         void store.writeMonth(email, fileId, sheetId, loaded).catch(() => undefined);
       })
       .catch(() => {
@@ -120,7 +132,7 @@ export function AttendanceEditor({
     return () => {
       cancelled = true;
     };
-  }, [api, email, fileId, sheetId, store, today, state.loadAttempt]);
+  }, [api, email, fileId, initialDate, sheetId, store, today, state.loadAttempt]);
 
   const patches = useMemo(
     () => (view === null || baseline === null || draft === null
@@ -175,13 +187,17 @@ export function AttendanceEditor({
     if (restoredDate !== selectedDate) return;
 
     if (!dirty) {
-      void store.clearDraft(email, fileId, sheetId, selectedDate).catch(() => undefined);
+      void store
+        .clearDraft(email, fileId, sheetId, selectedDate)
+        .then(() => setDraftStorageState("clean"))
+        .catch(() => setDraftStorageState("unavailable"));
       return;
     }
 
     void store
       .writeDraft(email, fileId, sheetId, selectedDate, { day: draft, baseline })
-      .catch(() => undefined);
+      .then(() => setDraftStorageState("saved"))
+      .catch(() => setDraftStorageState("unavailable"));
   }, [email, fileId, sheetId, selectedDate, draft, baseline, dirty, restoredDate, store]);
 
   /** Browser-level navigation gets the same protection as day navigation. */
@@ -216,7 +232,10 @@ export function AttendanceEditor({
 
     api
       .save(view.fileId, sheetId, { date: selectedDate, patches })
-      .then((result) => dispatch({ type: "save-succeeded", result }))
+      .then((result) => {
+        dispatch({ type: "save-succeeded", result });
+        setLastSheetCheck(new Date().toISOString());
+      })
       .catch((error: unknown) => {
         const status = statusOf(error);
 
@@ -261,19 +280,44 @@ export function AttendanceEditor({
   if (view === null || draft === null || selectedDate === null) {
     return (
       <div className="attendance">
-        <LoadingGhosts label="Loading this timesheet…" />
+        <StateSkeleton label="Loading this timesheet" count={5} variant="card" height="6rem" />
       </div>
     );
   }
 
   const dayIndex = view.days.findIndex((day) => day.date === selectedDate);
   const saving = saveState.status === "saving";
+  const sheetToday = today ?? todayInZone(view.spreadsheetTimeZone);
+  const todayAvailable = sheetToday !== null && view.days.some((day) => day.date === sheetToday);
+  const syncState: SyncState = saving
+    ? "syncing"
+    : saveState.status === "failed"
+      ? saveState.needsReauth
+        ? "needs-attention"
+        : "offline"
+      : saveState.status === "saved" && saveState.conflicts.length > 0
+        ? "remote-changes-detected"
+        : dirty
+          ? draftStorageState === "unavailable"
+            ? "local-storage-unavailable"
+            : draftStorageState === "saved"
+              ? "saved-locally"
+              : "syncing"
+          : "synced";
 
   return (
     <div className="attendance">
       <header className="attendance-header">
-        <h2 className="attendance-month">{formatMonth(view.month)}</h2>
-        <p className="attendance-sheet">{view.sheetTitle}</p>
+        <div className="attendance-context">
+          <Link className="attendance-back" href="/dashboard">← Back to calendar</Link>
+          <h2 className="attendance-month">{formatMonth(view.month)}</h2>
+          <p className="attendance-sheet">{view.sheetTitle}</p>
+        </div>
+
+        <p className="attendance-last-check">
+          <span>Last Sheet check</span>
+          <strong>{lastSheetCheck ? "Just now" : "Checking…"}</strong>
+        </p>
 
         <nav className="day-navigation" aria-label="Day navigation">
           <button
@@ -305,6 +349,17 @@ export function AttendanceEditor({
             }))}
             onSelect={(date) => dispatch({ type: "select-date", date })}
           />
+
+          <button
+            type="button"
+            className="action"
+            disabled={!todayAvailable || saving}
+            onClick={() => {
+              if (sheetToday) dispatch({ type: "select-date", date: sheetToday });
+            }}
+          >
+            Today
+          </button>
 
           <button
             type="button"
@@ -377,14 +432,19 @@ export function AttendanceEditor({
         />
       </section>
 
-      <div className="attendance-actions">
+      <div className="attendance-actions sticky-actions">
+        <SyncStatus
+          state={syncState}
+          cause={saveState.status === "failed" && saveState.needsReauth ? "authentication" : undefined}
+          lastCheckedLabel={lastSheetCheck ? "Last checked just now" : undefined}
+        />
         <button
           type="button"
           className="action action-primary"
           disabled={saving}
           onClick={handleSave}
         >
-          Save to Google Sheets
+          Save &amp; sync
         </button>
 
         {dirty ? <p className="dirty-indicator">Unsaved changes</p> : null}

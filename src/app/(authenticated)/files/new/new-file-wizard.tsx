@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import {
   ApiErrorNotice,
   requestApi,
@@ -22,6 +22,7 @@ import {
   type FolderPreference,
 } from "@/lib/dashboard/folder-preference";
 import { RosterPicker } from "@/components/roster-picker";
+import { WizardShell, type WizardStep, type WizardSummaryItem } from "@/components/wizard-shell";
 import type { LocalStore } from "@/lib/dashboard/local-store";
 import type { MemberSummary } from "@/lib/files/member-service";
 import type { CreateFileInput } from "@/lib/files/schemas";
@@ -118,6 +119,13 @@ const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 /* -------------------------------------------------------------------------- */
 
 type Stage = "details" | "members" | "review" | "created" | "partial";
+
+const CREATE_STEPS: readonly WizardStep[] = [
+  { id: "details", label: "Details", description: "Name, month, and folder" },
+  { id: "members", label: "Members", description: "People and sheet tabs" },
+  { id: "review", label: "Review", description: "Confirm before Drive changes" },
+  { id: "setup", label: "Setup", description: "Create, share, and recover" },
+];
 
 interface DetailErrors {
   fileName?: string;
@@ -432,6 +440,7 @@ export function NewFileWizard({
   store,
 }: NewFileWizardProps) {
   const [state, dispatch] = useReducer(reduce, email, createInitialState);
+  const [submitAttempt, setSubmitAttempt] = useState(0);
 
   /**
    * The remembered folder lives in browser storage, so it can only be read
@@ -504,6 +513,33 @@ export function NewFileWizard({
     }
   }
 
+  function advanceStep(): void {
+    setSubmitAttempt((attempt) => attempt + 1);
+    dispatch({ type: "advance" });
+  }
+
+  function selectCompletedStep(stepId: string): void {
+    if (stepId === "details") {
+      if (state.stage === "review") dispatch({ type: "back" });
+      if (state.stage === "members" || state.stage === "review") dispatch({ type: "back" });
+      return;
+    }
+
+    if (stepId === "members" && state.stage === "review") {
+      dispatch({ type: "back" });
+    }
+  }
+
+  const summary: readonly WizardSummaryItem[] = [
+    { label: "File", value: state.fileName.trim() ? `${state.fileName.trim()} file` : "Not set" },
+    { label: "Month", value: state.month ? `${state.month} selected` : "Not set" },
+    {
+      label: "Folder",
+      value: state.folder ? `${state.folder.name} selected` : "Not selected",
+    },
+    { label: "Members", value: `${state.members.length} in draft` },
+  ];
+
   if (state.stage === "created" && state.result !== null) {
     return (
       <p role="status" className="form-status">
@@ -526,9 +562,24 @@ export function NewFileWizard({
 
   if (state.stage === "details") {
     return (
-      <section className="section step" aria-labelledby="details-heading">
-        <h2 id="details-heading">File details</h2>
-
+      <WizardShell
+        title="Create monthly file"
+        purpose="Create one attendance file for the month, then share each member's own sheet."
+        steps={CREATE_STEPS}
+        currentStepId="details"
+        onStepSelect={selectCompletedStep}
+        stepTitle="File details"
+        stepLede="Name the file, choose its month, and confirm where it belongs."
+        summary={summary}
+        summaryTitle="File summary"
+        summaryNote="Nothing is created in Drive until you confirm the Review step."
+        submitAttempt={submitAttempt}
+        actions={
+          <button type="button" className="action action-primary" onClick={advanceStep}>
+            Continue to members
+          </button>
+        }
+      >
         <div className="field">
           <label htmlFor="file-name">File name</label>
           <input
@@ -573,25 +624,35 @@ export function NewFileWizard({
           failure={state.folderFailure}
           onSelect={selectFolder}
         />
-
-        <div className="card-actions">
-          <button
-            type="button"
-            className="action action-primary"
-            onClick={() => dispatch({ type: "advance" })}
-          >
-            Continue to members
-          </button>
-        </div>
-      </section>
+      </WizardShell>
     );
   }
 
   if (state.stage === "members") {
     return (
-      <section className="section step" aria-labelledby="members-heading">
-        <h2 id="members-heading">Members</h2>
-
+      <WizardShell
+        title="Create monthly file"
+        purpose="Create one attendance file for the month, then share each member's own sheet."
+        steps={CREATE_STEPS}
+        currentStepId="members"
+        onStepSelect={selectCompletedStep}
+        stepTitle="Members"
+        stepLede="Add the people who need a timesheet and confirm each Google Workspace email."
+        summary={summary}
+        summaryTitle="File summary"
+        summaryNote="Nothing is created in Drive until you confirm the Review step."
+        submitAttempt={submitAttempt}
+        actions={
+          <>
+            <button type="button" className="action" onClick={() => dispatch({ type: "back" })}>
+              Back to file details
+            </button>
+            <button type="button" className="action action-primary" onClick={advanceStep}>
+              Review
+            </button>
+          </>
+        }
+      >
         <RosterPicker
           email={email}
           store={store}
@@ -618,27 +679,45 @@ export function NewFileWizard({
             {state.rosterError}
           </p>
         )}
-
-        <div className="card-actions">
-          <button type="button" className="action" onClick={() => dispatch({ type: "back" })}>
-            Back to file details
-          </button>
-          <button
-            type="button"
-            className="action action-primary"
-            onClick={() => dispatch({ type: "advance" })}
-          >
-            Review
-          </button>
-        </div>
-      </section>
+      </WizardShell>
     );
   }
 
   return (
-    <section className="section step" aria-labelledby="review-heading">
-      <h2 id="review-heading">Review and create</h2>
-
+    <WizardShell
+      title="Create monthly file"
+      purpose="Create one attendance file for the month, then share each member's own sheet."
+      steps={CREATE_STEPS}
+      currentStepId="review"
+      onStepSelect={selectCompletedStep}
+      stepTitle="Review and create"
+      stepLede="Check every detail before this wizard creates and shares a Google Drive file."
+      summary={summary}
+      summaryTitle="File summary"
+      summaryNote="Creating the file changes Drive; a retained partial file is never deleted automatically."
+      status={state.isSubmitting ? "Creating file and setting up member sheets…" : null}
+      busy={state.isSubmitting}
+      actions={
+        <>
+          <button
+            type="button"
+            className="action"
+            disabled={state.isSubmitting}
+            onClick={() => dispatch({ type: "back" })}
+          >
+            Back to members
+          </button>
+          <button
+            type="button"
+            className="action action-primary"
+            disabled={state.isSubmitting}
+            onClick={() => void create()}
+          >
+            {state.isSubmitting ? "Creating file…" : "Create file"}
+          </button>
+        </>
+      }
+    >
       <dl className="card-facts">
         <div className="card-fact">
           <dt>File name</dt>
@@ -689,25 +768,6 @@ export function NewFileWizard({
       </p>
 
       <ApiErrorNotice failure={state.failure} fallbackMessage={CREATE_FAILED} />
-
-      <div className="card-actions">
-        <button
-          type="button"
-          className="action"
-          disabled={state.isSubmitting}
-          onClick={() => dispatch({ type: "back" })}
-        >
-          Back to members
-        </button>
-        <button
-          type="button"
-          className="action action-primary"
-          disabled={state.isSubmitting}
-          onClick={() => void create()}
-        >
-          {state.isSubmitting ? "Creating file…" : "Create file"}
-        </button>
-      </div>
-    </section>
+    </WizardShell>
   );
 }

@@ -657,7 +657,7 @@ export function NewFileWizard({
         * and still appears in each member's Drive — it only stops Google
         * emailing them about it.
         */}
-      <div className="field-checkbox">
+      <div className="field field-checkbox">
         <input
           id="send-invitations"
           type="checkbox"

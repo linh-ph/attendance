@@ -866,6 +866,44 @@ a change there stops and reports.
   documented cast in `toLegacyStore.readMonth`, kept only because narrowing the
   type would fail typecheck in a file S4 owns.
 
+- 2026-08-31: **F6 landed** on `redesign/f6-wizard-shell` (`14ff5ee`),
+  `verify` `EXIT=0` (736 tests) and Playwright `29 passed` against the three
+  **unported** wizards — the regression guard held, which is the point of not
+  porting them in this task. Four deliberate mutations were each caught.
+
+  S7a and S7b import from `@/components/wizard-shell` only, never from a file
+  inside it. The pieces that decide their work:
+  - `submitAttempt: number` — **increment once per submitted step attempt**.
+    Focus moves to the first `aria-invalid` control only when that number
+    changes, so focus never moves while someone is still typing. A rerender that
+    turns fields invalid without changing it is asserted to leave focus alone.
+  - `WizardSummary as="section"` is the mobile review surface and `as="aside"`
+    the desktop live summary — **the same renderer**, so review and summary
+    cannot drift apart.
+  - `WizardField` (render prop) and `WizardItemList`/`WizardItem` keep field-
+    and item-level errors **beside the failing control or row**, never collected
+    at the top.
+  - `SetupProgress` is the post-mutation progress/recovery surface — render it
+    as the body of the final `setup` step; the shell needs no extra slot. Its
+    description now uses `.wizard-status` rather than F5's `.form-status`,
+    because F6 does not own F5's file.
+
+  Accessibility is proven by test, not asserted: keyboard-complete rail
+  traversal, `aria-describedby` binding (and *no* `aria-describedby` when there
+  is nothing to describe), focus only after a failed submit, live regions that
+  do not move focus, and a `.sr-only` word plus a shape on every rail state so
+  colour never carries meaning alone. 44 px targets are **inherited from F1's
+  primitives, not re-derived** — no bar height or target size is hard-coded.
+
+### Pending: refresh the contract document once
+
+`docs/patterns/ui-redesign-contract.md` is F1's file, and F6 has already made
+its `wizard.css` inventory stale; F2 and F5 will do the same for `shell.css` and
+`states.css`. **Do not let three agents each edit F1's file.** Resume F1 once,
+after F2 and F5 land, to refresh all three per-surface inventories together.
+Wave 2 agents read this document as their only guide to what exists, so it must
+be current before they start.
+
 ### The cache-first render rule (binding on S2 and S4)
 
 A cached month carries everything needed to draw the calendar and the day data,

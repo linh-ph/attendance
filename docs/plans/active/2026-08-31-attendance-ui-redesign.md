@@ -977,13 +977,35 @@ a change there stops and reports.
   `--bottom-nav-height + --safe-bottom` there. **Read the tokens; never
   hard-code a bar height.**
 
-### Pending: refresh the contract document once
+- 2026-08-31: **Contract document refreshed** (`3fa82d1` on
+  `redesign/f1-design-foundation`), `verify` `EXIT=0`. All three Wave 1
+  inventories were applied in **one pass by the file's owner** rather than by
+  three agents editing it in turn. F1 verified mechanically: the 173 already
+  documented class names intersected with the 79 newly reported ones is empty —
+  no collisions — and all 79 landed.
 
-`docs/patterns/ui-redesign-contract.md` is F1's file, and all three Wave 1 tasks
-made a per-surface inventory in it stale. Rather than let three agents edit one
-owner's file, their reports were held and handed to F1 in a single pass
-(dispatched 2026-08-31, in flight). Wave 2 agents read this document as their
-only guide to what exists, so it must be current before they start.
+  It also added a **Component entry points** section ahead of the class lists,
+  which is the part that actually prevents reinvention: the `PageShell` slot
+  contract, the sync/state import rules (with `ErrorNotice` living in
+  `api-error-notice`, and `diagnostic` as the way to pass a route's `debug`),
+  and the wizard's import-from-the-index-only rule — each framed as "these are
+  the internals of X, consume the component". Plus a note that because
+  `SyncStatus` owns the eight sync words, **a ninth phrasing is a regression,
+  not a wording preference.**
+
+  Three naming hazards are now documented for Wave 2: `.page-*` spans four
+  owners (F1's `.page-lede`, F5's `.page-error`, S1's `.page-centered`, F2's six
+  slots) and is the most likely thing to misattribute; `.state-*` splits between
+  F1's `.state-pill*` and F5's `.state-notice*`/`.state-skeleton`; and
+  `.state-skeleton` is a scene built from F1 presets, **not** a `.skeleton`
+  variant.
+
+  One genuine duplication was found rather than papered over: F6's
+  `.wizard-status-busy`/`-attention` express the same two states as F1's
+  `.state-pill-busy`/`-attention`. Both are live and neither is wrong, so it is
+  documented with agents steered to `.state-pill` outside a wizard. Converging
+  them is an F6 change and a candidate for a later simplification pass — not
+  worth an agent mid-flight.
 
 ### Blocked: Wave 2 needs a combined base
 

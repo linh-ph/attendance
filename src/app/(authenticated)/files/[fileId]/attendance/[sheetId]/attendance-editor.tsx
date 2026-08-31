@@ -334,6 +334,12 @@ export function AttendanceEditor({
         />
       </section>
 
+      {/*
+       * One column: the work block and the day-copier share it, so the copier
+       * sits directly under the shorter form instead of being pushed down by
+       * however tall the day summary opposite happens to be.
+       */}
+      <div className="attendance-side">
       <section className="section section-block" aria-labelledby="work-block-heading">
         <h3 id="work-block-heading">Work block</h3>
         <WorkBlockForm
@@ -343,20 +349,13 @@ export function AttendanceEditor({
         />
       </section>
 
-      <section className="section section-timeline" aria-labelledby="timeline-heading">
-        <h3 id="timeline-heading">Work report</h3>
-        <TimelineEditor
-          day={draft}
-          disabled={saving}
-          onSlotChange={(slot, value) => dispatch({ type: "slot-change", slot, value })}
-        />
-      </section>
-
       {/*
-        * Copying the open day onto others. It sits after the editors and before
-        * Save because it reads as a second thing to do with the day now in
-        * front of you, and it is deliberately unavailable while a save is in
-        * flight: it writes through the same endpoint.
+        * Under the work block, which is the shorter of the two forms and leaves
+        * the column half empty. It belongs beside the day it copies rather than
+        * below the whole page, and it is unavailable while a save is in flight
+        * or while the day is dirty: it writes through the same endpoint, and
+        * copying a day that has not been saved would copy something the sheet
+        * has not seen.
         */}
       <BulkApplyPanel
         fileId={view.fileId}
@@ -367,6 +366,16 @@ export function AttendanceEditor({
         disabled={saving || dirty}
         onApplied={() => dispatch({ type: "reload" })}
       />
+      </div>
+
+      <section className="section section-timeline" aria-labelledby="timeline-heading">
+        <h3 id="timeline-heading">Work report</h3>
+        <TimelineEditor
+          day={draft}
+          disabled={saving}
+          onSlotChange={(slot, value) => dispatch({ type: "slot-change", slot, value })}
+        />
+      </section>
 
       <div className="attendance-actions">
         <button

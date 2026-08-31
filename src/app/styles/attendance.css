@@ -43,7 +43,12 @@
     grid-row: 2;
   }
 
-  .section-block {
+  /*
+   * The work block and the day-copier, stacked. Together they fill the column
+   * the work block alone left half empty, and the copier stays beside the day
+   * it copies rather than below the whole page.
+   */
+  .attendance-side {
     grid-column: 2;
     grid-row: 2;
   }
@@ -648,10 +653,6 @@
 /* Applying one day to several                                                 */
 /* -------------------------------------------------------------------------- */
 
-.bulk-apply {
-  grid-column: 1 / -1;
-}
-
 /*
  * Set apart from the editors above it: this writes to days that are not on
  * screen, so it should not read as another field of the open day.
@@ -711,4 +712,11 @@
   gap: var(--space-xs);
   flex-wrap: wrap;
   margin-top: var(--space-sm);
+}
+
+/* The right-hand column: work block above, day-copier below. */
+.attendance-side {
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
 }

@@ -546,6 +546,13 @@ Proof: `Saved locally` only after an acknowledged write; the storage-failure and
 save-succeeded-cache-failed paths asserted directly; existing attendance
 validation and smallest-cell write tests still green.
 
+**Handoff from F4:** `AttendanceMonthView.spreadsheetTimeZone` is declared
+optional only because two fixtures you own — `attendance-editor.test.tsx` and
+`bulk-apply-panel.test.tsx` — predate the field and F4 could not edit them. Add
+`spreadsheetTimeZone: null` to both so the integrator can drop the `?` and make
+the field required. Also re-point `attendance-labels.ts` off its hardcoded
+`timeZone: "UTC"` onto the spreadsheet zone, treating `undefined` as `null`.
+
 ### S5 — Managed files hub
 
 Read: spec §7.1. Mockup: `management-wizards.html`.
@@ -660,6 +667,15 @@ docker run --rm -v "$PWD:/app" -v /app/node_modules attendance-e2e npm run test:
 `resolveTestMode` stays the only gate to the deterministic adapter, and
 `/api/e2e/reset` still requires both the flag and `X-E2E-Secret`.
 
+**Handoff from F4:** the deterministic fake in
+`src/lib/testing/fake-google-store.ts` supplies no spreadsheet timezone, so
+under `E2E_TEST_MODE` every file reports `spreadsheetTimeZone: null` and `Today`
+is correctly disabled. Add a `timeZone` to the snapshot it returns before
+writing any e2e spec that exercises `Today`. **This is the one file V3 may edit
+outside its own area** — do not weaken `resolveTestMode` or any product check to
+make a browser test pass. Also re-point `dashboard-client.tsx`'s hardcoded
+`timeZone: "UTC"` if S2 has not already.
+
 ---
 
 ## File ownership map
@@ -743,6 +759,22 @@ a change there stops and reports.
   order.
 - 2026-08-31: Wave 0 dispatched — F1 (`redesign/f1-design-foundation`),
   F3 (`redesign/f3-attendance-cache`), F4 (`redesign/f4-timezone-day-state`).
+- 2026-08-31: **F4 landed** on `redesign/f4-timezone-day-state` (`a32146d`),
+  `verify` `EXIT=0`, 758 tests passing. It publishes:
+  - `AttendanceMonthView.spreadsheetTimeZone: string | null` — a validated IANA
+    id, or `null` meaning *undeterminable*. Sheets' custom-zone fallback
+    (`GMT-07:00`) is rejected as not-IANA. **Treat `undefined` as `null`.**
+  - `lib/attendance/zone.ts`: `isIanaTimeZone`, `normalizeSpreadsheetTimeZone`,
+    `todayInZone(zone, instant) → "YYYY-MM-DD" | null`.
+  - `lib/attendance/day-state.ts`: `dayRecordState(day) → recorded |
+    not-recorded`, plus `nonWorkingDaySource` / `isNonWorkingDay`
+    (weekend wins over a context-listed date). No `Complete` state.
+  - `SpreadsheetSnapshot.timeZone` carries the **raw** Sheets value; validation
+    lives in the service so `google/` keeps no dependency on `attendance/`.
+
+  It edited `src/lib/google/types.ts` additively, which the ownership map's
+  "except F4's gateway change" carve-out permits. Two handoffs are recorded
+  against S4 and V3 below.
 
 ### Operational notes for every agent
 

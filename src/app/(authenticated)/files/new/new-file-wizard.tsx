@@ -479,7 +479,24 @@ export function NewFileWizard({
       dispatch({ type: "settled", result });
 
       if (result.file.complete) {
-        navigate(`/files/${result.file.id}/members`);
+        /*
+         * Straight to the creator's own timesheet, because that is what they
+         * came to do: the month exists so hours can go into it. The roster was
+         * already reviewed a step ago, so landing on Manage members asked them
+         * to confirm it twice.
+         *
+         * A manager who removed their own row has no tab here, and for them the
+         * roster really is the useful next screen.
+         */
+        const ownTab = result.members.find(
+          (member) => member.email === email && member.sheetId !== null,
+        );
+
+        navigate(
+          ownTab
+            ? `/files/${result.file.id}/attendance/${ownTab.sheetId}`
+            : `/files/${result.file.id}/members`,
+        );
       }
     } catch (error) {
       dispatch({ type: "failed", failure: toApiFailure(error) });

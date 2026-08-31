@@ -199,6 +199,11 @@ shortcuts: choosing one fills a member row that can still be edited or removed,
 and anyone already on the draft stops being offered. The roster suggests; it
 grants nothing, and every file operation is authorized on its own.
 
+When the file is created, it opens on the creator's own timesheet — the month
+exists so hours can go into it, and the roster was reviewed a step earlier. A
+manager who removed their own row has no tab to open, and lands on
+`Manage members` instead.
+
 Every browser-local record is keyed by the normalized signed-in email, so two
 accounts sharing a browser profile cannot see each other's. These records
 deliberately outlive sign-out, which means a shared machine keeps one person's

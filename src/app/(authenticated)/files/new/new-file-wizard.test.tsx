@@ -557,15 +557,49 @@ describe("NewFileWizard — review and create", () => {
     await waitFor(() => expect(harness.navigate).toHaveBeenCalled());
   });
 
-  it("remembers the destination folder and opens the new file when setup completes", async () => {
-    const harness = await reachReview();
+  /*
+   * The month exists so hours can go into it, and the roster was reviewed a
+   * step earlier — landing on Manage members asked for it to be confirmed
+   * twice.
+   */
+  it("opens the creator's own timesheet, and remembers the destination folder", async () => {
+    const harness = await reachReview(
+      createHarness({
+        onCreate: async () =>
+          createdResponse({
+            members: [
+              progress({ email: "employee-a@blended-asia.com", sheetId: "101" }),
+              progress({ email: EMAIL, sheetId: "202", displayName: "The manager" }),
+            ],
+          }),
+      }),
+    );
+
+    click("Create file");
+
+    await waitFor(() =>
+      expect(harness.navigate).toHaveBeenCalledExactlyOnceWith(
+        "/files/new-file/attendance/202",
+      ),
+    );
+    expect(storedFolder()).toEqual(REMEMBERED_FOLDER);
+  });
+
+  it("falls back to the roster for a manager who kept no tab of their own", async () => {
+    const harness = await reachReview(
+      createHarness({
+        onCreate: async () =>
+          createdResponse({
+            members: [progress({ email: "employee-a@blended-asia.com", sheetId: "101" })],
+          }),
+      }),
+    );
 
     click("Create file");
 
     await waitFor(() =>
       expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/files/new-file/members"),
     );
-    expect(storedFolder()).toEqual(REMEMBERED_FOLDER);
   });
 });
 

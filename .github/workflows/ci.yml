@@ -1,0 +1,187 @@
+# Continuous integration.
+#
+# Everything runs inside the repository's own Docker stages rather than on a
+# runner-provided Node. That is not ceremony: `CLAUDE.md` makes this project
+# Docker-first because the toolchain is pinned to Node 24.19.0 and
+# `node_modules` lives in a volume, so a host Node that merely looks close
+# enough can pass here and fail for a developer. CI runs what a developer runs.
+#
+# Two rules this file follows deliberately:
+#
+#   1. No command is piped into `grep` or `tail`. A pipeline reports the exit
+#      status of its LAST element, not of npm, and that has already hidden a
+#      failing gate once in this repository. Every step here exits on its own
+#      status and lets the runner fail the job.
+#   2. Nothing weakens a product check to make CI green. `E2E_TEST_MODE` is
+#      confined to the browser-proof job, where `playwright.config.ts` supplies
+#      it to its own dev server; the runtime guard still refuses it under
+#      `NODE_ENV=production`.
+#
+# The credential-shaped values below are obviously fake, local-only, and grant
+# nothing — the same convention as `.env.e2e.example`. No real secret is needed
+# to lint, test, or build this project.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "redesign/**"
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the commit
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # The `deps` stage is `npm ci` on the pinned base image. Caching it across
+      # runs and jobs is what keeps this workflow from reinstalling every time.
+      - name: Build the pinned toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: deps
+          load: true
+          tags: attendance-deps:ci
+          cache-from: type=gha,scope=deps
+          cache-to: type=gha,mode=max,scope=deps
+
+      # Compose declares `env_file: .env`, and `.env` is gitignored, so a fresh
+      # checkout has none. This is the documented first-run step.
+      - name: Provide the documented .env
+        run: cp .env.example .env
+
+      # Mirrors `docker compose run --rm app npm run verify`: the working tree is
+      # bind-mounted, and the anonymous volume keeps the image's `node_modules`
+      # from being hidden by the mount.
+      #
+      # `verify` is lint -> typecheck -> vitest -> next build, and it stops at the
+      # first failure, so the step name is the whole contract.
+      - name: npm run verify
+        run: >-
+          docker run --rm
+          -v "$PWD:/app" -v /app/node_modules
+          --env-file .env
+          attendance-deps:ci
+          npm run verify
+
+  e2e:
+    name: Browser proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the commit
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Playwright needs the `test` stage: `deps` carries no Chromium, and
+      # Compose no longer builds this target.
+      - name: Build the browser-proof image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          load: true
+          tags: attendance-e2e:ci
+          cache-from: |
+            type=gha,scope=test
+            type=gha,scope=deps
+          cache-to: type=gha,mode=max,scope=test
+
+      # No `.env` on purpose: `playwright.config.ts` starts its own dev server on
+      # port 3100 with its own local-only environment.
+      - name: npm run test:e2e
+        run: >-
+          docker run --rm
+          -v "$PWD:/app" -v /app/node_modules
+          attendance-e2e:ci
+          npm run test:e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  image:
+    name: Production image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the commit
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # `verify` runs `next build` inside the dev stage. This builds the artifact
+      # that actually ships: the standalone output, copied into a slim runner and
+      # dropped to a non-root user. The two `NEXT_PUBLIC_*` values are build-time
+      # only, and a placeholder is enough to prove the build — they are public by
+      # definition and this image is never published.
+      - name: Build the production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          load: true
+          tags: attendance-prod:ci
+          build-args: |
+            NEXT_PUBLIC_GOOGLE_PICKER_API_KEY=ci-placeholder-picker-key
+            NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER=000000000000
+          cache-from: |
+            type=gha,scope=runner
+            type=gha,scope=deps
+          cache-to: type=gha,mode=max,scope=runner
+
+      # A build that compiles can still fail to boot — a missing standalone file
+      # or a module that only resolves in dev shows up here and nowhere else.
+      # `GET /api/health` is unauthenticated by design.
+      - name: Boot the image and check readiness
+        run: >-
+          docker run -d --name attendance-smoke -p 3000:3000
+          -e AUTH_SECRET=ci-smoke-only-not-a-real-secret
+          -e AUTH_URL=http://127.0.0.1:3000
+          -e AUTH_TRUST_HOST=true
+          -e AUTH_GOOGLE_ID=ci-smoke-client-id
+          -e AUTH_GOOGLE_SECRET=ci-smoke-client-secret
+          attendance-prod:ci
+
+      # `--fail` makes any non-2xx an error; the retries absorb start-up only.
+      - name: GET /api/health
+        run: >-
+          curl --fail --silent --show-error
+          --max-time 60 --retry 12 --retry-delay 3 --retry-all-errors
+          http://127.0.0.1:3000/api/health
+
+      - name: Server log
+        if: failure()
+        run: docker logs attendance-smoke
+
+      - name: Stop the container
+        if: always()
+        run: docker rm --force attendance-smoke

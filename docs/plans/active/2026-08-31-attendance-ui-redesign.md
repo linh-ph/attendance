@@ -464,6 +464,20 @@ Do:
    ring, correct selected/today/state announcements, and every date exposed as a
    full readable date even when the cell shows only a day number.
 
+**Handoff from F5 — fix this, it is a live leak.** `dashboard-client.tsx` (your
+file) renders the raw diagnostic as
+`<pre className="debug-error">{JSON.stringify(state.debug, null, 2)}</pre>`.
+That path bypasses sanitization entirely and prints whatever the server sent.
+**It is the only unsanitized debug render left in the app.** Replace it with
+`<ErrorNotice … diagnostic={state.debug} />`, which applies F5's allowlist and
+redaction. Do not hand-roll a substitute.
+
+**Handoff from F3:** follow **the cache-first render rule** above — the cached
+month no longer carries `role`, so render cached data immediately with
+role-gated controls absent and reveal them only when the server response
+arrives. Also re-point the hardcoded `timeZone: "UTC"` onto F4's
+`spreadsheetTimeZone`, treating `undefined` as `null`.
+
 Proof: Recorded/Not-recorded tests across all six carriers; context tests for
 zero, one, multiple, duplicate-month, manager-opened, and legacy candidates,
 none of which treat navigation state as authorization; Today tests on both sides
@@ -894,6 +908,42 @@ a change there stops and reports.
   do not move focus, and a `.sr-only` word plus a shape on every rail state so
   colour never carries meaning alone. 44 px targets are **inherited from F1's
   primitives, not re-derived** — no bar height or target size is hard-coded.
+
+- 2026-08-31: **F5 landed** on `redesign/f5-sync-status-states` (`f64a27b`),
+  `verify` `EXIT=0`, 822 tests (105 new), five deliberate mutations each caught.
+  Screen agents import from `@/components/sync-status`, except `ErrorNotice`
+  which stays in `@/components/api-error-notice`:
+  - `<SyncStatus state cause? detail? lastCheckedLabel? announce?>` is **the only
+    place the eight §5.4 words exist**. It renders `role="status"
+    aria-live="polite"` and never focuses; `announce={false}` gives the bare
+    badge for a calendar cell or list row.
+  - `<StateNotice state scope? …recovery handlers>` covers all fourteen §8.2
+    states; the words come from the catalog, a screen supplies only handlers.
+    `invalid-workbook` and `partial-setup` default to `scope="card"`, so **one
+    bad file cannot fail a page**.
+  - `<StateSkeleton>` sets `--skeleton-w`/`--skeleton-h` to *final* dimensions,
+    shapes `aria-hidden`, label in a polite live region.
+  - `<ErrorNotice diagnostic={…}>`: pass the route's `debug` field straight in —
+    **the presence of the envelope is the flag**, there is no client-side switch.
+  Nothing touches storage, asserted against `Storage.setItem` and
+  `indexedDB.open` spies.
+
+- 2026-08-31: **Security defect found in frozen code; F7 opened.** F5 reported,
+  and I verified by reading `src/lib/google/errors.ts`, that
+  `sanitizeDiagnosticText` leaks two shapes into the **HTTP response** when
+  `APP_DEBUG_ERRORS=1`:
+  1. the `access_token|refresh_token|client_secret` rule requires a literal `:`
+     or `=`, so a percent-encoded `%3D` form passes, and `redactExactSecrets`
+     compares raw values so an encoded copy of a known secret also survives;
+  2. the `Authorization` rule's `[^\s;,]+` stops at the space, so
+     `Authorization: Basic <base64>` loses only the word `Basic` and keeps the
+     credential.
+
+  Spec §11.3 requires these not reach the *response*, not merely that the
+  browser hides them. F5 closed both in the UI, and its mutation run proved
+  empirically that the secret really is in the envelope with only the browser
+  gate stopping it. Dispatched **F7** (`redesign/f7-diagnostic-redaction`,
+  owning `src/lib/google/errors.ts` and its test only) to fix the server side.
 
 ### Pending: refresh the contract document once
 

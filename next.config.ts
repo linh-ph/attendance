@@ -1,7 +1,24 @@
 import type { NextConfig } from "next";
 
+/**
+ * Vercel sets `VERCEL=1` in every build and runtime environment it owns.
+ *
+ * It matters here because the two deploy targets want opposite things from
+ * `next build`. The Dockerfile's runner stage copies `.next/standalone`, so
+ * this repository's own image needs standalone output. Vercel builds its own
+ * output instead, and asking Next for standalone there makes the build die
+ * looking for a trace file it never wrote:
+ *
+ *   ENOENT: no such file or directory, open '.next/next-server.js.nft.json'
+ *
+ * So the option is set everywhere except on Vercel, rather than dropped.
+ * Dropping it would trade a broken preview for a broken production image.
+ */
+const isVercelBuild = process.env.VERCEL === "1";
+
 const nextConfig: NextConfig = {
-  output: "standalone",
+  ...(isVercelBuild ? {} : { output: "standalone" as const }),
+
   /**
    * `next dev` refuses to serve its own `/_next` development assets to a host
    * it does not recognize, and its built-in allow-list is `localhost` plus the

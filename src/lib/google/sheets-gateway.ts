@@ -9,6 +9,7 @@ import {
   type SheetSummary,
   type SheetsClient,
   type SheetsGateway,
+  type SpreadsheetResource,
   type ValueInputOption,
   type ValuePatch,
   type ValueRangePayload,
@@ -33,6 +34,22 @@ function toSheetSummary(sheet: SheetResource, index: number): SheetSummary {
         sheetId: range.range?.sheetId ?? null,
       })),
   };
+}
+
+/**
+ * The spreadsheet's own timezone, or `null` when Sheets does not report one.
+ *
+ * Transport normalization only — the string is passed through untouched apart
+ * from trimming. Whether it is a usable IANA identifier is a domain question,
+ * answered by `src/lib/attendance/zone.ts`; guessing a default here would be
+ * exactly the silent fallback the calendar must never make.
+ */
+function toTimeZone(properties: SpreadsheetResource["properties"]): string | null {
+  const raw = properties?.timeZone;
+  if (typeof raw !== "string") return null;
+
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
 }
 
 function toBatchReply(reply: SheetReplyResource): SheetBatchReply {
@@ -86,6 +103,7 @@ export function createSheetsGateway(sheets: SheetsClient): SheetsGateway {
 
         return {
           spreadsheetId: data.spreadsheetId ?? fileId,
+          timeZone: toTimeZone(data.properties),
           sheets: (data.sheets ?? []).map(toSheetSummary),
         };
       } catch (error) {

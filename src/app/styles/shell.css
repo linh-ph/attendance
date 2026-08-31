@@ -1,18 +1,89 @@
 /**
- * The application shell — the chrome that is the same on every signed-in page.
+ * The application shell — the chrome that is the same on every signed-in page,
+ * and the page frame every screen renders into.
  *
- * Owned by F2 (`AppShell`). Today that is a sticky top bar plus the page
- * container; the redesign replaces it with a desktop sidebar and a mobile
- * bottom navigation. The tokens those need — `--sidebar-width`,
- * `--bottom-nav-height`, `--app-bar-height`, `--surface-inverse`, `--z-app-bar`
- * — are already published in `tokens.css`, so no token change is required to
- * build them.
+ * Owned by F2 (`AppShell`, `PageShell`). Screen content belongs in the
+ * per-surface stylesheets, not here.
  *
- * Screen content belongs in the per-surface stylesheets, not here.
+ * ## One structure, two shells
+ *
+ * The markup is identical at every width. This file reflows it:
+ *
+ * - **Below `64rem`** (`--bp-lg`) the sidebar is `display: contents`, so its
+ *   children join the page flow: the brand bar sticks to the top, the
+ *   navigation is fixed to the bottom as a four-item bar, and the sidebar's
+ *   account footer is hidden — `More` owns it there.
+ * - **From `64rem`** the shell becomes a two-column grid, the sidebar is a
+ *   persistent dark column, and the two compact entries (`Manage`, `More`) are
+ *   hidden in favour of the labelled Management group.
+ *
+ * Hiding with `display: none` is the point: a hidden entry leaves the
+ * accessibility tree and the keyboard order together, so exactly one shell is
+ * ever navigable and the two can never disagree.
+ *
+ * ## `--app-bar-height` inside `main`
+ *
+ * A sticky brand bar exists only on the compact shell, so the desktop grid
+ * re-declares `--app-bar-height: 0rem` on `main`. Screens that offset a sticky
+ * header by that token — the day editor does — then clear the bar where there
+ * is one and sit at the top of the viewport where there is not. Read the token;
+ * never hard-code a bar height.
+ *
+ * Sections: skip link · shell layout · brand bar · navigation · account footer ·
+ * content region · page slots.
  */
 
 /* -------------------------------------------------------------------------- */
-/* Top bar                                                                     */
+/* Skip link                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * First in the DOM and first in the keyboard order. It is positioned, so it is
+ * not a grid item, and its resting transform is declared on the element rather
+ * than only in a transition — reduced motion collapses the transition, and the
+ * link must still be hidden until it is focused.
+ */
+.skip-link {
+  position: fixed;
+  top: calc(var(--space-xs) + var(--safe-top));
+  left: calc(var(--space-md) + var(--safe-left));
+  z-index: var(--z-toast);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-control);
+  background: var(--primary);
+  color: var(--primary-on);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--space-2xl)));
+  transition: transform var(--duration) var(--ease);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shell layout                                                                */
+/* -------------------------------------------------------------------------- */
+
+.app-shell {
+  min-height: 100vh;
+}
+
+/*
+ * Compact shell: the sidebar is not a box, it is three pieces of chrome that
+ * belong to the page — a sticky bar, a fixed bottom bar, and a footer that is
+ * hidden because `More` carries it.
+ */
+.app-sidebar {
+  display: contents;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Brand bar                                                                   */
 /* -------------------------------------------------------------------------- */
 
 .app-bar {
@@ -55,44 +126,433 @@
   letter-spacing: 0.02em;
 }
 
-.app-bar-spacer {
-  flex: 1;
+/* -------------------------------------------------------------------------- */
+/* Navigation                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Compact shell: a fixed four-item bar. Its own height carries the home
+ * indicator inset, so anything sitting above it offsets by height + inset.
+ */
+.app-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-app-bar);
+  padding-bottom: var(--safe-bottom);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  backdrop-filter: blur(12px);
 }
 
-.app-bar-user {
+.app-nav-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The desktop-only entries and the Management group leave the compact shell. */
+.app-nav-item[data-surface="desktop"],
+.app-nav-group {
+  display: none;
+}
+
+.app-nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  align-items: center;
+  justify-content: center;
+  /* Four columns at 320px are 80px wide, so height is the binding dimension. */
+  min-height: var(--bottom-nav-height);
+  padding: var(--space-2xs);
   color: var(--ink-500);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-snug);
+  text-align: center;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
-/* The sign-out control is secondary chrome, not a primary action. */
-.app-bar form {
-  margin: 0;
+.app-nav-icon-box {
+  display: grid;
+  place-items: center;
+  min-width: 2.25rem;
+  padding: var(--space-3xs) var(--space-xs);
+  border-radius: var(--radius-pill);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.app-bar button {
-  margin: 0;
-  padding: var(--space-2xs) var(--space-sm);
-  border-color: var(--border-strong);
-  color: var(--ink-700);
-  background: var(--surface);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-.app-bar button:hover:not(:disabled) {
+.app-nav-link:hover {
   color: var(--ink-900);
-  border-color: var(--primary);
+}
+
+.app-nav-link:hover .app-nav-icon-box {
+  background: var(--surface-sunken);
+}
+
+/*
+ * The current destination is never colour alone: it also carries the filled
+ * icon box, the heavier weight, and `aria-current="page"` in the markup.
+ */
+.app-nav-link[aria-current="page"] {
+  color: var(--primary-ink);
+}
+
+.app-nav-link[aria-current="page"] .app-nav-icon-box {
   background: var(--primary-wash);
 }
 
+.app-nav-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+  border-radius: var(--radius-sm);
+}
+
+.app-nav-label {
+  overflow-wrap: anywhere;
+}
+
+.app-nav-group-label {
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
 /* -------------------------------------------------------------------------- */
-/* Page container                                                              */
+/* Account footer                                                              */
 /* -------------------------------------------------------------------------- */
+
+/* Compact shell: the identity lives behind `More`, so the foot is not drawn. */
+.app-sidebar-footer {
+  display: none;
+}
+
+/* Also used by the `More` page, where it follows body copy. */
+.app-sign-out {
+  margin: var(--space-md) 0 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Content region                                                              */
+/* -------------------------------------------------------------------------- */
+
+.app-main {
+  min-width: 0;
+  /* Clears the fixed bottom bar and the home indicator under it. */
+  padding-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
+}
+
+/*
+ * The region is a focus target for the skip link and for a route change, not a
+ * tab stop. A pointer-driven route change must not draw a ring around the whole
+ * page, so only `:focus-visible` shows one — which is exactly the skip-link case.
+ */
+.app-main:focus {
+  outline: none;
+}
+
+.app-main:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+  border-radius: var(--radius-panel);
+}
 
 main {
   width: min(100%, var(--content-max));
   margin-inline: auto;
   padding: var(--space-lg) clamp(var(--space-md), 4vw, var(--space-2xl))
     calc(var(--space-2xl) + var(--safe-bottom));
+}
+
+/*
+ * A sticky action row inside the shell has to clear the bottom bar. The bar
+ * already owns the home-indicator inset, so the row hands its own back rather
+ * than paying for it twice.
+ */
+.app-main .sticky-actions {
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  padding-bottom: var(--space-sm);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page slots                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The frame `PageShell` renders: header (heading, status, actions), content,
+ * and an optional sticky footer. See `page-shell.tsx` for the contract.
+ */
+.page-header {
+  display: flex;
+  gap: var(--space-sm) var(--space-lg);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.page-heading {
+  min-width: 0;
+}
+
+.page-status {
+  flex: none;
+}
+
+.page-header-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.page-content {
+  margin-top: var(--space-lg);
+}
+
+.page-footer {
+  margin-top: var(--space-lg);
+}
+
+/* The action cluster owns its own line once the heading needs the width. */
+@media (max-width: 32rem) {
+  .page-header-actions {
+    width: 100%;
+  }
+
+  .page-header-actions > * {
+    flex: 1 1 auto;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Desktop shell — persistent sidebar from --bp-lg (1024px)                    */
+/* -------------------------------------------------------------------------- */
+
+@media (min-width: 64rem) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .app-sidebar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-y: auto;
+    padding: var(--space-md) var(--space-sm)
+      calc(var(--space-md) + var(--safe-bottom));
+    padding-left: calc(var(--space-sm) + var(--safe-left));
+    background: var(--surface-inverse);
+    color: var(--surface-inverse-muted);
+  }
+
+  /*
+   * The indigo focus ring is tuned for white. On the navy column white is the
+   * more visible replacement — 14.3:1 — so the ring is swapped, never removed.
+   */
+  .app-sidebar :focus-visible {
+    outline-color: var(--surface-inverse-ink);
+  }
+
+  /* The brand stops being a bar and becomes the head of the column. */
+  .app-sidebar .app-bar {
+    position: static;
+    min-height: auto;
+    padding: var(--space-xs) var(--space-sm) var(--space-lg);
+    border-bottom: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+
+  .app-sidebar .brand {
+    flex-direction: column;
+    gap: 0;
+    align-items: flex-start;
+  }
+
+  .app-sidebar .brand-mark {
+    color: var(--surface-inverse-ink);
+  }
+
+  .app-sidebar .brand-name {
+    color: var(--surface-inverse-muted);
+  }
+
+  .app-nav {
+    position: static;
+    padding: 0;
+    border-top: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+
+  .app-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3xs);
+  }
+
+  .app-nav-item[data-surface="mobile"] {
+    display: none;
+  }
+
+  .app-nav-item[data-surface="desktop"],
+  .app-nav-group {
+    display: block;
+  }
+
+  /* Management is present, and visibly second to the daily work above it. */
+  .app-nav-group {
+    margin-top: var(--space-lg);
+  }
+
+  .app-nav-group-label {
+    display: block;
+    padding: 0 var(--space-sm) var(--space-2xs);
+    color: var(--surface-inverse-muted);
+  }
+
+  .app-nav-link {
+    flex-direction: row;
+    gap: var(--space-sm);
+    align-items: center;
+    justify-content: flex-start;
+    min-height: var(--touch-target);
+    padding: 0 var(--space-sm);
+    border-radius: var(--radius-sm);
+    color: var(--surface-inverse-muted);
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    letter-spacing: normal;
+    text-align: left;
+    transition:
+      color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .app-nav-icon-box {
+    min-width: auto;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .app-nav-link:hover {
+    color: var(--surface-inverse-ink);
+    background: color-mix(in srgb, var(--surface-inverse-ink) 9%, transparent);
+  }
+
+  /* The row carries the wash here, so the compact shell's icon pill is off. */
+  .app-nav-link:hover .app-nav-icon-box,
+  .app-nav-link[aria-current="page"] .app-nav-icon-box {
+    background: none;
+  }
+
+  .app-nav-link[aria-current="page"] {
+    color: var(--surface-inverse-ink);
+    background: color-mix(in srgb, var(--surface-inverse-ink) 13%, transparent);
+    /* An indigo rail on the leading edge, so current is a shape as well. */
+    box-shadow: inset 2px 0 0 0 var(--primary);
+  }
+
+  .app-sidebar-footer {
+    display: block;
+    margin-top: auto;
+    padding-top: var(--space-sm);
+    border-top: 1px solid
+      color-mix(in srgb, var(--surface-inverse-ink) 14%, transparent);
+  }
+
+  .app-account {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    min-height: var(--touch-target);
+    padding: var(--space-2xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    color: var(--surface-inverse-muted);
+    text-decoration: none;
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .app-account:hover {
+    background: color-mix(in srgb, var(--surface-inverse-ink) 9%, transparent);
+  }
+
+  .app-account[aria-current="page"] {
+    background: color-mix(in srgb, var(--surface-inverse-ink) 13%, transparent);
+    box-shadow: inset 2px 0 0 0 var(--primary);
+  }
+
+  .app-account-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-pill);
+    background: var(--primary);
+    color: var(--primary-on);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-black);
+  }
+
+  .app-account-copy {
+    display: grid;
+    min-width: 0;
+  }
+
+  .app-account-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .app-account-email {
+    color: var(--surface-inverse-ink);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .app-sidebar-footer .app-sign-out {
+    margin-top: var(--space-2xs);
+  }
+
+  /* `.btn-ghost` is drawn for the light canvas; the column inverts it. */
+  .app-sidebar-footer .btn-ghost {
+    color: var(--surface-inverse-muted);
+    font-size: var(--text-sm);
+  }
+
+  .app-sidebar-footer .btn-ghost:hover:not(:disabled) {
+    color: var(--surface-inverse-ink);
+    background: color-mix(in srgb, var(--surface-inverse-ink) 9%, transparent);
+  }
+
+  .app-main {
+    padding-bottom: 0;
+  }
+
+  /*
+   * No sticky brand bar in this column, so anything that offsets by the bar
+   * sits at the top of the viewport instead.
+   */
+  main {
+    --app-bar-height: 0rem;
+  }
+
+  .app-main .sticky-actions {
+    bottom: 0;
+    padding-bottom: calc(var(--space-sm) + var(--safe-bottom));
+  }
 }

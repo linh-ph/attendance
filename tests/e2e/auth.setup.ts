@@ -20,8 +20,10 @@ setup("an unauthenticated visitor is sent to sign in", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/login(\?|$)/);
   await expect(page.getByRole("heading", { name: "Attendance", level: 1 })).toBeVisible();
-  await expect(page.getByText("blended-asia")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeVisible();
+  // Specific on purpose: "blended-asia" alone now also appears in the privacy
+  // line, and a locator that matches two nodes fails strict mode.
+  await expect(page.getByText("blended-asia Attendance")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
 });
 
 setup("the sign-in artwork loads for a visitor with no session", async ({ page }) => {
@@ -34,7 +36,7 @@ setup("the sign-in artwork loads for a visitor with no session", async ({ page }
   // `next dev`, which reads `public/` from disk, while the production server's
   // image optimizer fetches the file over HTTP and is therefore the only build
   // a gated static path breaks. That rule is proven in `src/proxy.test.ts`.
-  const artwork = page.locator("img.hero-art");
+  const artwork = page.locator("img.login-image");
   await expect(artwork).toBeVisible();
   await expect
     .poll(() => artwork.evaluate((img: HTMLImageElement) => img.naturalWidth))

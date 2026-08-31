@@ -776,6 +776,47 @@ a change there stops and reports.
   "except F4's gateway change" carve-out permits. Two handoffs are recorded
   against S4 and V3 below.
 
+- 2026-08-31: **F1 landed** on `redesign/f1-design-foundation`. `verify`
+  `EXIT=0` (717 tests) and the full Playwright suite `EXIT=0` (29/29) — that
+  e2e run is the rendering proof, so the split is confirmed non-breaking rather
+  than assumed. The diff touches only CSS, `src/app/layout.tsx`, and the new
+  contract; **no `.tsx` component was edited and no class was renamed**.
+  F1 verified the contract mechanically: a script asserted every class and
+  token defined in the CSS also appears in `docs/patterns/ui-redesign-contract.md`
+  — 0 missing of each. It also fixed a pre-existing bug: the old `shell.css`
+  was missing its final closing brace, silently truncating `.debug-error`.
+
+  **Three deliberate removals** in the re-skin, all reversible now and
+  expensive later:
+  1. the time-rail `.card::before` bar and its `:has()` colouring — that motif
+     is exactly what Calm productivity replaces; card state now rides on
+     `.card-state`, which carries a shape and a word, not only a colour;
+  2. the monospaced numeric face — `--font-numeric` resolves to the UI stack per
+     the approved single-stack direction, and tabular alignment comes from
+     `font-variant-numeric`, which is what spec §2.2 actually requires;
+     `--font-mono` remains for the one correct use, the sanitized debug surface;
+  3. `loading.css` and `responsive.css` as files.
+
+  **Two ownership placements** F1 decided because the map did not settle them:
+  `.open-file-panel` → `timesheets.css` (S3 owns the controls it frames, even
+  though S2's dashboard renders it today); `.card-state*` → `primitives.css`
+  (S2 and S5 both render managed-file state and must not each grow a pill).
+
+- 2026-08-31: **Wave 1 dispatched from F1's branch, not from integration.**
+  F2 (`redesign/f2-app-shell`), F5 (`redesign/f5-sync-status-states`),
+  F6 (`redesign/f6-wizard-shell`) each branch from
+  `origin/redesign/f1-design-foundation`. Chaining branches this way preserves
+  the dependency order without any merge, so no integration merge is performed
+  by an agent; the final assembly is a human decision.
+
+### Watch at integration
+
+- The base `button` rule now carries `min-height: var(--touch-target)` (44 px)
+  for WCAG 2.2, which makes every button taller than before. `--app-bar-height`
+  rose to `3.75rem` to match, and the day editor's sticky header offsets from
+  that token. **Any screen that hard-codes a bar height instead of reading the
+  token will drift.**
+
 ### Operational notes for every agent
 
 Two things a fresh worktree does not inherit, both discovered the hard way:

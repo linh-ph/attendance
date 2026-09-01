@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ErrorNotice } from "@/components/api-error-notice";
 import { formatMonthLabel } from "@/components/month-label";
-import { StateNotice, StateSkeleton } from "@/components/sync-status";
+import { LoadingGhosts } from "@/components/loading-ghosts";
+import { StateNotice } from "@/components/sync-status";
 import type { ManagedFile, Timesheet } from "@/lib/discovery/file-discovery";
 import type { RecentFile } from "@/lib/dashboard/local-records";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
@@ -110,7 +111,7 @@ export function TimesheetsClient({ email, store: storeProp }: TimesheetsClientPr
   }, [email, store]);
 
   if (state.status === "loading") {
-    return <StateSkeleton label="Loading your timesheets" count={3} variant="card" height="6rem" />;
+    return <LoadingGhosts label="Loading your timesheets…" />;
   }
 
   if (state.status === "failed") {

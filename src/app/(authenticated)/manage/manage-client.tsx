@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { ErrorNotice } from "@/components/api-error-notice";
 import { GooglePicker } from "@/components/google-picker";
 import { formatMonthLabel } from "@/components/month-label";
-import { StateNotice, StateSkeleton } from "@/components/sync-status";
+import { LoadingGhosts } from "@/components/loading-ghosts";
+import { StateNotice } from "@/components/sync-status";
 import {
   clearFolderPreference,
   readFolderPreference,
@@ -184,7 +185,7 @@ export function ManageClient({ email }: ManageClientProps) {
   }
 
   if (state.status === "loading") {
-    return <StateSkeleton label="Loading managed files" count={4} variant="card" height="5rem" />;
+    return <LoadingGhosts label="Loading your managed files…" />;
   }
 
   if (state.status === "failed") {

@@ -6,7 +6,7 @@ import { ErrorNotice } from "@/components/api-error-notice";
 import { DayQuickPreview } from "@/components/day-quick-preview/day-quick-preview";
 import { MonthCalendar } from "@/components/month-calendar/month-calendar";
 import { MonthLabel, formatMonthLabel } from "@/components/month-label";
-import { StateNotice, StateSkeleton, SyncStatus, type SyncState } from "@/components/sync-status";
+import { StateNotice, SyncStatus, type SyncState } from "@/components/sync-status";
 import { shiftMonth } from "@/lib/attendance/calendar-grid";
 import { todayInZone } from "@/lib/attendance/zone";
 import type { AttendanceDay } from "@/lib/attendance/model";

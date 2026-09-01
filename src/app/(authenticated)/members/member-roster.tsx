@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
 import type { StoredMember } from "@/lib/dashboard/local-records";
 import type { DirectoryPerson } from "@/lib/directory/people-directory";
@@ -112,7 +113,7 @@ export function MemberRoster({ email, store }: MemberRosterProps) {
   }
 
   if (roster === null) {
-    return <p className="page-lede">Loading your members…</p>;
+    return <LoadingGhosts label="Loading your members…" />;
   }
 
   const known = new Set(roster.map((member) => member.email));

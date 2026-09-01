@@ -7,7 +7,8 @@ import { DaySummary } from "@/components/day-summary";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { WorkBlockForm } from "@/components/work-block-form";
 import { BulkApplyPanel } from "./bulk-apply-panel";
-import { StateSkeleton, SyncStatus, type SyncState } from "@/components/sync-status";
+import { LoadingGhosts } from "@/components/loading-ghosts";
+import { SyncStatus, type SyncState } from "@/components/sync-status";
 import { todayInZone } from "@/lib/attendance/zone";
 import { validateAttendanceDay } from "@/lib/attendance/validation";
 import { resolveLocalStore, type LocalStore } from "@/lib/dashboard/local-store";
@@ -280,7 +281,7 @@ export function AttendanceEditor({
   if (view === null || draft === null || selectedDate === null) {
     return (
       <div className="attendance">
-        <StateSkeleton label="Loading this timesheet" count={5} variant="card" height="6rem" />
+        <LoadingGhosts label="Loading this timesheet…" />
       </div>
     );
   }

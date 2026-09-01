@@ -96,6 +96,21 @@ Restart, open `/login`, and sign in. Expect Google's consent screen every time �
 refresh token for an account that has already granted access, and the callback
 would have nothing to store.
 
+## Checking your work at any point
+
+```bash
+docker compose run --rm app npm run verify:supabase
+```
+
+It reports each step of this runbook against the live project, reads only, and
+never prints a key. Run it after any step — it is the fastest way to tell a
+misconfigured project from an application bug, which otherwise both appear as a
+failed sign-in.
+
+It walks the first hop of the real OAuth flow, so it catches a
+`redirect_uri_mismatch` from step 1 without anyone having to attempt a sign-in.
+It does not, and cannot, prove the refresh loop — only step 6 below does that.
+
 ## 6. Verify, in this order
 
 1. **`profiles` has a row for you**, with your email and `last_sign_in_at` set.

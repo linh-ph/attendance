@@ -227,7 +227,13 @@ export function MonthCalendar({
                 <span className="month-calendar-day-state">
                   {recordState === "recorded" ? "Recorded" : "Not recorded"}
                 </span>
-                {durationLabel(day.workHours) ? (
+                {/*
+                  Column H is `=F-G-E`, so a day whose clock columns hold only
+                  the template's 08:00–17:00 still computes 8h. Printing that
+                  next to `Not recorded` reads as a contradiction, so the
+                  duration is shown only where something was actually recorded.
+                */}
+                {recordState === "recorded" && durationLabel(day.workHours) ? (
                   <span className="month-calendar-day-duration">{durationLabel(day.workHours)}</span>
                 ) : null}
                 <span className="month-calendar-markers" aria-hidden="true">

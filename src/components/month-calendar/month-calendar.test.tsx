@@ -173,6 +173,33 @@ describe("MonthCalendar", () => {
     expect(cell.className).toContain("is-missing");
   });
 
+  it("shows no duration on a day with nothing recorded", () => {
+    render(
+      <MonthCalendar
+        month="2026-08"
+        days={[
+          {
+            ...emptyDay("2026-08-31"),
+            statusCode: "office",
+            clockIn: 8,
+            clockOut: 17,
+            breakHours: 1,
+            // Column H's `=F-G-E` over the template's own clock values.
+            workHours: 8,
+          },
+        ]}
+        selectedDate={null}
+        todayDate="2026-09-01"
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const cell = screen.getByRole("gridcell", { name: /Monday, August 31, 2026/ });
+    expect(cell).not.toHaveTextContent("8h");
+  });
+
   it("does not mark a weekend as Missing — nothing is owed on it", () => {
     render(
       <MonthCalendar

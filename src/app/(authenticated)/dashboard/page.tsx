@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { CalendarPanel } from "@/components/calendar-panel/calendar-panel";
+import { PageShell } from "@/components/app-shell/page-shell";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -22,24 +22,12 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main>
-      <section aria-labelledby="dashboard-title">
-        <p className="eyebrow">blended-asia</p>
-        <h1 id="dashboard-title">Dashboard</h1>
-        <p className="page-lede">
-          Create and share the month, or open your own timesheet.
-        </p>
-
-        {/*
-          The calendar loads itself: it draws this browser's cached month first,
-          discovers the authorized files in the background, and then reads the
-          current month from Google Sheets. It is mounted above the file lists
-          because it is the thing most people came for.
-        */}
-        <CalendarPanel email={email} />
-
-        <DashboardClient email={email} />
-      </section>
-    </main>
+    <PageShell
+      eyebrow="blended-asia"
+      title="Calendar"
+      lede="See what is recorded, spot missing days, and open any day for detail."
+    >
+      <DashboardClient email={email} />
+    </PageShell>
   );
 }

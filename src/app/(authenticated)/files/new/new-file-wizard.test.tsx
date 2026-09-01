@@ -160,6 +160,16 @@ afterEach(() => {
 /* -------------------------------------------------------------------------- */
 
 describe("NewFileWizard — stages", () => {
+  it("uses the shared wizard chrome and exposes the complete sequence", () => {
+    renderWizard();
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Create monthly file" }),
+    ).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Create monthly file progress" })).toBeVisible();
+    expect(screen.getByText(/Step 1 of 4/u)).toBeVisible();
+  });
+
   it("starts on file details and hides the later stages", async () => {
     rememberFolder();
     renderWizard();

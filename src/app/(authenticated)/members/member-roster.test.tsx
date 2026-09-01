@@ -136,4 +136,21 @@ describe("MemberRoster", () => {
     await screen.findByText("Could not read who else can reach your attendance files.");
     expect(screen.getByText("THAI GIA HAN")).toBeInTheDocument();
   });
+
+  it("filters the compact roster without changing the account-scoped records", async () => {
+    const store = createMemoryStore();
+    await store.addMember(EMAIL, { email: "han.tg@blended-asia.com", displayName: "THAI GIA HAN" });
+    await store.addMember(EMAIL, { email: "quynh.kt@blended-asia.com", displayName: "KIM QUYNH" });
+
+    render(<MemberRoster email={EMAIL} store={store} />);
+    await screen.findByText("THAI GIA HAN");
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search members" }), {
+      target: { value: "quynh" },
+    });
+
+    expect(screen.queryByText("THAI GIA HAN")).toBeNull();
+    expect(screen.getByText("KIM QUYNH")).toBeVisible();
+    expect(await store.readMembers(EMAIL)).toHaveLength(2);
+  });
 });

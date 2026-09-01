@@ -186,6 +186,157 @@
 }
 
 /* -------------------------------------------------------------------------- */
+/* Browser-local roster hub                                                    */
+/* -------------------------------------------------------------------------- */
+
+.member-roster-workspace {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.8fr) minmax(22rem, 1.2fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.member-import-panel {
+  grid-column: 1 / -1;
+}
+
+.member-section-heading,
+.member-list-toolbar {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.member-section-heading h2,
+.member-list-toolbar h2,
+.member-import-panel h2 {
+  margin: 0;
+  color: var(--ink-900);
+  font-size: var(--text-lg);
+}
+
+.member-section-heading .page-lede {
+  max-width: 21rem;
+  margin-top: 0;
+  font-size: var(--text-sm);
+}
+
+.member-add-panel .member-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.member-search input {
+  width: min(100%, 18rem);
+  min-height: var(--touch-target);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink-900);
+  background: var(--surface);
+  font: inherit;
+}
+
+.member-search input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.member-roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-roster-card {
+  display: grid;
+  grid-template-columns: var(--touch-target) minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.member-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: 50%;
+  color: var(--primary-ink);
+  background: var(--primary-wash);
+  font-weight: var(--weight-black);
+}
+
+.member-roster-identity {
+  min-width: 0;
+}
+
+.member-roster-identity h2,
+.member-roster-identity h3,
+.member-roster-identity p {
+  margin: 0;
+}
+
+.member-roster-identity h2,
+.member-roster-identity h3 {
+  overflow: hidden;
+  color: var(--ink-900);
+  font-size: var(--text-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-roster-identity p {
+  margin-top: var(--space-3xs);
+  overflow-wrap: anywhere;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+}
+
+.member-suggestion-list {
+  margin-top: var(--space-md);
+}
+
+@media (max-width: 64rem) {
+  .member-roster-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .member-import-panel {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 36rem) {
+  .member-section-heading,
+  .member-list-toolbar {
+    flex-direction: column;
+  }
+
+  .member-search,
+  .member-search input {
+    width: 100%;
+  }
+
+  .member-roster-card {
+    grid-template-columns: var(--touch-target) minmax(0, 1fr);
+  }
+
+  .member-roster-card > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Member roster shortcut                                                      */
 /* -------------------------------------------------------------------------- */
 

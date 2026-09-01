@@ -161,6 +161,18 @@ async function fillMappings(): Promise<void> {
 /* -------------------------------------------------------------------------- */
 
 describe("LegacySetupWizard — picker proof", () => {
+  it("uses the shared wizard chrome for confirm through setup", async () => {
+    render(<LegacySetupWizard fileId={FILE_ID} email={EMAIL} api={createFakeApi().api} />);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Set up attendance file" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "Set up attendance file progress" }),
+    ).toBeVisible();
+    expect(screen.getByText(/Step 1 of 4/u)).toBeVisible();
+  });
+
   it("reads nothing from the file before the picker confirms it", async () => {
     const fake = createFakeApi();
 
@@ -232,7 +244,7 @@ describe("LegacySetupWizard — mapping", () => {
     fireEvent.change(screen.getByLabelText("Google Workspace email for 従業員B"), {
       target: { value: "employee-a@blended-asia.com" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review setup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Assign each sheet to a different member.",
@@ -251,7 +263,7 @@ describe("LegacySetupWizard — mapping", () => {
     fireEvent.change(screen.getByLabelText("Google Workspace email for 従業員B"), {
       target: { value: "not-an-email" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review setup" }));
 
     expect(await screen.findByRole("alert")).toBeVisible();
     expect(fake.configureCalls).toEqual([]);
@@ -265,6 +277,12 @@ describe("LegacySetupWizard — mapping", () => {
     await screen.findByLabelText("Name for 従業員A");
 
     await fillMappings();
+    fireEvent.click(screen.getByRole("button", { name: "Review setup" }));
+
+    expect(screen.getByText(/Step 3 of 4/u)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Review setup" })).toBeVisible();
+    expect(fake.configureCalls).toEqual([]);
+
     fireEvent.click(screen.getByRole("button", { name: "Save setup" }));
 
     await waitFor(() => expect(fake.configureCalls).toHaveLength(1));
@@ -293,6 +311,7 @@ describe("LegacySetupWizard — partial failure", () => {
     await screen.findByLabelText("Name for 従業員A");
 
     await fillMappings();
+    fireEvent.click(screen.getByRole("button", { name: "Review setup" }));
     fireEvent.click(screen.getByRole("button", { name: "Save setup" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(

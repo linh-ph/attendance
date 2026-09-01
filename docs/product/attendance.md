@@ -25,6 +25,34 @@ Members are entered by hand. The application does not use the Workspace Admin
 SDK. Each unique email address gets one sheet tab, and employees never type a
 free-form name to pick a tab.
 
+## Interface and navigation
+
+`/dashboard` is the primary Calendar workspace. It opens the selected
+timesheet as a month grid, distinguishes `Recorded` from `Not recorded`, and
+marks non-working days without inventing a separate completion state. Selecting
+a date opens a quick-preview dialog; the full day editor is one explicit action
+away. Previous and next month controls move among available files, and `Today`
+uses the selected spreadsheet's timezone.
+
+Desktop uses a persistent sidebar for Calendar, Timesheets, Managed files, and
+Members, with account identity and Sign out at the bottom. Mobile uses a
+four-item bottom navigation: Calendar, Timesheets, Manage, and More. Manage
+links Managed files and Members; More contains account identity and Sign out.
+The information architecture is the same at both sizes.
+
+`/timesheets` lists every attendance sheet the signed-in account can reach and
+identifies the owner when otherwise-identical files need to be distinguished.
+`/manage` owns destination-folder selection plus create, import, and existing
+file setup. `/members` manages the browser-local roster used as shortcuts by
+the file workflows.
+
+The Calendar loads the last clean month from the account-scoped IndexedDB cache
+first, then revalidates against Google Sheets in the background. A newer
+response replaces the clean cache only when it still belongs to the selected
+account, file, sheet, month, and request epoch. Google Sheets remains the source
+of truth; browser storage is an offline and performance layer, never an access
+decision.
+
 ## Files and folders
 
 Each attendance month is a separate Google Sheets file. A manager supplies the
@@ -46,6 +74,21 @@ The last folder selection is remembered in browser storage per normalized
 signed-in email. It is a convenience value, not an authorization decision; it is
 never stored in a workbook, and it does not follow the manager to another
 browser or device.
+
+## Guided file workflows
+
+All three file workflows use the same step rail, live summary, validation, and
+recovery vocabulary. Each screen has one principal task, and no Drive mutation
+happens before its explicit review action.
+
+- Create: File details → Members → Review → Setup.
+- Import: Upload XLSX → Preflight → Details and sheet owners → Review → Setup.
+- Existing file setup: Confirm the exact file in Google Picker → Map existing
+  tabs → Review → Setup.
+
+Import preflight names every failing sheet and rule before Drive is changed.
+Create, import, and existing-file setup retain partial progress and offer a
+safe retry after a mutation has begun.
 
 ## Discovery
 
@@ -230,7 +273,7 @@ up records hours in it too.
 
 The page also carries status, clock in, clock out, break, calculated work hours,
 the lunch control, daily notes, dirty-state indication, and an explicit
-`Save to Google Sheets` action.
+`Save & sync` action.
 
 Save sends only the changed cells. It never rewrites a whole employee sheet or a
 whole day row when a subset changed, and different-cell concurrent edits do not
@@ -252,8 +295,8 @@ the network answers; the cache is only ever a head start and is replaced by the
 live read.
 
 The browser also keeps a **member roster** — colleagues with a name and an
-address — so creating next month's file does not mean retyping them. `Members`
-on the dashboard manages it: type one, remove one, or import from Drive.
+address — so creating next month's file does not mean retyping them. The
+`Members` destination manages it: type one, remove one, or import from Drive.
 
 The import is the only part that asks Google anything. Listing a Workspace needs
 the Admin SDK and an administrator, which this app has neither of; instead

@@ -1,75 +1,43 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { folderPreferenceKey } from "@/lib/dashboard/folder-preference";
+import { createAttendanceCache } from "@/lib/cache/attendance-cache";
+import { createMemoryEngine } from "@/lib/cache/engine";
+import type { CacheContext } from "@/lib/cache/keys";
+import { emptyDay } from "@/lib/attendance/model";
+import type { AttendanceMonthView } from "@/lib/attendance/service";
 import { DashboardClient } from "./dashboard-client";
 
-const EMAIL = "manager@blended-asia.com";
-const PREFERENCE_KEY = folderPreferenceKey(EMAIL);
-
-/** Mutable Picker results; `vi.hoisted` keeps them reachable from the mock factory. */
-const picker = vi.hoisted(() => ({
-  folder: { id: "folder-1", name: "Attendance 2026" },
-  spreadsheet: { id: "legacy-file", name: "202605勤怠管理表" },
-}));
-
-vi.mock("@/components/google-picker", () => ({
-  GooglePicker: ({
-    mode,
-    label,
-    onSelect,
-  }: {
-    mode: "folder" | "spreadsheet";
-    label: string;
-    onSelect: (item: { id: string; name: string }) => void;
-  }) => (
-    <button type="button" data-mode={mode} onClick={() => onSelect(picker[mode])}>
-      {label}
-    </button>
-  ),
-}));
-
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
-const READY_FILE = {
-  id: "ready-file",
-  name: "202607勤怠管理表",
-  ownerEmail: EMAIL,
-  month: "2026-07",
-  modifiedTime: "2026-07-30T09:05:00.000Z",
-  memberCount: 2,
-  setupState: "ready",
-  error: null,
-};
-
-const LEGACY_FILE = {
-  id: "legacy-file",
-  name: "202605勤怠管理表",
-  ownerEmail: EMAIL,
-  month: null,
-  modifiedTime: "2026-05-30T09:00:00.000Z",
-  memberCount: null,
-  setupState: "needs-setup",
-  error: null,
-};
+const EMAIL = "linh.np@blended-asia.com";
+const NOW = new Date("2026-08-15T08:00:00.000Z");
 
 const TIMESHEET = {
-  id: "shared-file",
-  name: "202607勤怠管理表",
+  id: "file-1",
+  name: "202608勤怠管理表",
   ownerEmail: "owner@blended-asia.com",
-  month: "2026-07",
-  modifiedTime: "2026-07-29T01:02:03.000Z",
-  sheetId: "222",
-  sheetTitle: "Manager",
-  tabs: [{ sheetId: "222", title: "Manager" }],
+  month: "2026-08",
+  modifiedTime: "2026-08-15T01:02:03.000Z",
+  sheetId: "22",
+  sheetTitle: "Linh",
+  tabs: [{ sheetId: "22", title: "Linh" }],
 };
 
-function dashboardBody(overrides: Record<string, unknown> = {}) {
+function dashboardBody(timesheets: typeof TIMESHEET[] = [TIMESHEET]) {
+  return { folder: null, managed: [], timesheets };
+}
+
+function monthView(overrides: Partial<AttendanceMonthView> = {}): AttendanceMonthView {
   return {
-    folder: { id: "folder-1", name: "Attendance 2026" },
-    managed: [READY_FILE, LEGACY_FILE],
-    timesheets: [TIMESHEET],
+    fileId: "file-1",
+    sheetId: 22,
+    sheetTitle: "Linh",
+    month: "2026-08",
+    spreadsheetTimeZone: "Asia/Ho_Chi_Minh",
+    role: "employee",
+    statuses: [{ code: "office", labelEn: "Office", sheetValue: "出社" }],
+    days: Array.from({ length: 31 }, (_, index) => {
+      const day = emptyDay(`2026-08-${String(index + 1).padStart(2, "0")}`);
+      return index === 2 ? { ...day, statusCode: "office", clockIn: 9, clockOut: 18 } : day;
+    }),
     ...overrides,
   };
 }
@@ -90,14 +58,13 @@ function jsonResponse(status: number, body: unknown): Response {
 
 const fetchMock = vi.fn();
 
-function requestedUrls(): string[] {
-  return fetchMock.mock.calls.map((call) => String(call[0]));
-}
-
 beforeEach(() => {
-  window.localStorage.clear();
   fetchMock.mockReset();
-  fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody()));
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.startsWith("/api/dashboard")) return jsonResponse(200, dashboardBody());
+    return jsonResponse(200, monthView());
+  });
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -106,336 +73,196 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function storePreference(id = "folder-1", name = "Attendance 2026"): void {
-  window.localStorage.setItem(PREFERENCE_KEY, JSON.stringify({ id, name }));
-}
-
-/* -------------------------------------------------------------------------- */
-/* Sections and folder control                                                 */
-/* -------------------------------------------------------------------------- */
-
-describe("DashboardClient — sections", () => {
-  it("renders both role-aware sections", async () => {
-    render(<DashboardClient email={EMAIL} />);
-
-    expect(
-      await screen.findByRole("heading", { name: "Managed attendance files" }),
-    ).toBeVisible();
-    expect(screen.getByRole("heading", { name: "My timesheets" })).toBeVisible();
-  });
-
-  it("asks for a folder and never sends one when nothing is remembered", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse(200, dashboardBody({ folder: null, managed: [] })),
+describe("DashboardClient calendar workspace", () => {
+  it("loads the current authorized timesheet into the dominant calendar", async () => {
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
     );
 
-    render(<DashboardClient email={EMAIL} />);
-
-    expect(await screen.findByRole("button", { name: "Select dashboard folder" })).toBeVisible();
-    expect(requestedUrls()).toEqual(["/api/dashboard"]);
     expect(
-      screen.getByText("Select a dashboard folder to see the attendance files you manage."),
+      await screen.findByRole("grid", { name: "August 2026 attendance calendar" }),
     ).toBeVisible();
-  });
-
-  it("revalidates the remembered folder and shows its name with a change action", async () => {
-    storePreference();
-
-    render(<DashboardClient email={EMAIL} />);
-
-    await screen.findByRole("button", { name: "Change folder" });
-    expect(requestedUrls()).toEqual(["/api/dashboard?folderId=folder-1"]);
-    expect(screen.getByText("Attendance 2026")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Select dashboard folder" })).toBeNull();
-  });
-
-  it("replaces the remembered folder and reloads when a new folder is picked", async () => {
-    storePreference("folder-old", "Old folder");
-    picker.folder = { id: "folder-new", name: "New folder" };
-
-    render(<DashboardClient email={EMAIL} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Change folder" }));
-
-    await waitFor(() =>
-      expect(requestedUrls()).toEqual([
-        "/api/dashboard?folderId=folder-old",
-        "/api/dashboard?folderId=folder-new",
-      ]),
+    expect(screen.getByText("Linh")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Managed attendance files" })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/files/file-1/attendance/22",
+      expect.objectContaining({ cache: "no-store" }),
     );
-    expect(JSON.parse(window.localStorage.getItem(PREFERENCE_KEY) ?? "null")).toEqual({
-      id: "folder-new",
-      name: "New folder",
+  });
+
+  it("opens a read-only day preview and links to full detail", async () => {
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("gridcell", { name: /Monday, August 3, 2026.*Recorded/i }),
+    );
+
+    expect(screen.getByRole("dialog", { name: "Monday, August 3, 2026" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open full detail" })).toHaveAttribute(
+      "href",
+      "/files/file-1/attendance/22?date=2026-08-03",
+    );
+  });
+
+  it("requires an explicit choice when the current month has duplicate candidates", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/dashboard")) {
+        return jsonResponse(200, dashboardBody([
+          TIMESHEET,
+          { ...TIMESHEET, id: "file-2", name: "August backup", sheetId: "23", sheetTitle: "Linh backup" },
+        ]));
+      }
+      return jsonResponse(200, monthView());
     });
 
-    picker.folder = { id: "folder-1", name: "Attendance 2026" };
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Choose a timesheet" })).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", {
+      name: "Use 202608勤怠管理表 — Linh — owner@blended-asia.com",
+    }));
+    await screen.findByRole("grid", { name: "August 2026 attendance calendar" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
-});
 
-/* -------------------------------------------------------------------------- */
-/* Manager cards                                                               */
-/* -------------------------------------------------------------------------- */
+  it("shows the approved empty state when the current month has no candidate", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));
 
-describe("DashboardClient — managed cards", () => {
-  it("shows the full ready card and only the permitted manager actions", async () => {
-    storePreference();
-
-    render(<DashboardClient email={EMAIL} />);
-
-    const card = await screen.findByRole("listitem", { name: "202607勤怠管理表" });
-    const card_ = within(card);
-
-    expect(card_.getByText("July 2026")).toBeVisible();
-    expect(card_.getByText(EMAIL)).toBeVisible();
-    expect(card_.getByText("2 members")).toBeVisible();
-    expect(card_.getByText("Jul 30, 2026, 09:05 UTC")).toBeVisible();
-    expect(card_.getByText("Ready")).toBeVisible();
-
-    expect(card_.getByRole("link", { name: "Open" })).toHaveAttribute(
-      "href",
-      "/files/ready-file/members",
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
     );
-    expect(card_.getByRole("link", { name: "Manage members" })).toHaveAttribute(
+
+    expect(await screen.findByText("No timesheet for this month")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open Timesheets" })).toHaveAttribute(
       "href",
-      "/files/ready-file/members#add-member",
-    );
-    expect(card_.getByRole("link", { name: "Open in Google Sheets" })).toHaveAttribute(
-      "href",
-      "https://docs.google.com/spreadsheets/d/ready-file/edit",
+      "/timesheets",
     );
   });
 
-  it("keeps a needs-setup file read-only until the picker confirms the same file", async () => {
-    storePreference();
+  it("can move from an empty current month to the nearest available earlier month", async () => {
+    const julyTimesheet = {
+      ...TIMESHEET,
+      name: "202607勤怠管理表",
+      month: "2026-07",
+    };
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/dashboard")) {
+        return jsonResponse(200, dashboardBody([julyTimesheet]));
+      }
+      return jsonResponse(200, monthView({
+        month: "2026-07",
+        days: Array.from({ length: 31 }, (_, index) =>
+          emptyDay(`2026-07-${String(index + 1).padStart(2, "0")}`),
+        ),
+      }));
+    });
 
-    render(<DashboardClient email={EMAIL} />);
-
-    const card = within(await screen.findByRole("listitem", { name: "202605勤怠管理表" }));
-    expect(card.getByText("Needs setup")).toBeVisible();
-    expect(card.queryByRole("link", { name: "Open" })).toBeNull();
-    expect(card.queryByRole("link", { name: "Manage members" })).toBeNull();
-    expect(card.queryByRole("link", { name: "Continue setup" })).toBeNull();
-    expect(card.getByRole("button", { name: "Set up" })).toHaveAttribute(
-      "data-mode",
-      "spreadsheet",
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
     );
-  });
 
-  it("reveals the setup link only after the same file is selected in the picker", async () => {
-    storePreference();
-    picker.spreadsheet = { id: "legacy-file", name: "202605勤怠管理表" };
+    await screen.findByText("No timesheet for this month");
+    const previousMonth = screen.getByRole("button", { name: "Previous month" });
+    expect(previousMonth).toBeEnabled();
 
-    render(<DashboardClient email={EMAIL} />);
-
-    const card = within(await screen.findByRole("listitem", { name: "202605勤怠管理表" }));
-    fireEvent.click(card.getByRole("button", { name: "Set up" }));
-
-    expect(await card.findByRole("link", { name: "Continue setup" })).toHaveAttribute(
-      "href",
-      "/files/legacy-file/setup",
-    );
-  });
-
-  it("refuses a picker selection that is another file this manager does manage", async () => {
-    storePreference();
-    picker.spreadsheet = { id: "ready-file", name: "202607勤怠管理表" };
-
-    render(<DashboardClient email={EMAIL} />);
-
-    const card = within(await screen.findByRole("listitem", { name: "202605勤怠管理表" }));
-    fireEvent.click(card.getByRole("button", { name: "Set up" }));
+    fireEvent.click(previousMonth);
 
     expect(
-      await card.findByText("Select this same file in Google Picker to start setup."),
+      await screen.findByRole("grid", { name: "July 2026 attendance calendar" }),
     ).toBeVisible();
-    expect(card.queryByRole("link", { name: "Continue setup" })).toBeNull();
-
-    picker.spreadsheet = { id: "legacy-file", name: "202605勤怠管理表" };
   });
 
-  it("reports a permission problem when the picked file is not one this manager can set up", async () => {
-    storePreference();
-    picker.spreadsheet = { id: "another-file", name: "Another workbook" };
+  it("renders a compatible cached month before background revalidation finishes", async () => {
+    const cache = createAttendanceCache({ engine: createMemoryEngine() });
+    const context: CacheContext = {
+      email: EMAIL,
+      fileId: "file-1",
+      sheetId: "22",
+      month: "2026-08",
+    };
+    await cache.writeMonth(context, { view: monthView(), checkedAt: "2026-08-15T07:30:00.000Z" });
 
-    render(<DashboardClient email={EMAIL} />);
+    let resolveRemote!: (response: Response) => void;
+    const remote = new Promise<Response>((resolve) => {
+      resolveRemote = resolve;
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/dashboard")) return jsonResponse(200, dashboardBody());
+      return remote;
+    });
 
-    const card = within(await screen.findByRole("listitem", { name: "202605勤怠管理表" }));
-    fireEvent.click(card.getByRole("button", { name: "Set up" }));
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} />);
 
     expect(
-      await card.findByText(
-        "You do not have permission to set up that file. Pick a file you own from this folder.",
-      ),
+      await screen.findByRole("grid", { name: "August 2026 attendance calendar" }),
     ).toBeVisible();
-    expect(card.queryByRole("link", { name: "Continue setup" })).toBeNull();
+    expect(screen.getByText(/Showing cached data/i)).toBeVisible();
 
-    picker.spreadsheet = { id: "legacy-file", name: "202605勤怠管理表" };
+    resolveRemote(jsonResponse(200, monthView()));
+    await waitFor(() => expect(screen.getByText(/Calendar refreshed/i)).toBeVisible());
   });
 
-  it("shows a card-level error without offering managed actions", async () => {
-    storePreference();
+  it("disables Today and explains a missing spreadsheet timezone", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/dashboard")) return jsonResponse(200, dashboardBody());
+      return jsonResponse(200, monthView({ spreadsheetTimeZone: null }));
+    });
+
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    const today = await screen.findByRole("button", { name: "Today" });
+    expect(today).toBeDisabled();
+    expect(screen.getByText(/spreadsheet timezone could not be determined/i)).toBeVisible();
+  });
+
+  it("uses ErrorNotice so provider diagnostics are sanitized", async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse(
-        200,
-        dashboardBody({
-          managed: [
-            {
-              ...READY_FILE,
-              setupState: "unknown",
-              memberCount: null,
-              error: "Could not read this file's attendance configuration.",
-            },
-          ],
-        }),
-      ),
-    );
-
-    render(<DashboardClient email={EMAIL} />);
-
-    const card = within(await screen.findByRole("listitem", { name: "202607勤怠管理表" }));
-    expect(
-      card.getByText("Could not read this file's attendance configuration."),
-    ).toBeVisible();
-    expect(card.queryByRole("link", { name: "Open" })).toBeNull();
-    expect(card.getByRole("link", { name: "Open in Google Sheets" })).toBeVisible();
-  });
-
-  it("shows an empty state when the selected folder holds no attendance files", async () => {
-    storePreference();
-    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody({ managed: [] })));
-
-    render(<DashboardClient email={EMAIL} />);
-
-    expect(
-      await screen.findByText("No attendance files in this folder."),
-    ).toBeVisible();
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/* Employee cards                                                              */
-/* -------------------------------------------------------------------------- */
-
-describe("DashboardClient — timesheets", () => {
-  it("links directly to the mapped numeric sheet id", async () => {
-    render(<DashboardClient email={EMAIL} />);
-
-    const card = within(
-      await screen.findByRole("listitem", {
-        name: "202607勤怠管理表 — Manager — owner@blended-asia.com",
-      }),
-    );
-
-    expect(card.getByRole("link", { name: "Open timesheet" })).toHaveAttribute(
-      "href",
-      "/files/shared-file/attendance/222",
-    );
-    expect(card.getByText("Manager")).toBeVisible();
-    expect(card.getByText("owner@blended-asia.com")).toBeVisible();
-    expect(card.getByText("July 2026")).toBeVisible();
-  });
-
-  it("shows an empty state when no timesheet is shared", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody({ timesheets: [] })));
-
-    render(<DashboardClient email={EMAIL} />);
-
-    expect(await screen.findByText("No timesheets are shared with you yet.")).toBeVisible();
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/* Folder failure                                                              */
-/* -------------------------------------------------------------------------- */
-
-describe("DashboardClient — unavailable folder", () => {
-  it.each([404, 403, 422])(
-    "shows Folder unavailable for %i and clears the preference only afterwards",
-    async (status) => {
-      storePreference();
-
-      const clearedWhileShowing: boolean[] = [];
-      const originalRemove = Storage.prototype.removeItem;
-      vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function (
-        this: Storage,
-        key: string,
-      ) {
-        clearedWhileShowing.push(
-          (document.body.textContent ?? "").includes("Folder unavailable"),
-        );
-        originalRemove.call(this, key);
-      });
-
-      fetchMock.mockResolvedValue(
-        jsonResponse(status, {
-          folder: null,
-          managed: [],
-          timesheets: [TIMESHEET],
-          folderError: "Folder unavailable.",
-        }),
-      );
-
-      render(<DashboardClient email={EMAIL} />);
-
-      expect(await screen.findByText("Folder unavailable.")).toBeVisible();
-      await waitFor(() => expect(window.localStorage.getItem(PREFERENCE_KEY)).toBeNull());
-      expect(clearedWhileShowing).toContain(true);
-      expect(clearedWhileShowing).not.toContain(false);
-
-      // A new selection is required, and the employee section is unaffected.
-      expect(screen.getByRole("button", { name: "Select dashboard folder" })).toBeVisible();
-      expect(screen.getByRole("link", { name: "Open timesheet" })).toBeVisible();
-    },
-  );
-
-  it("asks the user to sign in again when the session expired", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(401, { error: "Authentication required." }));
-
-    render(<DashboardClient email={EMAIL} />);
-
-    expect(
-      await screen.findByText("Your Google session expired. Sign in again to continue."),
-    ).toBeVisible();
-  });
-
-  it("shows a retryable error when the dashboard cannot be loaded", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(502, { error: "Could not load your dashboard." }));
-
-    render(<DashboardClient email={EMAIL} />);
-
-    expect(await screen.findByText("Could not load your dashboard.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
-    expect(screen.queryByLabelText("Debug error details")).toBeNull();
-  });
-
-  it("shows sanitized debug details returned by the dashboard API", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse(502, {
+      jsonResponse(500, {
         error: "Could not load your dashboard.",
-        debug: {
-          name: "GoogleApiError",
-          message: "Google request failed: files.list shared candidates.",
-          status: 403,
-          providerMessage: "Google Drive API is disabled.",
-          providerStatus: "PERMISSION_DENIED",
-          providerReason: "accessNotConfigured",
-        },
+        debug: { name: "GoogleError", message: "safe", accessToken: "secret" },
       }),
     );
 
-    render(<DashboardClient email={EMAIL} />);
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
 
-    expect(await screen.findByText("Could not load your dashboard.")).toBeVisible();
-    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
-      "Google request failed: files.list shared candidates.",
-    );
-    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
-      "Google Drive API is disabled.",
-    );
-    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
-      "PERMISSION_DENIED",
-    );
-    expect(screen.getByLabelText("Debug error details")).toHaveTextContent(
-      "accessNotConfigured",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your dashboard.");
+    expect(document.body).not.toHaveTextContent("secret");
   });
 });

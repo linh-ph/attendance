@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { PageShell } from "@/components/app-shell/page-shell";
 import { AttendanceEditor } from "./attendance-editor";
 
 export const dynamic = "force-dynamic";
 
 interface AttendancePageProps {
   params: Promise<{ fileId: string; sheetId: string }>;
+  searchParams: Promise<{ date?: string }>;
 }
 
 /**
@@ -17,7 +19,7 @@ interface AttendancePageProps {
  * the protected mapping, on every request — the page renders no attendance
  * value of its own, so an unauthorized route parameter reveals nothing.
  */
-export default async function AttendancePage({ params }: AttendancePageProps) {
+export default async function AttendancePage({ params, searchParams }: AttendancePageProps) {
   const session = await auth();
 
   if (!session?.user?.email) {
@@ -25,14 +27,20 @@ export default async function AttendancePage({ params }: AttendancePageProps) {
   }
 
   const { fileId, sheetId } = await params;
+  const { date } = await searchParams;
 
   return (
-    <main>
-      <section aria-labelledby="attendance-title">
-        <p className="eyebrow">blended-asia</p>
-        <h1 id="attendance-title">Timesheet</h1>
-        <AttendanceEditor fileId={fileId} sheetId={sheetId} email={session.user.email} />
-      </section>
-    </main>
+    <PageShell
+      eyebrow="blended-asia"
+      title="Timesheet"
+      lede="Record one day clearly, keep a local draft, then sync it to Google Sheets."
+    >
+      <AttendanceEditor
+        fileId={fileId}
+        sheetId={sheetId}
+        email={session.user.email}
+        initialDate={date}
+      />
+    </PageShell>
   );
 }

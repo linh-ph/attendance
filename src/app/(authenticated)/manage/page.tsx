@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PageShell } from "@/components/app-shell/page-shell";
+import { ManageClient } from "./manage-client";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function ManagePage() {
   const session = await auth();
+  const email = session?.user?.email?.trim().toLowerCase();
 
-  if (!session?.user?.email) {
+  if (!email) {
     redirect("/login");
   }
 
@@ -28,30 +30,14 @@ export default async function ManagePage() {
     <PageShell
       eyebrow="blended-asia"
       title="Managed files"
-      lede="The monthly attendance files you own, and the people they are shared with."
+      lede="Create, resume, repair, and open the attendance files you manage."
+      actions={
+        <Link className="action" href="/members">
+          Members
+        </Link>
+      }
     >
-      <section className="surface-panel" aria-labelledby="manage-destinations">
-        <div className="section-header">
-          <h2 id="manage-destinations">Where to go</h2>
-        </div>
-
-        <p>The managed-file list is on the calendar dashboard while this page is being built.</p>
-
-        <p className="row">
-          <Link className="action action-primary" href="/dashboard">
-            Open the calendar
-          </Link>
-          <Link className="action" href="/members">
-            Members
-          </Link>
-          <Link className="action" href="/files/new">
-            Create a monthly file
-          </Link>
-          <Link className="action" href="/files/import">
-            Import a workbook
-          </Link>
-        </p>
-      </section>
+      <ManageClient email={email} />
     </PageShell>
   );
 }

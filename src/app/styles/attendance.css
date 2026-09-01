@@ -97,6 +97,39 @@
   backdrop-filter: blur(12px);
 }
 
+.attendance-context {
+  display: flex;
+  gap: var(--space-2xs) var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.attendance-back {
+  width: 100%;
+  color: var(--primary-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.attendance-back:hover {
+  text-decoration: underline;
+}
+
+.attendance-last-check {
+  display: grid;
+  gap: var(--space-3xs);
+  margin: 0 0 0 auto;
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.attendance-last-check strong {
+  color: var(--ink-900);
+  font-size: var(--text-sm);
+}
+
 .attendance-month {
   margin: 0;
   font-size: var(--text-xl);
@@ -173,6 +206,11 @@
   .day-navigation {
     margin-left: 0;
     width: 100%;
+  }
+
+  .attendance-last-check {
+    margin-left: 0;
+    text-align: left;
   }
 }
 
@@ -409,6 +447,34 @@
   border-top: 1px solid var(--border);
   background: color-mix(in srgb, var(--canvas) 95%, transparent);
   backdrop-filter: blur(12px);
+}
+
+.attendance-actions .sync-status {
+  flex: 1 1 18rem;
+}
+
+.attendance-actions .action-primary {
+  margin-left: auto;
+}
+
+@media (max-width: 40rem) {
+  .section-timeline {
+    min-width: 0;
+  }
+
+  .timeline {
+    overflow-x: auto;
+  }
+
+  .timeline-list {
+    min-width: 30rem;
+  }
+
+  .attendance-actions .sync-status,
+  .attendance-actions .action-primary {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 /*

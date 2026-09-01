@@ -48,9 +48,9 @@ setup("the manager signs in", async ({ page, context }) => {
 
   await page.goto("/dashboard");
 
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Managed attendance files" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Managed files" })).toBeVisible();
 
   await context.storageState({ path: MANAGER_STORAGE_STATE });
 });
@@ -60,8 +60,8 @@ setup("the employee signs in", async ({ page, context }) => {
 
   await page.goto("/dashboard");
 
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "My timesheets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Timesheets" })).toBeVisible();
 
   await context.storageState({ path: EMPLOYEE_STORAGE_STATE });
 });

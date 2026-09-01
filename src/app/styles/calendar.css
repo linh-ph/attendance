@@ -175,210 +175,457 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* Month grid — the dashboard calendar                                         */
+/* Calendar-first dashboard                                                    */
 /* -------------------------------------------------------------------------- */
 
-.calendar-panel {
+.calendar-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.calendar-dashboard > .state-skeleton,
+.calendar-dashboard > .state-notice,
+.calendar-dashboard > .api-error,
+.calendar-dashboard > .calendar-context-choice {
+  grid-column: 1 / -1;
+}
+
+.calendar-workspace {
+  min-width: 0;
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.calendar-workspace-header {
   display: flex;
-  flex-direction: column;
   gap: var(--space-md);
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
 }
 
-/*
- * The grid is the panel's dominant surface, so it gets the width and the
- * vertical rhythm rather than sitting inside a card of its own. It scrolls
- * inside itself on a narrow phone instead of pushing the page sideways.
- */
-.month-grid {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: var(--space-2xs);
-  table-layout: fixed;
+.calendar-workspace-header h2,
+.calendar-context-choice h2,
+.calendar-side-panel h2,
+.day-preview h2 {
+  margin: 0;
+  color: var(--ink-900);
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-tight);
 }
 
-/*
- * The month and its two steps. Navigation is always available: moving the
- * calendar is not the same as finding data for it, so a month with no timesheet
- * is still reachable and still drawn.
- */
+.calendar-context-name {
+  display: flex;
+  gap: var(--space-2xs) var(--space-sm);
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: var(--space-2xs) 0 0;
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+}
+
+.calendar-context-name strong {
+  color: var(--ink-700);
+}
+
 .calendar-toolbar {
   display: flex;
   gap: var(--space-xs);
   align-items: center;
+  margin-bottom: var(--space-sm);
 }
 
-.calendar-month {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: var(--space-2xs) var(--space-xs);
-  align-items: baseline;
-  margin: 0;
-  color: var(--ink-900);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-bold);
+.calendar-toolbar .btn-secondary {
+  min-width: var(--touch-target);
+  padding-inline: var(--space-sm);
 }
 
-.calendar-sheet {
+.calendar-toolbar-month {
+  min-width: 9rem;
+  color: var(--ink-700);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar-toolbar > :last-child {
+  margin-left: auto;
+}
+
+.calendar-timezone-warning,
+.calendar-freshness {
+  margin: 0 0 var(--space-sm);
   color: var(--ink-500);
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
 }
 
-.calendar-step {
-  min-width: var(--touch-target);
-  font-size: var(--text-md);
-  line-height: 1;
+.calendar-timezone-warning {
+  color: var(--warning);
 }
 
-.month-grid thead th {
-  padding-block: var(--space-2xs);
+.month-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2xs);
+}
+
+.month-calendar-weekday {
+  padding: var(--space-2xs);
   color: var(--ink-500);
   font-size: var(--text-2xs);
   font-weight: var(--weight-bold);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-label);
+  text-align: center;
   text-transform: uppercase;
 }
 
-.month-grid-cell {
+.month-calendar-blank {
+  min-height: 7rem;
+}
+
+.month-calendar-day {
   position: relative;
-  height: var(--touch-target);
-  padding: var(--space-2xs);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-3xs);
+  align-content: start;
+  justify-items: start;
+  min-width: 0;
+  min-height: 7rem;
+  padding: var(--space-xs);
+  overflow: hidden;
+  color: var(--ink-700);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-card);
   background: var(--surface);
-  vertical-align: top;
+  text-align: left;
 }
 
-/*
- * The neighbouring-month dates that complete the first and last rows. Dimmed
- * rather than hidden: a month grid reads as a calendar because the weeks are
- * continuous, and blanks break that.
- */
-.month-grid-cell[data-outside="true"] {
-  background: var(--canvas);
-  border-color: transparent;
-}
-
-.month-grid-cell[data-outside="true"] .month-grid-date {
-  color: var(--ink-500);
-  opacity: 0.6;
-}
-
-/* A date the sheet has no row for. An ordinary calendar day, not a fault. */
-.month-grid-cell[data-record="no-data"] {
-  background: var(--surface);
-}
-
-.month-grid-date {
-  display: block;
+.month-calendar-day:hover:not(:disabled) {
   color: var(--ink-900);
-  font-size: var(--text-sm);
-  line-height: 1.2;
+  border-color: var(--primary);
+  background: var(--primary-wash);
 }
 
-.month-grid-hours {
-  display: block;
-  color: var(--ink-500);
-  font-size: var(--text-2xs);
+.month-calendar-day-recorded {
+  border-color: var(--success-line);
+  background: var(--success-wash);
 }
 
-/*
- * State is never colour alone. `recorded` draws a filled dot, a non-working
- * day a hollow one, and today an outline on the whole cell — three different
- * shapes, so the grid survives greyscale and colour-blind vision.
- */
-.month-grid-mark {
-  display: block;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-block-start: var(--space-3xs);
-  border-radius: var(--radius-pill);
-  background: none;
-}
-
-[data-record="recorded"] .month-grid-mark,
-.month-grid-legend [data-record="recorded"] .month-grid-mark {
+.month-calendar-day-recorded::after {
+  content: "";
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
   background: var(--success);
 }
 
-[data-record="not-recorded"] .month-grid-mark,
-.month-grid-legend [data-record="not-recorded"] .month-grid-mark {
-  border: 1px solid var(--border-strong);
+.month-calendar-day.is-non-working {
+  background-image: linear-gradient(135deg, transparent 84%, var(--warning-line) 84%);
 }
 
-/* The legend's own entry for a month the sheet has nothing for. */
-.month-grid-legend [data-record="no-data"] .month-grid-mark {
-  border: 1px dashed var(--border-strong);
+.month-calendar-day.is-selected {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
 }
 
-.month-grid-cell[data-record="recorded"] {
-  background: var(--success-wash);
-  border-color: var(--success-line);
+.month-calendar-day.is-today .month-calendar-day-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border-radius: 50%;
+  color: var(--primary-on);
+  background: var(--primary);
 }
 
-.month-grid-cell[data-non-working],
-.month-grid-legend [data-non-working] .month-grid-mark {
-  background: var(--surface-sunken);
+.month-calendar-day.needs-attention {
+  border-color: var(--danger-line);
 }
 
-.month-grid-cell[data-non-working] .month-grid-date {
+.month-calendar-day-number,
+.month-calendar-day-duration {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+.month-calendar-day-state {
+  align-self: end;
   color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
 }
 
-.month-grid-cell[data-today="true"],
-.month-grid-legend [data-today="true"] .month-grid-mark {
-  outline: 2px solid var(--primary);
-  outline-offset: -2px;
-}
-
-.month-grid-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.month-calendar-day-duration {
   color: var(--ink-700);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
-.month-grid-legend li {
+.month-calendar-markers {
+  position: absolute;
+  right: var(--space-2xs);
+  bottom: var(--space-2xs);
   display: flex;
+  gap: 0.15rem;
+}
+
+.month-calendar-marker-local,
+.month-calendar-marker-attention {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  font-size: 0.62rem;
+  font-weight: var(--weight-black);
+}
+
+.month-calendar-marker-local {
+  color: var(--primary-ink);
+  background: var(--primary-wash);
+}
+
+.month-calendar-marker-attention {
+  color: var(--danger);
+  background: var(--danger-wash);
+}
+
+.month-calendar-legend {
+  display: flex;
+  gap: var(--space-xs) var(--space-md);
+  flex-wrap: wrap;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  color: var(--ink-500);
+  font-size: var(--text-xs);
+  list-style: none;
+}
+
+.month-calendar-legend li {
+  display: inline-flex;
   gap: var(--space-2xs);
   align-items: center;
 }
 
-.month-grid-legend .month-grid-mark {
-  margin-block-start: 0;
+.month-calendar-legend li::before {
+  content: "";
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
 }
 
-.calendar-month-form {
+.month-calendar-legend [data-legend="recorded"]::before { background: var(--success); }
+.month-calendar-legend [data-legend="non-working"]::before { border-color: var(--warning); }
+.month-calendar-legend [data-legend="local"]::before { background: var(--primary); }
+.month-calendar-legend [data-legend="attention"]::before { background: var(--danger); }
+
+.calendar-side-panel {
+  position: sticky;
+  top: var(--space-md);
+}
+
+.calendar-shortcuts,
+.calendar-context-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Read-only day preview                                                       */
+/* -------------------------------------------------------------------------- */
+
+.day-preview-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  pointer-events: none;
+}
+
+.day-preview {
+  position: absolute;
+  top: 7rem;
+  right: var(--space-xl);
+  width: min(24rem, calc(100vw - 2 * var(--space-md)));
+  max-height: calc(100vh - 9rem);
+  padding: var(--space-lg);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+}
+
+.day-preview-header,
+.day-preview-state-row,
+.day-preview-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.day-preview-close {
+  min-width: var(--touch-target);
+  padding-inline: var(--space-sm);
+  font-size: var(--text-xl);
+}
+
+.day-preview-state-row {
   align-items: center;
-  padding-block-start: var(--space-md);
-  border-block-start: 1px solid var(--border);
+  flex-wrap: wrap;
+  margin-top: var(--space-md);
 }
 
-.calendar-month-form label {
+.day-preview-state-row .sync-status {
+  margin: 0;
+}
+
+.day-preview-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin: var(--space-md) 0;
+}
+
+.day-preview-facts div {
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.day-preview-facts dt,
+.day-preview-copy h3 {
+  color: var(--ink-500);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.day-preview-facts dd {
+  margin: var(--space-3xs) 0 0;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+}
+
+.day-preview-copy {
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.day-preview-copy h3,
+.day-preview-copy p {
+  margin: 0;
+}
+
+.day-preview-copy p {
+  margin-top: var(--space-2xs);
   color: var(--ink-700);
-  font-size: var(--text-sm);
 }
 
-@media (width <= 30rem) {
-  /* A seven-column grid cannot shrink below a usable hit area, so it scrolls. */
-  .calendar-panel {
-    overflow-x: auto;
+.day-preview-actions {
+  align-items: center;
+  margin-top: var(--space-lg);
+}
+
+@media (max-width: 64rem) {
+  .calendar-dashboard {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .month-grid {
-    min-width: 20rem;
+  .calendar-side-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 48rem) {
+  .calendar-workspace {
+    padding: var(--space-sm);
   }
 
-  .calendar-month-form {
-    align-items: stretch;
-    flex-direction: column;
+  .calendar-workspace-header {
+    display: block;
+  }
+
+  .calendar-workspace-header .sync-status {
+    margin-top: var(--space-sm);
+  }
+
+  .month-calendar {
+    gap: 0.2rem;
+  }
+
+  .month-calendar-blank,
+  .month-calendar-day {
+    min-height: 4.75rem;
+  }
+
+  .month-calendar-day {
+    padding: var(--space-2xs);
+    border-radius: var(--radius-sm);
+  }
+
+  .month-calendar-day-state {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.58rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .month-calendar-day-duration {
+    font-size: var(--text-xs);
+  }
+
+  .day-preview-layer {
+    background: color-mix(in srgb, var(--ink-900) 30%, transparent);
+    pointer-events: auto;
+  }
+
+  .day-preview {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: min(82vh, 42rem);
+    padding: var(--space-lg) var(--space-md) calc(var(--space-lg) + var(--safe-bottom));
+    border-width: 1px 0 0;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  }
+}
+
+@media (max-width: 24rem) {
+  .calendar-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .calendar-toolbar-month {
+    min-width: 7.5rem;
+  }
+
+  .month-calendar-day {
+    min-height: var(--touch-target);
+  }
+
+  .month-calendar-day-state,
+  .month-calendar-day-duration,
+  .month-calendar-markers {
+    display: none;
   }
 }

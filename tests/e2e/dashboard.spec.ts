@@ -26,21 +26,21 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("the manager selects a folder and sees only its direct matching children", async ({ page }) => {
-  await page.goto("/dashboard");
+  await page.goto("/manage");
 
   await expect(
-    page.getByText("Select a dashboard folder to see the attendance files you manage."),
+    page.getByText("Choose a folder to see managed attendance files."),
   ).toBeVisible();
 
   await queuePick(page, E2E_FIXTURE.activeFolder);
-  await page.getByRole("button", { name: "Select dashboard folder" }).click();
+  await page.getByRole("button", { name: "Select folder" }).click();
 
-  const managed = page.getByRole("region", { name: "Managed attendance files" });
-  await expect(managed.getByText(E2E_FIXTURE.activeFolder.name)).toBeVisible();
+  const managed = page.getByRole("region", { name: "Attendance files" });
+  await expect(page.getByRole("region", { name: E2E_FIXTURE.activeFolder.name })).toBeVisible();
 
   // Present: an owned, directly parented, correctly named file.
-  await expect(managed.getByRole("listitem", { name: E2E_FIXTURE.readyFile.name })).toBeVisible();
-  await expect(managed.getByRole("listitem", { name: E2E_FIXTURE.legacyFile.name })).toBeVisible();
+  await expect(managed.getByRole("row").filter({ hasText: E2E_FIXTURE.readyFile.name })).toBeVisible();
+  await expect(managed.getByRole("row").filter({ hasText: E2E_FIXTURE.legacyFile.name })).toBeVisible();
 
   // Absent: wrong name, and a file one folder deeper.
   await expect(page.getByText(E2E_FIXTURE.unmarkedFile.name)).toHaveCount(0);
@@ -51,17 +51,17 @@ test("the manager selects a folder and sees only its direct matching children", 
 });
 
 test("changing the folder replaces the listing with that folder's children", async ({ page }) => {
-  await page.goto("/dashboard");
+  await page.goto("/manage");
 
   await queuePick(page, E2E_FIXTURE.activeFolder);
-  await page.getByRole("button", { name: "Select dashboard folder" }).click();
-  await expect(page.getByRole("listitem", { name: E2E_FIXTURE.readyFile.name })).toBeVisible();
+  await page.getByRole("button", { name: "Select folder" }).click();
+  await expect(page.getByRole("row").filter({ hasText: E2E_FIXTURE.readyFile.name })).toBeVisible();
 
   await queuePick(page, E2E_FIXTURE.archiveFolder);
   await page.getByRole("button", { name: "Change folder" }).click();
 
   await expect(page.getByText(E2E_FIXTURE.archiveFolder.name)).toBeVisible();
-  await expect(page.getByRole("listitem", { name: E2E_FIXTURE.archivedFile.name })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: E2E_FIXTURE.archivedFile.name })).toBeVisible();
   await expect(page.getByText(E2E_FIXTURE.readyFile.name)).toHaveCount(0);
 });
 
@@ -78,16 +78,17 @@ test("an invalid remembered folder shows Folder unavailable and never falls back
     ] as const,
   );
 
-  await page.goto("/dashboard");
+  await page.goto("/manage");
 
-  await expect(page.getByRole("alert").filter({ hasText: "Folder unavailable." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose another folder" })).toBeVisible();
+  await expect(page.getByText("Folder unavailable.", { exact: true })).toBeVisible();
 
   // No all-Drive fallback: not one managed file is listed, including the ones
   // this manager owns in the folders that are still valid.
   await expect(page.getByText(E2E_FIXTURE.readyFile.name)).toHaveCount(0);
   await expect(page.getByText(E2E_FIXTURE.archivedFile.name)).toHaveCount(0);
   await expect(
-    page.getByText("Select a dashboard folder to see the attendance files you manage."),
+    page.getByText("Choose a folder to see managed attendance files."),
   ).toBeVisible();
 
   // The unusable folder is forgotten, so a reload does not repeat the failure.
@@ -97,8 +98,8 @@ test("an invalid remembered folder shows Folder unavailable and never falls back
 });
 
 test("a manager with no shared timesheet still sees the employee section", async ({ page }) => {
-  await page.goto("/dashboard");
+  await page.goto("/timesheets");
 
-  const timesheets = page.getByRole("region", { name: "My timesheets" });
-  await expect(timesheets.getByText("No timesheets are shared with you yet.")).toBeVisible();
+  const timesheets = page.getByRole("region", { name: "Your attendance months" });
+  await expect(timesheets.getByText("No timesheet for this month")).toBeVisible();
 });

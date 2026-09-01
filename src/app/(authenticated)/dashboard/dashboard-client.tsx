@@ -6,6 +6,7 @@ import { ErrorNotice } from "@/components/api-error-notice";
 import { DayQuickPreview } from "@/components/day-quick-preview/day-quick-preview";
 import { MonthCalendar } from "@/components/month-calendar/month-calendar";
 import { MonthLabel, formatMonthLabel } from "@/components/month-label";
+import { LoadingGhosts } from "@/components/loading-ghosts";
 import { StateNotice, SyncStatus, type SyncState } from "@/components/sync-status";
 import { shiftMonth } from "@/lib/attendance/calendar-grid";
 import { todayInZone } from "@/lib/attendance/zone";
@@ -729,11 +730,13 @@ function CalendarStateNotices({
   if (overlay) return null;
 
   if (dashboard.status === "loading" || calendar.status === "loading") {
-    return (
-      <p className="calendar-freshness" role="status" aria-live="polite">
-        Preparing your calendar…
-      </p>
-    );
+    /*
+     * The same waiting scene every other screen uses. It sits under the grid
+     * rather than replacing it — the month is drawn from the calendar itself
+     * and stays put — but the wait is a real one, often several seconds against
+     * Drive, so it gets more than a line of text.
+     */
+    return <LoadingGhosts label="Preparing your calendar…" />;
   }
 
   if (candidates.length > 1 && activeTimesheet === null) {

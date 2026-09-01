@@ -28,14 +28,21 @@ function hasText(value: string): boolean {
 }
 
 /**
- * Statuses that answer the day on their own.
+ * Statuses that say the person was away — `欠勤` / `absent`, personal leave.
  *
- * Somebody marked absent has nothing to report, so the absence of a work report
- * is the correct state for that day, not a gap. `出社` / `office` is the
- * opposite: it is the template's default and says nothing about whether the
- * person actually recorded anything.
+ * They answer the day on their own twice over. A day away needs no work report,
+ * so its absence is the correct state rather than a gap; and it is not an
+ * ordinary working day, so the calendar marks it as leave rather than as work.
+ *
+ * `出社` / `office` is the opposite: the template's default, present on every
+ * working day before anybody touches it.
  */
-const SELF_ANSWERING_STATUSES: ReadonlySet<string> = new Set(["absent"]);
+export const LEAVE_STATUS_CODES: ReadonlySet<string> = new Set(["absent"]);
+
+/** Whether the day is personal leave. */
+export function isLeaveDay(day: AttendanceDay): boolean {
+  return day.statusCode !== null && LEAVE_STATUS_CODES.has(day.statusCode);
+}
 
 /**
  * Whether the day carries an attendance record.
@@ -68,9 +75,7 @@ const SELF_ANSWERING_STATUSES: ReadonlySet<string> = new Set(["absent"]);
  */
 export function dayRecordState(day: AttendanceDay): DayRecordState {
   const recorded =
-    (day.statusCode !== null && SELF_ANSWERING_STATUSES.has(day.statusCode)) ||
-    hasText(day.notes) ||
-    Object.values(day.slots).some(hasText);
+    isLeaveDay(day) || hasText(day.notes) || Object.values(day.slots).some(hasText);
 
   return recorded ? "recorded" : "not-recorded";
 }

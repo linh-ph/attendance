@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import { buildMonthGrid } from "@/lib/attendance/calendar-grid";
-import { dayRecordState } from "@/lib/attendance/day-state";
+import { dayRecordState, isLeaveDay } from "@/lib/attendance/day-state";
 import type { AttendanceDay } from "@/lib/attendance/model";
 import { formatMonthLabel } from "@/components/month-label";
 
@@ -176,6 +176,7 @@ export function MonthCalendar({
 
             const index = days.indexOf(day);
             const recordState = dayRecordState(day);
+            const leave = isLeaveDay(day);
             const selected = selectedDate === day.date;
             const local = localDates.has(day.date);
             const attention = attentionDates.has(day.date);
@@ -189,7 +190,9 @@ export function MonthCalendar({
             const missing =
               recordState === "not-recorded" && !weekend && !isAfter(day.date, todayDate);
             const states = [
-              recordState === "recorded" ? "Recorded" : "Not recorded",
+              // Leave answers the day: saying `Recorded` beside it would read
+              // as a day worked.
+              leave ? "Leave" : recordState === "recorded" ? "Recorded" : "Not recorded",
               missing ? "Missing" : null,
               weekend ? "Non-working day" : null,
               local ? "Local changes" : null,
@@ -209,6 +212,7 @@ export function MonthCalendar({
                   `month-calendar-day-${recordState}`,
                   cell.inMonth ? "" : "is-outside",
                   missing ? "is-missing" : "",
+                  leave ? "is-on-leave" : "",
                   weekend ? "is-non-working" : "",
                   selected ? "is-selected" : "",
                   today ? "is-today" : "",
@@ -225,7 +229,7 @@ export function MonthCalendar({
               >
                 <span className="month-calendar-day-number">{Number(day.date.slice(-2))}</span>
                 <span className="month-calendar-day-state">
-                  {recordState === "recorded" ? "Recorded" : "Not recorded"}
+                  {leave ? "Leave" : recordState === "recorded" ? "Recorded" : "Not recorded"}
                 </span>
                 {/*
                   Column H is `=F-G-E`, so a day whose clock columns hold only
@@ -248,6 +252,8 @@ export function MonthCalendar({
 
       <ul className="month-calendar-legend" aria-label="Calendar legend">
         <li data-legend="recorded">Recorded</li>
+        {/* English only: the sheet's own `欠勤` stays in the workbook contract. */}
+        <li data-legend="leave">Leave — a day away, nothing owed</li>
         <li data-legend="missing">Missing — a working day with nothing recorded</li>
         <li data-legend="not-recorded">Not recorded</li>
         <li data-legend="no-data">No timesheet data</li>

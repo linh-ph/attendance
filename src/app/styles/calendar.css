@@ -353,6 +353,36 @@
   font-weight: var(--weight-bold);
 }
 
+/*
+ * Personal leave — the sheet's `欠勤` status.
+ *
+ * Yellow, and it wins over the recorded wash: a half-day of leave still carries
+ * real work, but what the reader needs to see first is that the person was
+ * away. As everywhere else the colour is not the only carrier — the cell says
+ * `Leave` and draws its own corner marker.
+ */
+.month-calendar-day.is-on-leave {
+  color: var(--ink-900);
+  border-color: var(--warning-line);
+  background: var(--warning-wash);
+}
+
+.month-calendar-day.is-on-leave::after {
+  content: "";
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.month-calendar-day.is-on-leave .month-calendar-day-state {
+  color: var(--warning);
+  font-weight: var(--weight-bold);
+}
+
 .month-calendar-day.is-non-working {
   background-image: linear-gradient(135deg, transparent 84%, var(--warning-line) 84%);
 }
@@ -477,6 +507,7 @@
 }
 
 .month-calendar-legend [data-legend="recorded"]::before { background: var(--success); }
+.month-calendar-legend [data-legend="leave"]::before { background: var(--warning); }
 .month-calendar-legend [data-legend="missing"]::before { background: var(--danger); }
 .month-calendar-legend [data-legend="no-data"]::before { border-style: dashed; }
 .month-calendar-legend [data-legend="non-working"]::before { border-color: var(--warning); }

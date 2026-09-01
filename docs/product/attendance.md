@@ -152,6 +152,11 @@ template on every working day, so they say nothing about whether the person
 filled the day in. A day is recorded when it has a work-report entry in J:AS, a
 note, or a status that answers the day on its own such as `欠勤`.
 
+A day whose status says the person was away — `欠勤` in the sheet — is shown as
+**`Leave`, on a yellow ground**. Leave wins over `Recorded`: a half day of leave
+still carries real work, but what a reader needs first is that the person was
+away. It is never `Missing`, because nothing is owed on it.
+
 A working day that has already passed with nothing recorded is shown as
 **`Missing`, on a red ground**. That is the one thing people open this calendar
 to find. Weekends are not missing anything, and neither is a day that has not

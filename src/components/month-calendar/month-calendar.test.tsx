@@ -173,6 +173,61 @@ describe("MonthCalendar", () => {
     expect(cell.className).toContain("is-missing");
   });
 
+  /**
+   * 2026-07-20 in the owner's workbook: `欠勤`, "Half-day Leave (Morning)",
+   * clocked 13:00–17:00 with ten work-report slots. Real work on it, but what
+   * the reader needs first is that the person was away.
+   */
+  it("marks a day away as Leave, even when it also carries work", () => {
+    const base = emptyDay("2026-07-20");
+    render(
+      <MonthCalendar
+        month="2026-07"
+        days={[
+          {
+            ...base,
+            statusCode: "absent",
+            notes: "Half-day Leave (Morning) - Paid Leave Day",
+            clockIn: 13,
+            clockOut: 17,
+            workHours: 4,
+            slots: { ...base.slots, "13:00": "FMC" },
+          },
+        ]}
+        selectedDate={null}
+        todayDate="2026-09-01"
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const cell = screen.getByRole("gridcell", { name: /Monday, July 20, 2026/ });
+    expect(cell).toHaveAccessibleName(/Leave/);
+    expect(cell).not.toHaveAccessibleName(/Recorded/);
+    expect(cell.className).toContain("is-on-leave");
+    // Leave is never a gap to chase.
+    expect(cell.className).not.toContain("is-missing");
+  });
+
+  it("marks a day away with no work at all as Leave, not Missing", () => {
+    render(
+      <MonthCalendar
+        month="2026-07"
+        days={[{ ...emptyDay("2026-07-20"), statusCode: "absent" }]}
+        selectedDate={null}
+        todayDate="2026-09-01"
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const cell = screen.getByRole("gridcell", { name: /Monday, July 20, 2026/ });
+    expect(cell.className).toContain("is-on-leave");
+    expect(cell.className).not.toContain("is-missing");
+  });
+
   it("shows no duration on a day with nothing recorded", () => {
     render(
       <MonthCalendar
@@ -273,6 +328,7 @@ describe("MonthCalendar", () => {
 
     const legend = screen.getByLabelText("Calendar legend");
     expect(legend).toHaveTextContent("Recorded");
+    expect(legend).toHaveTextContent("Leave");
     expect(legend).toHaveTextContent("Missing");
     expect(legend).toHaveTextContent("Not recorded");
     expect(legend).toHaveTextContent("No timesheet data");

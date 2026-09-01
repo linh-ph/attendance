@@ -78,7 +78,18 @@ for (const viewport of [
     await page.goto("/dashboard");
 
     await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
-    await page.getByRole("button", { name: "Previous month" }).click();
+
+    /*
+     * The arrows now step one month at a time, as a calendar's do, so the jump
+     * to the month that actually holds a timesheet is its own action on the
+     * empty-month notice.
+     */
+    await page
+      .getByRole("button", { name: /^Go to .*2026$/ })
+      .first()
+      .click();
+
+    // Three fixture files cover July, so the app still refuses to guess.
 
     const choice = page.getByRole("button", {
       name: `Use ${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle} — ${E2E_FIXTURE.managerEmail}`,
@@ -88,7 +99,14 @@ for (const viewport of [
 
     const calendar = page.getByRole("grid", { name: "July 2026 attendance calendar" });
     await expect(calendar).toBeVisible();
-    await calendar.getByRole("gridcell", { name: /Wednesday, July 1, 2026/ }).click();
+    /*
+     * Named by its record state, not by the date alone. The grid is drawn from
+     * the month before any data arrives, so a bare-date locator would match the
+     * inert `No timesheet data` cell and click it before the month lands.
+     */
+    await calendar
+      .getByRole("gridcell", { name: /Wednesday, July 1, 2026 — (Recorded|Not recorded)/ })
+      .click();
 
     const preview = page.getByRole("dialog", { name: "Wednesday, July 1, 2026" });
     await expect(preview).toBeVisible();

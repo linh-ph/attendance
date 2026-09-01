@@ -26,8 +26,8 @@
  */
 
 import type { AttendanceMonthView } from "@/lib/attendance/service";
-import type { CalendarCache } from "@/lib/cache/calendar-cache";
-import { buildCalendarSnapshot, type CalendarSnapshot } from "@/lib/cache/calendar-state";
+import type { AttendanceCache } from "@/lib/cache/attendance-cache";
+import type { CalendarPointerStore } from "@/lib/cache/calendar-pointer";
 import type { CacheFailureReason } from "@/lib/cache/results";
 import type { Timesheet, UnreadableFile } from "@/lib/discovery/file-discovery";
 import type { SyncCause, SyncState } from "@/components/sync-status/sync-state";
@@ -70,7 +70,10 @@ export interface SyncTransport {
 
 export interface SyncDependencies {
   transport: SyncTransport;
-  cache: CalendarCache;
+  /** The one month store. This module adds no second copy of the data. */
+  cache: AttendanceCache;
+  /** Records which month the calendar is on, so a cold open can find it. */
+  pointer: CalendarPointerStore;
   now(): Date;
 }
 
@@ -170,7 +173,8 @@ export interface SyncReport {
   unreadable: UnreadableFile[];
   month: string;
   context: CalendarContextResolution;
-  snapshot: CalendarSnapshot | null;
+  /** The month as Google answered it, or `null` when none was read. */
+  view: AttendanceMonthView | null;
   /** `null` when nothing was synced because nothing is selected yet. */
   syncState: SyncState | null;
   cause?: SyncCause;
@@ -210,7 +214,7 @@ export async function syncCalendar(
   dependencies: SyncDependencies,
   request: SyncRequest,
 ): Promise<SyncReport> {
-  const { transport, cache, now } = dependencies;
+  const { transport, cache, pointer, now } = dependencies;
   const month = request.month?.trim() || currentMonth(now());
 
   let discovered: DiscoveryResult;
@@ -224,7 +228,7 @@ export async function syncCalendar(
       unreadable: [],
       month,
       context: { kind: "none", month },
-      snapshot: null,
+      view: null,
       syncState: failure.state,
       ...(failure.cause ? { cause: failure.cause } : {}),
       cacheFailure: null,
@@ -246,7 +250,7 @@ export async function syncCalendar(
       unreadable,
       month,
       context,
-      snapshot: null,
+      view: null,
       syncState: null,
       cacheFailure: null,
       checkedAt: null,
@@ -265,7 +269,7 @@ export async function syncCalendar(
       unreadable,
       month,
       context,
-      snapshot: null,
+      view: null,
       syncState: failure.state,
       ...(failure.cause ? { cause: failure.cause } : {}),
       cacheFailure: null,
@@ -275,22 +279,38 @@ export async function syncCalendar(
   }
 
   const checkedAt = now().toISOString();
-  const snapshot = buildCalendarSnapshot({ email: request.email, view, checkedAt });
-  const written = await cache.writeSnapshot(snapshot);
+
+  // The configuration owns the month, so what came back is authoritative over
+  // what was asked for.
+  const cacheContext = {
+    email: request.email,
+    fileId: view.fileId,
+    sheetId: String(view.sheetId),
+    month: view.month,
+  };
+
+  const written = await cache.writeMonth(cacheContext, { view, checkedAt });
+
+  // The pointer is the address of what was just stored, so it is only moved
+  // once the month itself is in place — never onto a month that failed to
+  // cache, which would send the next cold open to an empty key.
+  const pointed = written.ok
+    ? await pointer.write(cacheContext)
+    : ({ ok: false, reason: written.reason, message: written.message } as const);
+
+  const failure = !written.ok ? written : !pointed.ok ? pointed : null;
 
   return {
     timesheets,
     unreadable,
-    // The configuration owns the month, so the snapshot's is authoritative over
-    // the one that was asked for.
-    month: snapshot.month,
+    month: view.month,
     context,
-    snapshot,
+    view,
     // The sheet read succeeded either way. Only the local copy can still fail,
     // and saying `Synced` then would claim a cache that does not exist.
-    syncState: written.ok ? "synced" : "local-storage-unavailable",
-    cacheFailure: written.ok ? null : written.reason,
+    syncState: failure === null ? "synced" : "local-storage-unavailable",
+    cacheFailure: failure?.reason ?? null,
     checkedAt,
-    detail: written.ok ? null : written.message,
+    detail: failure?.message ?? null,
   };
 }

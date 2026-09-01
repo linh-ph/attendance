@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAttendanceCache } from "@/lib/cache/attendance-cache";
+import { createCalendarPointerStore } from "@/lib/cache/calendar-pointer";
 import { createMemoryEngine } from "@/lib/cache/engine";
 import type { CacheContext } from "@/lib/cache/keys";
 import { emptyDay } from "@/lib/attendance/model";
@@ -86,7 +87,9 @@ describe("DashboardClient calendar workspace", () => {
     expect(
       await screen.findByRole("grid", { name: "August 2026 attendance calendar" }),
     ).toBeVisible();
-    expect(screen.getByText("Linh")).toBeVisible();
+    // The grid is drawn from the month, so it is on screen before any data
+    // arrives. The timesheet name is what proves the month actually loaded.
+    expect(await screen.findByText("Linh")).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Managed attendance files" })).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/files/file-1/attendance/22",
@@ -221,7 +224,7 @@ describe("DashboardClient calendar workspace", () => {
     expect(
       await screen.findByRole("grid", { name: "August 2026 attendance calendar" }),
     ).toBeVisible();
-    expect(screen.getByText(/Showing cached data/i)).toBeVisible();
+    expect(await screen.findByText(/Showing cached data/i)).toBeVisible();
 
     resolveRemote(jsonResponse(200, monthView()));
     await waitFor(() => expect(screen.getByText(/Calendar refreshed/i)).toBeVisible());
@@ -241,9 +244,10 @@ describe("DashboardClient calendar workspace", () => {
       />,
     );
 
-    const today = await screen.findByRole("button", { name: "Today" });
-    expect(today).toBeDisabled();
-    expect(screen.getByText(/spreadsheet timezone could not be determined/i)).toBeVisible();
+    expect(
+      await screen.findByText(/spreadsheet timezone could not be determined/i),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Today" })).toBeDisabled();
   });
 
   it("uses ErrorNotice so provider diagnostics are sanitized", async () => {
@@ -264,5 +268,185 @@ describe("DashboardClient calendar workspace", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your dashboard.");
     expect(document.body).not.toHaveTextContent("secret");
+  });
+});
+
+describe("DashboardClient — the calendar is always drawn", () => {
+  it("shows the month grid while nothing has loaded yet", () => {
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    // Synchronously, before any fetch resolves.
+    expect(screen.getByRole("grid", { name: "August 2026 attendance calendar" })).toBeVisible();
+  });
+
+  it("keeps the grid when no timesheet covers the month", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));
+
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    expect(await screen.findByText("No timesheet for this month")).toBeVisible();
+    expect(screen.getByRole("grid", { name: "August 2026 attendance calendar" })).toBeVisible();
+    expect(screen.getAllByRole("gridcell").length).toBeGreaterThan(28);
+  });
+
+  it("keeps the grid when the dashboard itself could not be loaded", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(500, { error: "Could not load your dashboard." }));
+
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    await screen.findByRole("alert");
+    expect(screen.getByRole("grid", { name: "August 2026 attendance calendar" })).toBeVisible();
+  });
+
+  it("moves to any month, not only the ones that have a file", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));
+
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    await screen.findByText("No timesheet for this month");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(
+      await screen.findByRole("grid", { name: "September 2026 attendance calendar" }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(
+      await screen.findByRole("grid", { name: "July 2026 attendance calendar" }),
+    ).toBeVisible();
+  });
+});
+
+describe("DashboardClient — Sync sheet", () => {
+  it("stays pressable on a month with no timesheet — that is when it is wanted", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));
+
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    await screen.findByText("No timesheet for this month");
+    expect(screen.getByRole("button", { name: "Sync sheet" })).toBeEnabled();
+  });
+
+  it("re-reads the listing and the month from Google Sheets on demand", async () => {
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    await screen.findByText("Linh");
+    const before = fetchMock.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Sync sheet" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/files/file-1/attendance/22",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("stores the month it read, so the next open has it", async () => {
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+
+    await screen.findByText("Linh");
+
+    await waitFor(async () => {
+      expect(await pointer.read(EMAIL)).toMatchObject({
+        ok: true,
+        value: { fileId: "file-1", sheetId: "22", month: "2026-08" },
+      });
+    });
+  });
+});
+
+describe("DashboardClient — data already in this browser", () => {
+  it("draws the stored month when discovery cannot name a file", async () => {
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+    const context: CacheContext = {
+      email: EMAIL,
+      fileId: "file-1",
+      sheetId: "22",
+      month: "2026-08",
+    };
+
+    await cache.writeMonth(context, { view: monthView(), checkedAt: "2026-08-15T07:30:00.000Z" });
+    await pointer.write(context);
+
+    // Discovery answers with nothing at all — offline, or the file stopped
+    // being shared. The browser already holds the month.
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));
+
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+
+    expect(await screen.findByText(/Showing this browser's copy/i)).toBeVisible();
+    expect(
+      screen.getByRole("gridcell", { name: /Monday, August 3, 2026.*Recorded/i }),
+    ).toBeVisible();
+  });
+
+  it("does not draw a stored month onto a different month", async () => {
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+    const context: CacheContext = {
+      email: EMAIL,
+      fileId: "file-1",
+      sheetId: "22",
+      month: "2026-08",
+    };
+
+    await cache.writeMonth(context, { view: monthView(), checkedAt: "2026-08-15T07:30:00.000Z" });
+    await pointer.write(context);
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));
+
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+    await screen.findByText(/Showing this browser's copy/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+
+    expect(
+      await screen.findByRole("grid", { name: "September 2026 attendance calendar" }),
+    ).toBeVisible();
+    expect(screen.queryByText(/Showing this browser's copy/i)).toBeNull();
   });
 });

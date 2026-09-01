@@ -1157,16 +1157,31 @@ does not rebuild them, and it does not add a second way to do any of it.
   no timesheet, no month, and no Google at all still draw an ordinary calendar,
   and attendance is an overlay on top. S2 must keep that property; replacing it
   with a grid built from `snapshot.days` reintroduces the blank panel.
-- `src/components/calendar-panel/*` — the month grid, its legend, month
-  stepping, and the first-load orchestration, mounted by `dashboard/page.tsx`.
-  **This is the placeholder S2 replaces**: it has no day preview (option A), no
-  keyboard date movement, and no per-cell interaction. Its data flow, its grid
-  rule, and its states are the contract; its interaction is not.
+- `src/components/month-calendar/month-calendar.tsx` — S2's grid, rebuilt on
+  `buildMonthGrid`. `days` is an overlay: a date with a sheet row is a button
+  and opens the preview, a date without one is an inert cell reading `No
+  timesheet data`, and arrow keys walk only the dates that have data.
+- `src/app/(authenticated)/dashboard/dashboard-client.tsx` — the four early
+  returns that each *replaced* the calendar (no candidate, choose a timesheet,
+  choose a tab, first load) are now `CalendarStateNotices` rendered underneath a
+  grid that is always drawn. It also gained the `Sync sheet` toolbar action and
+  a cold-open read through the calendar pointer.
 
-  Note for S2's rule 2: previous/next are *not* disabled when no candidate
-  covers the target month. That rule was written assuming the grid needs data;
-  it does not any more, so the month moves and the empty calendar explains
-  itself underneath.
+  Two rule changes to S2's brief, both consequences of the grid no longer
+  needing data. **Rule 2:** previous/next are *not* disabled when no candidate
+  covers the target month — they step one month at a time, and the jump to the
+  nearest month that has a timesheet moved onto the empty-month notice, where it
+  is an explicit action rather than a hidden arrow behaviour. **Rule 5:** the
+  first-load skeleton no longer stands in for the calendar; the grid is drawn
+  immediately and `Preparing your calendar…` sits under it.
+
+  A locator caution for later work: because the grid renders before its data, a
+  test that clicks a cell by date alone will hit the inert `No timesheet data`
+  cell. Name the record state too.
+- `src/lib/cache/calendar-pointer.ts` — one record per account naming the file,
+  tab, and month last shown. The month data itself stays in `attendance-cache`;
+  this is only its address, and it is what lets a cold or offline open find a
+  cached month before discovery answers. **Do not add a second month store.**
 - `src/components/settings/sync-settings.tsx` on `/more` — `Sync now`. It is a
   *section*, not a navigation destination: spec §3.2's shell is unchanged.
 

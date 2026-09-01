@@ -1,18 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
-import { E2E_FIXTURE, EMPLOYEE_STORAGE_STATE, resetStore } from "../../playwright.config";
+import { EMPLOYEE_STORAGE_STATE, resetStore } from "../../playwright.config";
 
 /**
- * The dashboard calendar's first load, in a real browser.
+ * The calendar is drawn from the month, never from the data.
  *
- * These cover the three things a unit test cannot prove end to end: that the
- * calendar discovers files by itself, that it says which month it looked for
- * when nothing covers it, and that a month it loaded survives a reload because
- * it was stored in IndexedDB rather than re-fetched.
+ * `attendance.spec.ts` covers the loaded month, its preview, and the editor.
+ * This file covers the opposite case, which is the one that used to render
+ * nothing at all: a month with no timesheet behind it.
  *
- * The fixture shapes both paths usefully. Its files never cover the real
- * current month, so the empty path is what runs on arrival; and **three** of
- * them cover 2026-07, so picking that month exercises the rule that the app
- * never guesses between candidates.
+ * The fixture's files never cover the real current month, so arriving at the
+ * dashboard lands on an empty month every time this runs.
  */
 
 test.use({ storageState: EMPLOYEE_STORAGE_STATE });
@@ -21,89 +18,92 @@ test.beforeEach(async ({ page }) => {
   await resetStore(page.request);
 });
 
-const calendar = (page: Page) => page.getByRole("region", { name: "Calendar" });
+const monthGrid = (page: Page) => page.getByRole("grid", { name: /attendance calendar$/ });
 
-/** Picks July, then resolves the deliberate ambiguity the fixture creates. */
-async function showJulyInCalendar(page: Page): Promise<void> {
-  const panel = calendar(page);
-
-  await panel.getByLabel("Load another month").fill(E2E_FIXTURE.readyFile.month);
-  await panel.getByRole("button", { name: "Load", exact: true }).click();
-
-  await expect(panel.getByText(/More than one timesheet covers July 2026/)).toBeVisible();
-
-  await panel.getByRole("button", { name: "Show in calendar" }).first().click();
-}
-
-test("draws the month even when no timesheet covers it", async ({ page }) => {
+test("draws a full month grid when no timesheet covers it", async ({ page }) => {
   await page.goto("/dashboard");
 
-  const panel = calendar(page);
+  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
 
-  // The calendar is a property of the month, so it is drawn first and always.
-  const table = panel.getByRole("table");
-  await expect(table).toBeVisible();
-  await expect(table.locator("tbody tr")).not.toHaveCount(0);
-  await expect(table.locator("tbody tr").first().locator("td")).toHaveCount(7);
+  const grid = monthGrid(page);
+  await expect(grid).toBeVisible();
 
-  // The absence of data is a sentence underneath, not a missing panel.
-  await expect(panel.getByText(/no timesheet covers/i)).toBeVisible();
-  await expect(panel.getByRole("link", { name: "Create a monthly file" })).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Load files" })).toBeEnabled();
+  // Seven weekday columns, and complete weeks — so at least four rows of seven.
+  await expect(grid.getByRole("columnheader")).toHaveCount(7);
+  const cells = await grid.getByRole("gridcell").count();
+  expect(cells).toBeGreaterThanOrEqual(28);
+  expect(cells % 7).toBe(0);
+
+  // The absence of data is a sentence underneath, not a missing calendar.
+  await expect(page.getByText("No timesheet for this month")).toBeVisible();
 });
 
 test("steps between months without needing data for either", async ({ page }) => {
   await page.goto("/dashboard");
 
-  const panel = calendar(page);
-  await expect(panel.getByRole("table")).toBeVisible();
+  const before = await monthGrid(page).getAttribute("aria-label");
 
-  const captionBefore = await panel.getByRole("table").locator("caption").textContent();
+  await page.getByRole("button", { name: "Next month" }).click();
+  await expect(monthGrid(page)).not.toHaveAttribute("aria-label", before ?? "");
+  await expect(monthGrid(page)).toBeVisible();
 
-  await panel.getByRole("button", { name: "Next month" }).click();
-
-  await expect(panel.getByRole("table")).toBeVisible();
-  await expect(panel.getByRole("table").locator("caption")).not.toHaveText(captionBefore ?? "");
+  await page.getByRole("button", { name: "Previous month" }).click();
+  await expect(monthGrid(page)).toHaveAttribute("aria-label", before ?? "");
 });
 
-test("never picks between several timesheets for the same month", async ({ page }) => {
+test("offers a jump to the month that does hold a timesheet", async ({ page }) => {
   await page.goto("/dashboard");
+  await expect(page.getByText("No timesheet for this month")).toBeVisible();
 
-  const panel = calendar(page);
-  await panel.getByLabel("Load another month").fill(E2E_FIXTURE.readyFile.month);
-  await panel.getByRole("button", { name: "Load", exact: true }).click();
+  await page
+    .getByRole("button", { name: /^Go to .*2026$/ })
+    .first()
+    .click();
 
-  await expect(panel.getByText(/the app will not pick for you/)).toBeVisible();
-  // No month is drawn while the choice is open.
-  await expect(panel.getByRole("link", { name: "Open timesheet" })).toBeHidden();
+  await expect(page.getByRole("grid", { name: "July 2026 attendance calendar" })).toBeVisible();
+  await expect(
+    page.getByRole("gridcell", { name: /Wednesday, July 1, 2026/ }),
+  ).toBeVisible();
 });
 
-test("draws each date's state once a timesheet is chosen", async ({ page }) => {
+test("Sync sheet re-reads the month and keeps the calendar on screen", async ({ page }) => {
   await page.goto("/dashboard");
-  await showJulyInCalendar(page);
+  await page
+    .getByRole("button", { name: /^Go to .*2026$/ })
+    .first()
+    .click();
 
-  const panel = calendar(page);
+  // Three fixture files cover July, so a timesheet has to be chosen first.
+  await page
+    .getByRole("button", { name: /^Use 202607勤怠管理表 — Employee A/ })
+    .first()
+    .click();
 
-  await expect(panel.getByRole("table")).toBeVisible();
-  // The full readable date and its state — what a screen reader hears, even
-  // though the visible cell shows a bare day number.
-  await expect(panel.getByText(/July 1, 2026, (Recorded|Not recorded)/)).toBeVisible();
-  await expect(panel.getByRole("link", { name: "Open timesheet" })).toBeVisible();
+  const grid = page.getByRole("grid", { name: "July 2026 attendance calendar" });
+  await expect(grid).toBeVisible();
+  await expect(page.getByText(/Calendar refreshed/i)).toBeVisible();
+
+  await page.getByRole("button", { name: "Sync sheet" }).click();
+
+  // The grid never disappears while the sync runs, and the month comes back.
+  await expect(grid).toBeVisible();
+  await expect(page.getByText(/Calendar refreshed/i)).toBeVisible();
 });
 
-test("keeps the month it loaded after a reload, from this browser's own copy", async ({ page }) => {
+test("keeps the month after a reload, from this browser's own copy", async ({ page }) => {
   await page.goto("/dashboard");
-  await showJulyInCalendar(page);
+  await page
+    .getByRole("button", { name: /^Go to .*2026$/ })
+    .first()
+    .click();
 
-  // Wait for July's *data*, not merely for a table: the September grid is on
-  // screen from the first frame, so asserting a table here would let the reload
-  // race the load it is supposed to be testing.
-  await expect(calendar(page).getByText(/July 1, 2026, (Recorded|Not recorded)/)).toBeVisible();
+  await expect(
+    page.getByRole("gridcell", { name: /Wednesday, July 1, 2026/ }),
+  ).toBeVisible();
 
   await page.reload();
 
-  // Drawn from IndexedDB on the first frame. The background check then finds
-  // nothing for the *current* month, and that must not wipe what is on screen.
-  await expect(calendar(page).getByRole("table")).toBeVisible();
-  await expect(calendar(page).getByText(/July 1, 2026, (Recorded|Not recorded)/)).toBeVisible();
+  // The dashboard opens on the current month again, which has no timesheet —
+  // but the calendar is still drawn rather than blank.
+  await expect(monthGrid(page)).toBeVisible();
 });

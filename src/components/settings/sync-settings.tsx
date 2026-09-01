@@ -3,8 +3,13 @@
 import { useMemo, useState } from "react";
 import { StateNotice, SyncStatus } from "@/components/sync-status";
 import { formatMonthLabel } from "@/components/month-label";
-import { resolveCalendarCache, type CalendarCache } from "@/lib/cache/calendar-cache";
-import { summarizeCalendar } from "@/lib/cache/calendar-state";
+import { dayRecordState, isNonWorkingDay } from "@/lib/attendance/day-state";
+import type { AttendanceMonthView } from "@/lib/attendance/service";
+import { resolveAttendanceCache, type AttendanceCache } from "@/lib/cache/attendance-cache";
+import {
+  resolveCalendarPointerStore,
+  type CalendarPointerStore,
+} from "@/lib/cache/calendar-pointer";
 import { syncCalendar, type SyncReport, type SyncTransport } from "@/lib/sync/calendar-sync";
 import { createSyncTransport } from "@/lib/sync/sync-transport";
 
@@ -32,9 +37,26 @@ export interface SyncSettingsProps {
   /** Normalized signed-in email from the server session. */
   email: string;
   /** Injected in tests; the browser gets the real ones. */
-  cache?: CalendarCache;
+  cache?: AttendanceCache;
+  pointer?: CalendarPointerStore;
   transport?: SyncTransport;
   now?: () => Date;
+}
+
+/** Counted here from the domain rule, so this never invents a second one. */
+function summarize(view: AttendanceMonthView) {
+  let recorded = 0;
+  let workingDaysNotRecorded = 0;
+
+  for (const day of view.days) {
+    if (dayRecordState(day) === "recorded") {
+      recorded += 1;
+      continue;
+    }
+    if (!isNonWorkingDay(day.date)) workingDaysNotRecorded += 1;
+  }
+
+  return { days: view.days.length, recorded, workingDaysNotRecorded };
 }
 
 type Phase = { status: "idle" } | { status: "running" } | { status: "done"; report: SyncReport };
@@ -42,10 +64,14 @@ type Phase = { status: "idle" } | { status: "running" } | { status: "done"; repo
 export function SyncSettings({
   email,
   cache: injectedCache,
+  pointer: injectedPointer,
   transport: injectedTransport,
   now: injectedNow,
 }: SyncSettingsProps) {
-  const [cache] = useState<CalendarCache>(() => injectedCache ?? resolveCalendarCache());
+  const [cache] = useState<AttendanceCache>(() => injectedCache ?? resolveAttendanceCache());
+  const [pointer] = useState<CalendarPointerStore>(
+    () => injectedPointer ?? resolveCalendarPointerStore(),
+  );
   const [transport] = useState<SyncTransport>(() => injectedTransport ?? createSyncTransport());
   const now = useMemo(() => injectedNow ?? (() => new Date()), [injectedNow]);
 
@@ -56,13 +82,13 @@ export function SyncSettings({
 
     // `syncCalendar` resolves with a failure report rather than throwing, so
     // there is no path where the button stays stuck on `Syncing`.
-    const report = await syncCalendar({ transport, cache, now }, { email });
+    const report = await syncCalendar({ transport, cache, pointer, now }, { email });
 
     setPhase({ status: "done", report });
   }
 
   const report = phase.status === "done" ? phase.report : null;
-  const summary = report?.snapshot ? summarizeCalendar(report.snapshot) : null;
+  const summary = report?.view ? summarize(report.view) : null;
 
   return (
     <section className="surface-panel" aria-labelledby="sync-settings-title">
@@ -105,7 +131,7 @@ export function SyncSettings({
 
 interface SyncOutcomeProps {
   report: SyncReport;
-  summary: ReturnType<typeof summarizeCalendar> | null;
+  summary: ReturnType<typeof summarize> | null;
 }
 
 function SyncOutcome({ report, summary }: SyncOutcomeProps) {
@@ -121,7 +147,7 @@ function SyncOutcome({ report, summary }: SyncOutcomeProps) {
     return <StateNotice state="provider-failure" scope="section" />;
   }
 
-  if (report.snapshot === null) {
+  if (report.view === null) {
     // Nothing was read because nothing is selected — an ordinary state, not a
     // failure, and it names the month so the answer is actionable.
     return (
@@ -142,12 +168,12 @@ function SyncOutcome({ report, summary }: SyncOutcomeProps) {
         <div className="card-fact">
           <dt>Month synced</dt>
           <dd className="card-fact-numeric">
-            {formatMonthLabel(report.snapshot.month) ?? report.snapshot.month}
+            {formatMonthLabel(report.view.month) ?? report.view.month}
           </dd>
         </div>
         <div className="card-fact">
           <dt>Timesheet</dt>
-          <dd>{report.snapshot.sheetTitle}</dd>
+          <dd>{report.view.sheetTitle}</dd>
         </div>
         <div className="card-fact">
           <dt>Dates stored</dt>

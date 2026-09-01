@@ -50,7 +50,11 @@ setup("the manager signs in", async ({ page, context }) => {
 
   await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Managed files" })).toBeVisible();
+  // Scoped to the shell: the calendar's own shortcut panel links to the same
+  // destinations, and this assertion is about the navigation being present.
+  await expect(
+    page.getByLabel("Main").getByRole("link", { name: "Managed files" }),
+  ).toBeVisible();
 
   await context.storageState({ path: MANAGER_STORAGE_STATE });
 });
@@ -61,7 +65,7 @@ setup("the employee signs in", async ({ page, context }) => {
   await page.goto("/dashboard");
 
   await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Timesheets" })).toBeVisible();
+  await expect(page.getByLabel("Main").getByRole("link", { name: "Timesheets" })).toBeVisible();
 
   await context.storageState({ path: EMPLOYEE_STORAGE_STATE });
 });

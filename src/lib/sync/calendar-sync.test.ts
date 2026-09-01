@@ -1,8 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { emptyDay } from "@/lib/attendance/model";
 import type { AttendanceMonthView } from "@/lib/attendance/service";
-import { createCalendarCache, type CalendarCache } from "@/lib/cache/calendar-cache";
-import { CacheStorageError, createMemoryEngine } from "@/lib/cache/engine";
+import { createAttendanceCache, type AttendanceCache } from "@/lib/cache/attendance-cache";
+import {
+  createCalendarPointerStore,
+  type CalendarPointerStore,
+} from "@/lib/cache/calendar-pointer";
+import {
+  CacheStorageError,
+  createMemoryData,
+  createMemoryEngine,
+  type MemoryEngineOptions,
+} from "@/lib/cache/engine";
 import type { Timesheet } from "@/lib/discovery/file-discovery";
 import {
   currentMonth,
@@ -45,14 +54,17 @@ interface HarnessOptions {
   unreadable?: { id: string; name: string }[];
   discoverError?: Error;
   readError?: Error;
-  cache?: CalendarCache;
+  /** Share one dataset to model the cache and the pointer in one database. */
+  data?: ReturnType<typeof createMemoryData>;
+  engineFail?: MemoryEngineOptions["fail"];
 }
 
 function harness(options: HarnessOptions = {}): SyncDependencies & {
   transport: SyncTransport;
   discover: ReturnType<typeof vi.fn>;
   readMonth: ReturnType<typeof vi.fn>;
-  cache: CalendarCache;
+  cache: AttendanceCache;
+  pointer: CalendarPointerStore;
 } {
   const discover = vi.fn(async () => {
     if (options.discoverError) throw options.discoverError;
@@ -78,10 +90,14 @@ function harness(options: HarnessOptions = {}): SyncDependencies & {
   });
 
   const transport: SyncTransport = { discover, readMonth };
-  const cache =
-    options.cache ?? createCalendarCache({ engine: createMemoryEngine(), now: () => NOW.toISOString() });
 
-  return { transport, cache, now: () => NOW, discover, readMonth };
+  // One database behind both, exactly as the browser has.
+  const data = options.data ?? createMemoryData();
+  const engine = createMemoryEngine({ data, fail: options.engineFail });
+  const cache = createAttendanceCache({ engine, now: () => NOW.toISOString() });
+  const pointer = createCalendarPointerStore({ engine, now: () => NOW.toISOString() });
+
+  return { transport, cache, pointer, now: () => NOW, discover, readMonth };
 }
 
 describe("currentMonth", () => {
@@ -138,24 +154,41 @@ describe("syncCalendar", () => {
     expect(report.month).toBe("2026-07");
     expect(report.context.kind).toBe("ready");
     expect(report.syncState).toBe("synced");
-    expect(report.snapshot?.days).toHaveLength(2);
+    expect(report.view?.days).toHaveLength(2);
     expect(report.checkedAt).toBe(NOW.toISOString());
 
-    const stored = await deps.cache.readSnapshot({
+    // Written to the one month store the whole app reads, not a second copy.
+    const stored = await deps.cache.readMonth({
       email: EMAIL,
       fileId: "file-1",
       sheetId: "101",
       month: "2026-07",
     });
     expect(stored).toMatchObject({ ok: true });
+    if (stored.ok) expect(stored.value?.view.days).toHaveLength(2);
   });
 
   it("moves the stored pointer onto the month it loaded", async () => {
     const deps = harness();
     await syncCalendar(deps, { email: EMAIL });
 
-    const pointer = await deps.cache.readPointer(EMAIL);
-    expect(pointer).toMatchObject({ ok: true, value: { month: "2026-07", fileId: "file-1" } });
+    expect(await deps.pointer.read(EMAIL)).toMatchObject({
+      ok: true,
+      value: { month: "2026-07", fileId: "file-1", sheetId: "101" },
+    });
+  });
+
+  it("leaves the pointer alone when the month itself could not be cached", async () => {
+    const deps = harness({
+      engineFail: ({ mode }) =>
+        mode === "readwrite" ? new CacheStorageError("quota", "No space left.") : null,
+    });
+
+    await syncCalendar(deps, { email: EMAIL });
+
+    // A pointer to a month that was never stored would send the next cold open
+    // to an empty key.
+    expect(await deps.pointer.read(EMAIL)).toEqual({ ok: true, value: null });
   });
 
   it("loads the month the caller asked for instead of the current one", async () => {
@@ -218,7 +251,7 @@ describe("syncCalendar", () => {
 
     expect(report.syncState).toBe("offline");
     expect(report.timesheets).toEqual([]);
-    expect(report.snapshot).toBeNull();
+    expect(report.view).toBeNull();
   });
 
   it("reports a provider failure as Needs attention, never as an empty file list", async () => {
@@ -246,7 +279,7 @@ describe("syncCalendar", () => {
     const report = await syncCalendar(deps, { email: EMAIL });
 
     expect(report.timesheets).toHaveLength(1);
-    expect(report.snapshot).toBeNull();
+    expect(report.view).toBeNull();
     expect(report.syncState).toBe("needs-attention");
   });
 
@@ -263,20 +296,15 @@ describe("syncCalendar", () => {
 
   it("still returns the month when the browser refused to cache it", async () => {
     const deps = harness({
-      cache: createCalendarCache({
-        engine: createMemoryEngine({
-          fail: ({ mode }) =>
-            mode === "readwrite" ? new CacheStorageError("quota", "No space left.") : null,
-        }),
-        now: () => NOW.toISOString(),
-      }),
+      engineFail: ({ mode }) =>
+        mode === "readwrite" ? new CacheStorageError("quota", "No space left.") : null,
     });
 
     const report = await syncCalendar(deps, { email: EMAIL });
 
     // The sheet was read successfully; only the local copy failed, and the
     // state says exactly that rather than claiming the month is cached.
-    expect(report.snapshot).not.toBeNull();
+    expect(report.view).not.toBeNull();
     expect(report.syncState).toBe("local-storage-unavailable");
     expect(report.cacheFailure).toBe("quota");
   });

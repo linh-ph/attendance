@@ -147,15 +147,24 @@ answer. Weekends are marked either way, because the date alone settles that.
 without one, no date is marked rather than the wrong one.
 
 The calendar never guesses which file to open. Exactly one authorized file for
-the month opens directly; several require an explicit choice (`Show in calendar`
-draws it in place, `Open` goes to the timesheet); a file with no configuration
-asks which tab is yours. When no file covers the month, the empty calendar stays
-on screen and the reason is a sentence underneath it, with the two things that
-help: move to another month, or create the file and press `Load files`.
+the month opens directly; several require an explicit choice; a file with no
+configuration asks which tab is yours. When no file covers the month, the empty
+calendar stays on screen and the reason is a sentence underneath it, offering a
+jump straight to the nearest month that does have a timesheet.
+
+`‹` and `›` step one month at a time and are never disabled for want of data.
+They used to jump to the next month that had a file, which meant a month nobody
+had created could not be looked at.
+
+`Sync sheet` re-reads the listing and the month from Google Sheets, writes them
+to this browser's copy, and redraws the grid. It stays pressable on an empty
+month — that is when it is most wanted, right after a file is shared or created.
 
 A failure is never shown as an empty month either. `Offline`, an expired
 session, and a Google fault each get their own message and recovery step under a
-calendar that is still drawn, and any stored copy stays usable.
+calendar that is still drawn, and any stored copy stays usable. If Google cannot
+be reached at all, the month this browser already holds is drawn from its own
+copy and labelled as such.
 
 ## Syncing to this browser
 

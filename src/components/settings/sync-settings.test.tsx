@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { emptyDay } from "@/lib/attendance/model";
 import type { AttendanceMonthView } from "@/lib/attendance/service";
-import { createCalendarCache, type CalendarCache } from "@/lib/cache/calendar-cache";
-import { CacheStorageError, createMemoryEngine } from "@/lib/cache/engine";
+import { createAttendanceCache } from "@/lib/cache/attendance-cache";
+import { createCalendarPointerStore } from "@/lib/cache/calendar-pointer";
+import {
+  CacheStorageError,
+  createMemoryEngine,
+  type MemoryEngineOptions,
+} from "@/lib/cache/engine";
 import type { Timesheet } from "@/lib/discovery/file-discovery";
 import { SyncTransportError, type SyncTransport } from "@/lib/sync/calendar-sync";
 import { SyncSettings } from "./sync-settings";
@@ -42,7 +47,7 @@ interface Options {
   timesheets?: Timesheet[];
   unreadable?: { id: string; name: string }[];
   discoverError?: Error;
-  cache?: CalendarCache;
+  engineFail?: MemoryEngineOptions["fail"];
 }
 
 function renderSettings(options: Options = {}) {
@@ -53,15 +58,23 @@ function renderSettings(options: Options = {}) {
 
   const readMonth = vi.fn(async () => view());
   const transport: SyncTransport = { discover, readMonth };
-  const cache =
-    options.cache ??
-    createCalendarCache({ engine: createMemoryEngine(), now: () => NOW.toISOString() });
+
+  // One database behind the month store and the pointer, as the browser has.
+  const engine = createMemoryEngine({ fail: options.engineFail });
+  const cache = createAttendanceCache({ engine, now: () => NOW.toISOString() });
+  const pointer = createCalendarPointerStore({ engine, now: () => NOW.toISOString() });
 
   render(
-    <SyncSettings email={EMAIL} cache={cache} transport={transport} now={() => NOW} />,
+    <SyncSettings
+      email={EMAIL}
+      cache={cache}
+      pointer={pointer}
+      transport={transport}
+      now={() => NOW}
+    />,
   );
 
-  return { discover, readMonth, cache };
+  return { discover, readMonth, cache, pointer };
 }
 
 const syncButton = () => screen.getByRole("button", { name: /Sync now|Syncing/ });
@@ -86,25 +99,32 @@ describe("SyncSettings", () => {
     // Counted from the domain rule: one recorded day, two working days empty.
     expect(screen.getByText("1 of 3")).toBeTruthy();
 
-    const stored = await cache.readSnapshot({
+    const stored = await cache.readMonth({
       email: EMAIL,
       fileId: "file-1",
       sheetId: "101",
       month: "2026-07",
     });
     expect(stored).toMatchObject({ ok: true });
-    if (stored.ok) expect(stored.value?.days).toHaveLength(3);
+    if (stored.ok) expect(stored.value?.view.days).toHaveLength(3);
+  });
+
+  it("records where the calendar now is, so a cold open finds the month", async () => {
+    const { pointer } = renderSettings();
+
+    fireEvent.click(syncButton());
+    await screen.findByText("July 2026");
+
+    expect(await pointer.read(EMAIL)).toMatchObject({
+      ok: true,
+      value: { fileId: "file-1", sheetId: "101", month: "2026-07" },
+    });
   });
 
   it("says the sheet was read even when the browser refused to store it", async () => {
     renderSettings({
-      cache: createCalendarCache({
-        engine: createMemoryEngine({
-          fail: ({ mode }) =>
-            mode === "readwrite" ? new CacheStorageError("quota", "No space left.") : null,
-        }),
-        now: () => NOW.toISOString(),
-      }),
+      engineFail: ({ mode }) =>
+        mode === "readwrite" ? new CacheStorageError("quota", "No space left.") : null,
     });
 
     fireEvent.click(syncButton());

@@ -85,7 +85,7 @@ src/lib/
   discovery/    file-discovery                                 ← folder-scoped listing
   dashboard/    folder preference and compatibility cache adapter
   cache/        acknowledged IndexedDB cache, epochs, revisions, migrations,
-                calendar-{state,cache} quick-info records
+                calendar-pointer (last file/tab/month, not a second store)
   sync/         calendar-sync, sync-transport, shared-fetch  ← one load path
   directory/    browser-local member roster and Drive suggestions
   auth/         session, google-token, proxy, paths
@@ -238,8 +238,10 @@ from this app.
 - Browser storage never holds a token or an authorization result. It holds the
   selected folder ID/name in `localStorage`, and — in the `attendance-local`
   IndexedDB database — unsaved day drafts, the last loaded month per sheet,
-  recently opened sheets, and the calendar's quick-info records (which month
-  the calendar is on, and one small per-date state for it). Every record is
+  recently opened sheets, and one calendar pointer per account naming the file,
+  tab, and month last shown. The pointer is an **address, not a copy**: the
+  month it names lives in the acknowledged month cache and is never duplicated
+  alongside it. Every record is
   keyed by normalized email so two accounts sharing a browser profile cannot
   read each other's, and none of it is authoritative: the server re-reads the
   sheet and re-authorizes every request. `findCredentialMaterial` refuses any

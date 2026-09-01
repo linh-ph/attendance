@@ -1,4 +1,4 @@
-import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/session";
+import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/google-session";
 import { createConfigRepository } from "@/lib/config/repository";
 import {
   assertDeclaredSizeWithinLimit,

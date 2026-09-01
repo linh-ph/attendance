@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isAccessError, type AccessErrorCode } from "@/lib/access/policy";
-import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/session";
+import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/google-session";
 import { createConfigRepository } from "@/lib/config/repository";
 import {
   createMemberService,

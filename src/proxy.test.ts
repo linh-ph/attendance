@@ -43,4 +43,18 @@ describe("proxy boundary", () => {
     );
     expect(authenticatedProxy).toHaveBeenCalledTimes(1);
   });
+
+  it("lets Google's sign-in return through without a session", async () => {
+    // The authorization code is spent at /auth/callback. Gating it would
+    // redirect to /login before the exchange, so sign-in could never finish.
+    const authenticatedProxy = vi.fn();
+    const proxy = createProxy(authenticatedProxy);
+
+    const response = await proxy(
+      new NextRequest("https://attendance.test/auth/callback?code=abc"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(authenticatedProxy).not.toHaveBeenCalled();
+  });
 });

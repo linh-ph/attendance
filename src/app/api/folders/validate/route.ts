@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/session";
+import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/google-session";
 import { createGoogleGateways } from "@/lib/google/client";
 import { FolderUnavailableError } from "@/lib/google/errors";
 

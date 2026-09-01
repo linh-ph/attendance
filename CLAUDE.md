@@ -19,12 +19,19 @@ This file summarizes what those establish; it does not override them.
 
 ## The Application
 
-English-language Next.js app where **Google Sheets is the only datastore**. Each
-signed-in user's own Google OAuth authority performs every Drive/Sheets call —
-no service account, no database, no server-side user store.
+English-language Next.js app where **Google Sheets is the only datastore for
+attendance**. Each signed-in user's own Google OAuth authority performs every
+Drive/Sheets call — no service account, and no attendance data outside the
+sheets.
+
+Since [`docs/decisions/2026-09-02-supabase-holds-google-credentials.md`](docs/decisions/2026-09-02-supabase-holds-google-credentials.md)
+there **is** a database, holding two things and nothing else: who has signed in
+(`profiles`, mirrored from `auth.users`) and each person's Google refresh token
+(`google_credentials`, encrypted). See **Identity** below.
 
 **Stack:** Node 24.19 on Debian slim, Next.js 16.3.3 App Router, React 19.2.8,
-TypeScript, Auth.js/NextAuth `5.0.0-beta.32`, `googleapis` 176, Google Picker,
+TypeScript, Auth.js/NextAuth `5.0.0-beta.32`, Supabase (`@supabase/ssr`,
+`@supabase/supabase-js`), `googleapis` 176, Google Picker,
 ExcelJS 4.4.0, Zod 4.4.3, Vitest 4.1, Testing Library, Playwright 1.62, native
 CSS (no UI framework, no CSS-in-JS).
 
@@ -88,13 +95,18 @@ src/lib/
                 calendar-pointer (last file/tab/month, not a second store)
   sync/         calendar-sync, sync-transport, shared-fetch  ← one load path
   directory/    browser-local member roster and Drive suggestions
-  auth/         session, google-token, proxy, paths
+  auth/         session (Edge-safe), google-session (server-only composition),
+                google-token, proxy, paths, provider
+  supabase/     server, client, middleware, request-user, session,
+                token-crypto, google-credentials, credential-table
   testing/      runtime-guard, fake-google-{store,state,seed,requests}
 src/components/ app-shell, month-calendar, day-quick-preview, wizard-shell,
                 sync-status, attendance editors and shared primitives
 src/app/api/    health, auth, dashboard, folders/validate, google/picker-token,
                 files/create, files/import[/inspect],
                 files/[fileId]/{setup,members,attendance/[sheetId]}, e2e/reset
+src/app/auth/callback/  where Supabase returns after Google consent (public)
+supabase/migrations/    SQL applied by hand — see docs/runbooks/supabase-auth-setup.md
 src/app/(authenticated)/  dashboard, timesheets, manage, members, more,
                           files/new, files/import,
                           files/[fileId]/{setup,members,attendance/[sheetId]}
@@ -247,10 +259,47 @@ from this app.
   replayed onto a populated one. Legacy setup and import adopt existing tabs and
   must never replay it.
 
+**Identity — two sign-in paths, one authorization**
+- Auth.js and Supabase Auth are both live. `src/lib/auth/google-session.ts` is
+  the only thing route handlers ask: Supabase first, Auth.js as fallback. Never
+  import `requireGoogleSessionFromRequest` from `@/lib/auth/session` in a route
+  — that is the Edge-safe half, and it does not see Supabase sessions.
+- `src/lib/auth/session.ts` and `src/lib/supabase/middleware.ts` must stay
+  **Edge-safe**. `google-session.ts`, `google-credentials.ts`, `token-crypto.ts`
+  and `credential-table.ts` reach `node:crypto` or the service role and are
+  **server-only**; importing one from the proxy breaks the Edge bundle.
+- `AUTH_PROVIDER` chooses which button `/login` shows. It is an explicit opt-in,
+  not inferred from configuration: Supabase can be configured here while its
+  Google provider is not yet configured in the Supabase dashboard, and guessing
+  wrong there makes sign-in impossible with no way back.
+- The identity always comes from `getUser()`, never `getSession()` — the latter
+  returns what the cookie claims, and the proxy admits requests on that answer.
+- A Supabase user with no email is refused. Every authorization decision
+  downstream is keyed on the normalized email.
+- A missing or refused Google credential is `UnauthenticatedError`; a storage
+  outage is **not** — reporting one as "sign in again" loops a person through
+  consent forever without fixing anything.
+- `/auth/callback` is public, and is the **only** moment Google hands over a
+  refresh token. `prompt=consent` is required, not cosmetic: without it a
+  returning account completes sign-in and the callback has nothing to store.
+- Refresh tokens are AES-256-GCM encrypted (`v1.<iv>.<tag>.<ciphertext>`) with
+  `GOOGLE_TOKEN_ENCRYPTION_KEY`, which the database does not hold. Rotating that
+  key invalidates every stored connection — there is no re-encryption path.
+- `google_credentials` has RLS enabled with **no policy** and grants revoked
+  from `anon`/`authenticated`. Adding a policy to it would expose refresh
+  tokens to browser keys. Only the service role reaches it.
+- Nothing returns a refresh token to a caller. `accessTokenFor` returns a
+  short-lived access token and nothing else.
+
 **Secrets**
 - Client secrets and refresh tokens never reach browser JS or a `NEXT_PUBLIC_`
-  variable. Only `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY` and
-  `NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER` are public.
+  variable. Only `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY`,
+  `NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER`, `NEXT_PUBLIC_SUPABASE_URL` and
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are public. The publishable key grants
+  nothing on its own — RLS decides what it reaches.
+- `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS entirely and
+  `GOOGLE_TOKEN_ENCRYPTION_KEY` decrypts every stored Google connection. Neither
+  may ever be prefixed `NEXT_PUBLIC_` or imported by browser-bundled code.
 - The Picker token is short-lived, returned with `Cache-Control: private,
   no-store`, held in component memory only.
 - Browser storage never holds a token or an authorization result. It holds the

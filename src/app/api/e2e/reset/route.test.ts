@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requireGoogleSessionFromRequest } from "@/lib/auth/session";
+import { requireGoogleSessionFromRequest } from "@/lib/auth/google-session";
 import {
   E2E_FIXTURE,
   getFakeGoogleStore,

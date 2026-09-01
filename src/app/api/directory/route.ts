@@ -1,4 +1,4 @@
-import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/session";
+import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/google-session";
 import { createPeopleDirectory } from "@/lib/directory/people-directory";
 import { createGoogleGateways } from "@/lib/google/client";
 import { debugErrorsEnabled, toGoogleErrorDiagnostic } from "@/lib/google/errors";

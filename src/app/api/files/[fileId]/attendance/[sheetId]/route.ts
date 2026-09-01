@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/session";
+import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/google-session";
 import { isAccessError, type AccessErrorCode } from "@/lib/access/policy";
 import {
   isAttendanceError,

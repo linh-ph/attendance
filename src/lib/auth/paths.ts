@@ -1,4 +1,10 @@
-const publicPaths = new Set(["/", "/login", "/api/health"]);
+/**
+ * `/auth/callback` is public because it is where Google returns *before* anyone
+ * has a session — gating it would bounce the sign-in back to `/login` with the
+ * authorization code unspent, so sign-in could never complete. It is not an
+ * open door: the code it receives is single-use and only Supabase can redeem it.
+ */
+const publicPaths = new Set(["/", "/login", "/api/health", "/auth/callback"]);
 
 /**
  * Files served straight out of `public/` — images, fonts, a manifest.

@@ -430,13 +430,75 @@ describe("DashboardClient — a file with no member mapping", () => {
     expect(screen.queryByRole("heading", { name: "Which tab is yours?" })).toBeNull();
   });
 
+  it("keeps a separate answer for every file, so another month is not forgotten", async () => {
+    const JULY = {
+      ...UNMAPPED,
+      id: "file-july",
+      name: "202607勤怠管理表",
+      month: "2026-07",
+    };
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/dashboard")) {
+        return jsonResponse(200, dashboardBody([UNMAPPED, JULY] as typeof TIMESHEET[]));
+      }
+      if (url.includes("file-july")) {
+        return jsonResponse(200, monthView({
+          fileId: "file-july",
+          month: "2026-07",
+          days: [emptyDay("2026-07-01")],
+        }));
+      }
+      return jsonResponse(200, monthView());
+    });
+
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+
+    const first = render(
+      <DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />,
+    );
+
+    // Answer for August, then step back and answer for July.
+    fireEvent.click(await screen.findByRole("button", { name: "NGUYEN PHAN LINH" }));
+    await screen.findByText(/Calendar refreshed/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    fireEvent.click(await screen.findByRole("button", { name: "NGUYEN PHAN LINH" }));
+    await screen.findByRole("grid", { name: "July 2026 attendance calendar" });
+
+    first.unmount();
+
+    /*
+     * Reopen. It lands on August, the current month, whose answer was given
+     * first and would have been displaced by July's under the old
+     * one-record-per-account pointer. Then step back to July and check its own
+     * answer survived too.
+     */
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+
+    await screen.findByRole("grid", { name: "August 2026 attendance calendar" });
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Which tab is yours?" })).toBeNull(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+
+    await screen.findByRole("grid", { name: "July 2026 attendance calendar" });
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Which tab is yours?" })).toBeNull(),
+    );
+  });
+
   it("asks again when the remembered tab is no longer one the file lists", async () => {
     const engine = createMemoryEngine();
     const cache = createAttendanceCache({ engine });
     const pointer = createCalendarPointerStore({ engine });
 
     // A tab that was renamed away, or belongs to another file entirely.
-    await pointer.write({ email: EMAIL, fileId: "file-1", sheetId: "999", month: "2026-08" });
+    await pointer.writeTabChoice(EMAIL, "file-1", "999");
 
     render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
 

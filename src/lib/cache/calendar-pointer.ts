@@ -31,6 +31,7 @@ import { classifyStorageError, fail, ok, type CacheResult } from "./results";
 
 const KEY_SEPARATOR = "::";
 const POINTER_PREFIX = "ptr";
+const TAB_PREFIX = "tab";
 
 export interface CalendarPointer {
   schemaVersion: number;
@@ -46,6 +47,44 @@ export interface CalendarPointer {
 
 export function calendarPointerKey(email: string, schemaVersion = CACHE_SCHEMA_VERSION): string {
   return [POINTER_PREFIX, `v${schemaVersion}`, normalizeAccount(email)].join(KEY_SEPARATOR);
+}
+
+/**
+ * The tab a person picked on one file that carries no member mapping.
+ *
+ * Keyed by **file**, not by account alone. The pointer holds a single record —
+ * where the calendar was last — so restoring choices from it remembered only
+ * the most recent file: moving back a month asked again, even with that month's
+ * data already cached and unreachable behind the missing tab.
+ */
+export function calendarTabChoiceKey(
+  email: string,
+  fileId: string,
+  schemaVersion = CACHE_SCHEMA_VERSION,
+): string {
+  return [TAB_PREFIX, `v${schemaVersion}`, normalizeAccount(email), fileId].join(KEY_SEPARATOR);
+}
+
+export interface CalendarTabChoice {
+  schemaVersion: number;
+  account: string;
+  fileId: string;
+  sheetId: string;
+  updatedAt: string;
+}
+
+export function isCalendarTabChoice(value: unknown): value is CalendarTabChoice {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.schemaVersion === "number" &&
+    Number.isInteger(value.schemaVersion) &&
+    isNonEmptyString(value.account) &&
+    isNonEmptyString(value.fileId) &&
+    isNonEmptyString(value.sheetId) &&
+    isNonEmptyString(value.updatedAt) &&
+    value.role === undefined
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -83,6 +122,13 @@ export interface CalendarPointerStore {
   read(email: string): Promise<CacheResult<CalendarPointer | null>>;
   write(input: WriteCalendarPointerInput): Promise<CacheResult<CalendarPointer>>;
   clear(email: string): Promise<CacheResult<void>>;
+  /** The tab this person picked on `fileId`, or `null` if they never have. */
+  readTabChoice(email: string, fileId: string): Promise<CacheResult<CalendarTabChoice | null>>;
+  writeTabChoice(
+    email: string,
+    fileId: string,
+    sheetId: string,
+  ): Promise<CacheResult<CalendarTabChoice>>;
   close(): void;
 }
 
@@ -165,6 +211,47 @@ export function createCalendarPointerStore(
     clear(email) {
       return run("readwrite", async (tx) => {
         await tx.delete(CALENDAR_STORE, calendarPointerKey(email, schemaVersion));
+      });
+    },
+
+    readTabChoice(email, fileId) {
+      return run("readonly", async (tx) => {
+        const raw = await tx.get(
+          CALENDAR_STORE,
+          calendarTabChoiceKey(email, fileId, schemaVersion),
+        );
+        if (raw === undefined) return null;
+
+        if (!isCalendarTabChoice(raw)) {
+          throw new CacheStorageError(
+            "corrupt",
+            "The stored tab choice could not be read and was left in place.",
+          );
+        }
+
+        return raw;
+      });
+    },
+
+    writeTabChoice(email, fileId, sheetId) {
+      const choice: CalendarTabChoice = {
+        schemaVersion,
+        account: normalizeAccount(email),
+        fileId,
+        sheetId,
+        updatedAt: now(),
+      };
+
+      const found = findCredentialMaterial(choice);
+      if (found !== null) {
+        return Promise.resolve(
+          fail("forbidden-content", `Refused to store credential-shaped material at "${found}".`),
+        );
+      }
+
+      return run("readwrite", async (tx) => {
+        await tx.put(CALENDAR_STORE, calendarTabChoiceKey(email, fileId, schemaVersion), choice);
+        return choice;
       });
     },
   };

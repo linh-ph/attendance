@@ -439,10 +439,12 @@ export function DashboardClient({
   /**
    * Restores a tab the person picked on an earlier visit.
    *
-   * The pointer records the file, tab, and month last shown, so a choice made
-   * on an unmapped file survives a reload and the calendar loads straight away
-   * instead of asking again. It is applied only to the same file and only to a
-   * tab that file still lists, so a renamed or removed tab falls back to asking.
+   * Read **per file**. Restoring from the pointer instead remembered only the
+   * most recently loaded month, so stepping back one month asked again — with
+   * that month's data already cached and unreachable behind the missing tab.
+   *
+   * Applied only to the file it was made on and only to a tab that file still
+   * lists, so a renamed or removed tab falls back to asking.
    */
   useEffect(() => {
     if (selected === null || selected.sheetId !== null) return;
@@ -452,16 +454,15 @@ export function DashboardClient({
     let cancelled = false;
 
     void pointer
-      .read(email)
+      .readTabChoice(email, file.id)
       .then((stored) => {
         if (cancelled || !stored.ok || stored.value === null) return;
-        if (stored.value.fileId !== file.id) return;
-        if (!file.tabs.some((tab) => tab.sheetId === stored.value?.sheetId)) return;
+
+        const { sheetId } = stored.value;
+        if (!file.tabs.some((tab) => tab.sheetId === sheetId)) return;
 
         setChosenSheetByFile((current) =>
-          current[file.id] === undefined
-            ? { ...current, [file.id]: stored.value!.sheetId }
-            : current,
+          current[file.id] === undefined ? { ...current, [file.id]: sheetId } : current,
         );
       })
       .catch(() => undefined);
@@ -593,9 +594,11 @@ export function DashboardClient({
           selectedMonth={selectedMonth}
           months={availableMonths(timesheets)}
           onChooseTimesheet={setChosenTimesheet}
-          onChooseSheet={(fileId, sheetId) =>
-            setChosenSheetByFile((current) => ({ ...current, [fileId]: sheetId }))
-          }
+          onChooseSheet={(fileId, sheetId) => {
+            setChosenSheetByFile((current) => ({ ...current, [fileId]: sheetId }));
+            // Persisted per file, so every month keeps its own answer.
+            void pointer.writeTabChoice(email, fileId, sheetId).catch(() => undefined);
+          }}
           onMonthChange={(month) => {
             setChosenTimesheet(null);
             setSelectedDate(null);

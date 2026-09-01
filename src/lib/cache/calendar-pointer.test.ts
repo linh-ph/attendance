@@ -113,6 +113,67 @@ describe("calendar pointer", () => {
   });
 });
 
+describe("tab choices", () => {
+  it("keeps one answer per file, not one per account", async () => {
+    const pointers = store();
+
+    await pointers.writeTabChoice(EMAIL, "file-july", "11");
+    await pointers.writeTabChoice(EMAIL, "file-august", "22");
+
+    expect(await pointers.readTabChoice(EMAIL, "file-july")).toMatchObject({
+      ok: true,
+      value: { sheetId: "11" },
+    });
+    // The second answer must not have displaced the first — that is the whole
+    // reason this is not stored on the single pointer record.
+    expect(await pointers.readTabChoice(EMAIL, "file-august")).toMatchObject({
+      ok: true,
+      value: { sheetId: "22" },
+    });
+  });
+
+  it("answers null for a file never answered for", async () => {
+    expect(await store().readTabChoice(EMAIL, "file-unknown")).toEqual({ ok: true, value: null });
+  });
+
+  it("scopes answers by account", async () => {
+    const pointers = store();
+    await pointers.writeTabChoice("Linh.NP@Blended-Asia.com", "file-1", "11");
+
+    expect(await pointers.readTabChoice(EMAIL, "file-1")).toMatchObject({
+      ok: true,
+      value: { sheetId: "11" },
+    });
+    expect(await pointers.readTabChoice("someone.else@blended-asia.com", "file-1")).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
+  it("does not collide with the pointer record", async () => {
+    const pointers = store();
+    await pointers.write(input);
+    await pointers.writeTabChoice(EMAIL, "file-1", "77");
+
+    expect(await pointers.read(EMAIL)).toMatchObject({ ok: true, value: { sheetId: "101" } });
+    expect(await pointers.readTabChoice(EMAIL, "file-1")).toMatchObject({
+      ok: true,
+      value: { sheetId: "77" },
+    });
+  });
+
+  it("reports a refused write instead of reporting success", async () => {
+    const pointers = store(
+      createMemoryEngine({
+        fail: ({ mode }) =>
+          mode === "readwrite" ? new CacheStorageError("quota", "No space left.") : null,
+      }),
+    );
+
+    expect((await pointers.writeTabChoice(EMAIL, "file-1", "11")).ok).toBe(false);
+  });
+});
+
 describe("isCalendarPointer", () => {
   it("refuses anything that is not one", () => {
     expect(isCalendarPointer(null)).toBe(false);

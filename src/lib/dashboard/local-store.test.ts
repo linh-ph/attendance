@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AttendanceDay } from "@/lib/attendance/model";
-import { CacheStorageError, MONTH_STORE, createMemoryEngine } from "@/lib/cache/engine";
+import {
+  CacheStorageError,
+  MONTH_STORE,
+  createMemoryData,
+  createMemoryEngine,
+} from "@/lib/cache/engine";
 import {
   createAcknowledgedStore,
   createMemoryStore,
@@ -67,6 +72,33 @@ describe("local store contract", () => {
     await store.writeMonth("a@b.com", "file-1", "101", view);
     expect(await store.readMonth("a@b.com", "file-1", "101")).toEqual(view);
     expect(await store.readMonth("a@b.com", "file-1", "102")).toBe(null);
+  });
+
+  /**
+   * A record written before the write started stripping `role`.
+   *
+   * Measured in a real browser profile: two of three cached months still
+   * carried one, `"open"` and `"manager"`. It is seeded straight into the store
+   * here, because `writeMonth` strips on the way in — going through it would
+   * prove nothing about the read.
+   *
+   * The record reads as a **miss**, not as a role. That is what makes "a cached
+   * role can never be read back" true by construction rather than by nobody
+   * happening to ask for one: the guard refuses the whole record, so no caller
+   * can reach the role even by accident. The month is simply re-fetched.
+   */
+  it("reads a legacy record that carries a role as a miss", async () => {
+    const data = createMemoryData();
+    const store = toLegacyStore(createAcknowledgedStore(createMemoryEngine({ data })));
+
+    await store.writeMonth("a@b.com", "file-1", "101", { month: "2026-07", days: [] } as never);
+    expect(await store.readMonth("a@b.com", "file-1", "101")).not.toBeNull();
+
+    const [key] = [...data.stores[MONTH_STORE].keys()];
+    const record = data.stores[MONTH_STORE].get(key) as { email: string; view: object };
+    data.stores[MONTH_STORE].set(key, { ...record, view: { ...record.view, role: "manager" } });
+
+    expect(await store.readMonth("a@b.com", "file-1", "101")).toBeNull();
   });
 
   it("returns the recent list newest first and scoped to the account", async () => {

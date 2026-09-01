@@ -209,6 +209,16 @@ export function DashboardClient({
   const [calendar, setCalendar] = useState<CalendarState>({ status: "idle" });
   const [selectedMonth, setSelectedMonth] = useState(() => currentMonthAt(nowProp ?? new Date()));
   const [chosenTimesheet, setChosenTimesheet] = useState<Timesheet | null>(null);
+  /**
+   * Tabs the person picked themselves, keyed by file.
+   *
+   * A file with no `__APP_CONFIG` mapping arrives with `sheetId: null`, and the
+   * app must not guess which tab is theirs — matching a tab title to a name is
+   * exactly the silent fallback the workbook rules forbid, and it would open a
+   * colleague's tab the day two names collide. So the person picks, once per
+   * file, and that choice is honoured from then on.
+   */
+  const [chosenSheetByFile, setChosenSheetByFile] = useState<Record<string, string>>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTrigger, setSelectedTrigger] = useState<HTMLButtonElement | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -241,10 +251,29 @@ export function DashboardClient({
     () => uniqueMappedCandidate(timesheets, selectedMonth),
     [selectedMonth, timesheets],
   );
-  const activeTimesheet =
+  const selected =
     chosenTimesheet?.month === selectedMonth && candidates.some((item) => item.id === chosenTimesheet.id)
       ? chosenTimesheet
       : automatic;
+
+  /*
+   * A tab the person picked stands in for the mapping the file does not have.
+   * It is only ever applied to the file it was picked on, and only to a tab
+   * that file actually lists — the same rule the pasted-link resolver follows.
+   */
+  const activeTimesheet = useMemo(() => {
+    if (selected === null || selected.sheetId !== null) return selected;
+
+    const picked = chosenSheetByFile[selected.id];
+    if (picked === undefined) return selected;
+    if (!selected.tabs.some((tab) => tab.sheetId === picked)) return selected;
+
+    return {
+      ...selected,
+      sheetId: picked,
+      sheetTitle: selected.tabs.find((tab) => tab.sheetId === picked)?.title ?? null,
+    };
+  }, [chosenSheetByFile, selected]);
 
   useEffect(() => {
     if (!activeTimesheet || activeTimesheet.sheetId === null || activeTimesheet.month === null) return;
@@ -363,7 +392,9 @@ export function DashboardClient({
    * pointer supplies that key, and only for the month actually on screen.
    */
   useEffect(() => {
-    if (activeTimesheet !== null || dashboard.status === "loading") return;
+    // Anything without a tab cannot be loaded, so the cached month is the best
+    // thing on screen — that includes a listed file whose tab is not chosen yet.
+    if (activeTimesheet?.sheetId != null || dashboard.status === "loading") return;
 
     let cancelled = false;
 
@@ -404,6 +435,41 @@ export function DashboardClient({
       cancelled = true;
     };
   }, [activeTimesheet, cache, dashboard.status, email, pointer, selectedMonth]);
+
+  /**
+   * Restores a tab the person picked on an earlier visit.
+   *
+   * The pointer records the file, tab, and month last shown, so a choice made
+   * on an unmapped file survives a reload and the calendar loads straight away
+   * instead of asking again. It is applied only to the same file and only to a
+   * tab that file still lists, so a renamed or removed tab falls back to asking.
+   */
+  useEffect(() => {
+    if (selected === null || selected.sheetId !== null) return;
+    if (chosenSheetByFile[selected.id] !== undefined) return;
+
+    const file = selected;
+    let cancelled = false;
+
+    void pointer
+      .read(email)
+      .then((stored) => {
+        if (cancelled || !stored.ok || stored.value === null) return;
+        if (stored.value.fileId !== file.id) return;
+        if (!file.tabs.some((tab) => tab.sheetId === stored.value?.sheetId)) return;
+
+        setChosenSheetByFile((current) =>
+          current[file.id] === undefined
+            ? { ...current, [file.id]: stored.value!.sheetId }
+            : current,
+        );
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chosenSheetByFile, email, pointer, selected]);
 
   /*
    * Month navigation is free. It used to step only between months that already
@@ -527,6 +593,9 @@ export function DashboardClient({
           selectedMonth={selectedMonth}
           months={availableMonths(timesheets)}
           onChooseTimesheet={setChosenTimesheet}
+          onChooseSheet={(fileId, sheetId) =>
+            setChosenSheetByFile((current) => ({ ...current, [fileId]: sheetId }))
+          }
           onMonthChange={(month) => {
             setChosenTimesheet(null);
             setSelectedDate(null);
@@ -577,6 +646,8 @@ interface CalendarStateNoticesProps {
   /** Every month an authorized file covers, ascending. */
   months: string[];
   onChooseTimesheet: (timesheet: Timesheet) => void;
+  /** Names the tab on a file that has no member mapping of its own. */
+  onChooseSheet: (fileId: string, sheetId: string) => void;
   onMonthChange: (month: string) => void;
   onReloadDashboard: () => void;
   onRetryCalendar: () => void;
@@ -622,6 +693,7 @@ function CalendarStateNotices({
   selectedMonth,
   months,
   onChooseTimesheet,
+  onChooseSheet,
   onMonthChange,
   onReloadDashboard,
   onRetryCalendar,
@@ -686,14 +758,37 @@ function CalendarStateNotices({
   }
 
   if (activeTimesheet?.sheetId === null) {
+    /*
+     * The choice happens here rather than on another page. This file has no
+     * member mapping, so nothing can be loaded until a tab is named, and
+     * sending the person away to name it meant `Sync sheet` looked broken: it
+     * refetched the listing, found no tab, and wrote nothing.
+     *
+     * The app still does not guess. It lists the tabs the file actually has and
+     * the person says which is theirs; the choice is then remembered for that
+     * file.
+     */
     return (
-      <StateNotice
-        state="no-timesheet"
-        scope="section"
-        title="Choose your tab for this month"
-        detail="This legacy file has no member mapping, so you must choose the correct visible tab."
-        action={{ label: "Choose tab", href: `/files/${activeTimesheet.id}/attendance` }}
-      />
+      <section className="calendar-context-choice" aria-labelledby="tab-choice-title">
+        <p className="eyebrow">{activeTimesheet.name}</p>
+        <h3 id="tab-choice-title">Which tab is yours?</h3>
+        <p className="page-lede">
+          This file has no member mapping, so the app will not guess. Choose once
+          and this calendar will remember it for this file.
+        </p>
+        <div className="calendar-context-list">
+          {activeTimesheet.tabs.map((tab) => (
+            <button
+              className="btn-secondary"
+              type="button"
+              key={tab.sheetId}
+              onClick={() => onChooseSheet(activeTimesheet.id, tab.sheetId)}
+            >
+              {tab.title}
+            </button>
+          ))}
+        </div>
+      </section>
     );
   }
 

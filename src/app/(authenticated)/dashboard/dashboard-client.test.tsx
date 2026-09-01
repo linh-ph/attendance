@@ -346,6 +346,104 @@ describe("DashboardClient — the calendar is always drawn", () => {
   });
 });
 
+describe("DashboardClient — a file with no member mapping", () => {
+  /** Every real legacy file looks like this: named tabs, no mapping. */
+  const UNMAPPED = {
+    ...TIMESHEET,
+    sheetId: null as string | null,
+    sheetTitle: null as string | null,
+    tabs: [
+      { sheetId: "21", title: "THAI GIA HAN" },
+      { sheetId: "22", title: "NGUYEN PHAN LINH" },
+    ],
+  };
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/dashboard")) {
+        return jsonResponse(200, dashboardBody([UNMAPPED as typeof TIMESHEET]));
+      }
+      return jsonResponse(200, monthView());
+    });
+  });
+
+  it("asks which tab is yours instead of guessing one from the titles", async () => {
+    render(
+      <DashboardClient
+        email={EMAIL}
+        now={NOW}
+        cache={createAttendanceCache({ engine: createMemoryEngine() })}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Which tab is yours?" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "NGUYEN PHAN LINH" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "THAI GIA HAN" })).toBeVisible();
+
+    // Nothing was read: there is no tab to read from yet.
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/attendance/"),
+      expect.anything(),
+    );
+  });
+
+  it("loads and caches the month once a tab is chosen", async () => {
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "NGUYEN PHAN LINH" }));
+
+    await screen.findByText(/Calendar refreshed/i);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/files/file-1/attendance/22",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+
+    const stored = await cache.readMonth({
+      email: EMAIL,
+      fileId: "file-1",
+      sheetId: "22",
+      month: "2026-08",
+    });
+    expect(stored).toMatchObject({ ok: true });
+    if (stored.ok) expect(stored.value?.view.days.length).toBeGreaterThan(0);
+  });
+
+  it("remembers the choice, so a reload does not ask again", async () => {
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+
+    const first = render(
+      <DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "NGUYEN PHAN LINH" }));
+    await screen.findByText(/Calendar refreshed/i);
+    first.unmount();
+
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+
+    await screen.findByText(/Calendar refreshed/i);
+    expect(screen.queryByRole("heading", { name: "Which tab is yours?" })).toBeNull();
+  });
+
+  it("asks again when the remembered tab is no longer one the file lists", async () => {
+    const engine = createMemoryEngine();
+    const cache = createAttendanceCache({ engine });
+    const pointer = createCalendarPointerStore({ engine });
+
+    // A tab that was renamed away, or belongs to another file entirely.
+    await pointer.write({ email: EMAIL, fileId: "file-1", sheetId: "999", month: "2026-08" });
+
+    render(<DashboardClient email={EMAIL} now={NOW} cache={cache} pointer={pointer} />);
+
+    expect(await screen.findByRole("heading", { name: "Which tab is yours?" })).toBeVisible();
+  });
+});
+
 describe("DashboardClient — Sync sheet", () => {
   it("stays pressable on a month with no timesheet — that is when it is wanted", async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, dashboardBody([])));

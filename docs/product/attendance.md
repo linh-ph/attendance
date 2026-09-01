@@ -147,10 +147,22 @@ answer. Weekends are marked either way, because the date alone settles that.
 without one, no date is marked rather than the wrong one.
 
 The calendar never guesses which file to open. Exactly one authorized file for
-the month opens directly; several require an explicit choice; a file with no
-configuration asks which tab is yours. When no file covers the month, the empty
-calendar stays on screen and the reason is a sentence underneath it, offering a
-jump straight to the nearest month that does have a timesheet.
+the month opens directly; several require an explicit choice. When no file
+covers the month, the empty calendar stays on screen and the reason is a
+sentence underneath it, offering a jump straight to the nearest month that does
+have a timesheet.
+
+**A file with no member mapping asks which tab is yours, on the calendar.** Most
+files in use are legacy ones: they carry no `__APP_CONFIG`, so discovery reports
+no tab and nothing can be loaded until a person names one. The calendar lists
+the tabs the file actually has and the person picks. It does not match a tab
+title against a name — that is the silent fallback the workbook contract
+forbids, and it would open a colleague's tab the day two names collide.
+
+The choice is applied only to the file it was made on, and only to a tab that
+file still lists. It is restored from the stored calendar position on the next
+visit, so a reload does not ask again; a tab that has since been renamed or
+removed falls back to asking.
 
 `‹` and `›` step one month at a time and are never disabled for want of data.
 They used to jump to the next month that had a file, which meant a month nobody

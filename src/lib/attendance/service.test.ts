@@ -321,7 +321,9 @@ describe("readAttendanceMonth", () => {
     expect(view.sheetId).toBe(111);
     expect(view.sheetTitle).toBe(SHEET_A_TITLE);
     expect(view.month).toBe(MONTH);
-    expect(view.role).toBe("employee");
+    // Not the owner, and there is no mapping to narrow it further.
+    expect(view.role).toBe("open");
+    // From the workbook contract, not from a copy stored in the sheet.
     expect(view.statuses).toEqual(APP_CONFIG.statuses);
 
     expect(view.days).toHaveLength(31);
@@ -394,21 +396,38 @@ describe("readAttendanceMonth", () => {
     expect(attendanceValueReads(sheets)).toEqual([]);
   });
 
-  it("refuses employee A addressing employee B's sheet without reading any attendance value", async () => {
+  /**
+   * Cross-tab reading is Google's decision, not this app's.
+   *
+   * The old check refused employee A the tab titled for employee B. It was
+   * measured to protect nothing — every real workbook has `protectedRanges: []`,
+   * so anyone with the link can open any tab in Google Sheets itself — while it
+   * did refuse every file that carries no `__APP_CONFIG`, which is all of them.
+   * See `docs/decisions/2026-08-29-app-is-a-sheets-client.md`.
+   */
+  it("reads another visible tab, because Google's sharing is the boundary", async () => {
+    const sheets = createFakeSheets({ values: readyMonth() });
+
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_B_ID },
+    );
+
+    expect(view.sheetTitle).toBe(SHEET_B_TITLE);
+    expect(view.role).toBe("open");
+  });
+
+  it("still refuses a tab the file does not have", async () => {
     const sheets = createFakeSheets({ values: readyMonth() });
 
     const error = await readAttendanceMonth(
       { drive: employeeDrive(), sheets },
-      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_B_ID },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: "9999" },
     ).catch((thrown: unknown) => thrown);
 
     expect(isAccessError(error)).toBe(true);
     expect(error).toMatchObject({ code: "forbidden" });
-    expect(String((error as Error).message)).not.toContain(EMPLOYEE_B);
-    expect(String((error as Error).message)).not.toContain(SHEET_B_TITLE);
-
     expect(attendanceValueReads(sheets)).toEqual([]);
-    expect(sheets.valueReads.some((range) => range.includes(SHEET_B_TITLE))).toBe(false);
     expect(sheets.valueUpdates).toEqual([]);
   });
 
@@ -525,23 +544,38 @@ describe("readAttendanceMonth", () => {
     expect(view.spreadsheetTimeZone).toBe("Europe/Berlin");
   });
 
-  it("reports needs-repair for an unreadable configuration instead of falling back", async () => {
+  it("does not care that the configuration is unreadable — it never reads it", async () => {
     const sheets = createFakeSheets({
       values: {
         ...configRanges(APP_CONFIG),
+        // A schema version this build cannot parse. It used to abort the read
+        // with `needs-repair`; the month no longer comes from here.
         [CONFIG_SETTINGS_RANGE]: [["schemaVersion", "9"]],
         ...attendanceRanges(SHEET_A_TITLE),
       },
     });
 
-    await expect(
-      readAttendanceMonth(
-        { drive: employeeDrive(), sheets },
-        { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
-      ),
-    ).rejects.toMatchObject({ code: "needs-repair" });
+    const view = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: SHEET_A_ID },
+    );
 
-    expect(attendanceValueReads(sheets)).toEqual([]);
+    expect(view.month).toBe(MONTH);
+    // Nothing in the configuration range was requested at all.
+    expect(sheets.valueReads.some((range) => range.includes(CONFIG_SHEET_TITLE))).toBe(false);
+  });
+
+  it("refuses the hidden configuration tab as a place to record hours", async () => {
+    const sheets = createFakeSheets({ values: readyMonth() });
+
+    const error = await readAttendanceMonth(
+      { drive: employeeDrive(), sheets },
+      { fileId: FILE_ID, actorEmail: EMPLOYEE_A, sheetId: "0" },
+    ).catch((thrown: unknown) => thrown);
+
+    expect(isAccessError(error)).toBe(true);
+    expect(error).toMatchObject({ code: "forbidden" });
+    expect(sheets.valueUpdates).toEqual([]);
   });
 
   it("reports a changed sheet structure when column A no longer matches the configured month", async () => {
@@ -798,7 +832,30 @@ describe("saveAttendanceDay", () => {
     expect(sheets.valueUpdates).toEqual([]);
   });
 
-  it("refuses employee A saving into employee B's sheet without reading or writing a value", async () => {
+  /**
+   * Writing another visible tab is Google's decision. Every member already has
+   * edit access to the whole file, so this app refusing it protected nothing —
+   * see the read-side counterpart above.
+   */
+  it("saves into another visible tab, and writes only that tab's range", async () => {
+    const sheets = createFakeSheets({ values: readyMonth() });
+
+    const result = await saveAttendanceDay(
+      { drive: employeeDrive(), sheets },
+      {
+        fileId: FILE_ID,
+        actorEmail: EMPLOYEE_A,
+        sheetId: SHEET_B_ID,
+        date: DAY_4,
+        patches: [{ field: "notes", baseline: "", value: "Covering a shift" }],
+      },
+    );
+
+    expect(result.written).toHaveLength(1);
+    expect(sheets.valueUpdates.every((update) => update.range.includes(SHEET_B_TITLE))).toBe(true);
+  });
+
+  it("refuses a save into the hidden configuration tab", async () => {
     const sheets = createFakeSheets({ values: readyMonth() });
 
     await expect(
@@ -807,14 +864,13 @@ describe("saveAttendanceDay", () => {
         {
           fileId: FILE_ID,
           actorEmail: EMPLOYEE_A,
-          sheetId: SHEET_B_ID,
+          sheetId: "0",
           date: DAY_4,
-          patches: [{ field: "notes", baseline: "", value: "Not mine" }],
+          patches: [{ field: "notes", baseline: "", value: "Not a timesheet" }],
         },
       ),
     ).rejects.toMatchObject({ code: "forbidden" });
 
-    expect(attendanceValueReads(sheets)).toEqual([]);
     expect(sheets.valueUpdates).toEqual([]);
   });
 

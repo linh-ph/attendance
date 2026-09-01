@@ -33,7 +33,7 @@ function view(days: AttendanceDay[]): AttendanceMonthView {
     sheetId: Number(SHEET_ID),
     sheetTitle: "NGUYEN PHAN LINH",
     month: "2026-07",
-    role: "employee",
+    role: "open",
     statuses: STATUSES,
     days,
   };

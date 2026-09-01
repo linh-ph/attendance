@@ -78,7 +78,7 @@ src/lib/
   workbook/     contract, template, xlsx-inspector             ← pure
   google/       types, errors, client, drive-gateway,
                 sheets-gateway, picker                         ← only googleapis site
-  config/       schema, repository                             ← __APP_CONFIG access
+  config/       schema, repository                             ← __APP_CONFIG writes only
   access/       policy                                         ← per-request authorization
   files/        schemas, import-schemas, setup-{service,contracts,steps,
                 monthly,legacy}, member-service, import-service ← orchestration
@@ -168,24 +168,44 @@ Violating any of these is a product regression, not a style choice.
 - The client derives its dirty set by running the domain's own `diffDay`, so it
   cannot drift from the server's.
 
-**`__APP_CONFIG`** (hidden, owner-protected, fixed coordinates)
+**`__APP_CONFIG` is write-only. Nothing reads it.**
+
+The read path — `access/policy`, `attendance/service`, `discovery` — opens no
+configuration sheet at all. What it used to supply now comes from cheaper,
+always-present sources:
+
+| Was read from the sheet | Comes from now |
+| --- | --- |
+| the month | `appProperties.attendanceMonth`, else the `202607勤怠管理表` name |
+| the status enum | `STATUS_OPTIONS` — the sheet only mirrored it back |
+| the member → tab mapping | the person picks their tab; the calendar remembers it per file |
+| the managed card's setup state | `appProperties.attendanceSetupState`; no stamp means `needs-setup` |
+
+Consequences to keep:
+
+- `FileRole` is `manager` (the current Drive owner) or `open` (everyone else).
+  There is no `employee` role and no per-member tab restriction.
+- **The hidden configuration tab is still refused as a place to record hours**,
+  for reads and for writes. Dropping the mapping must not turn that sheet into
+  an editable grid — a save would write attendance columns over the settings
+  table. `attendance/service` refuses any hidden tab.
+- Discovery lists every reachable file with `sheetId: null` and its visible
+  tabs. It never matches a tab title against a name: that is the silent
+  fallback the workbook contract forbids, and it would open a colleague's tab
+  the day two names collide.
+- `memberCount` on a managed card is always `null`; the roster lived in the
+  sheet and counting it would mean opening every file.
+
+The manager-side writers (`files/setup-*`, `files/member-service`,
+`files/import-service`) still create and update the sheet, so its shape still
+matters where they touch it:
+
 - `A1:B5` settings, `D1:F` status enum, `H1:N` members — each table ends at the
   first fully blank row. Emails lowercase-normalized; Google numeric IDs stored
-  as strings; member identity is the email; sheet **IDs** are stored so a rename
-  is reconcilable.
-- Member `setupStatus` is exactly `pending` | `ready` | `invite-failed`. One
-  vocabulary, three writers — do not invent a fourth value.
-- `ConfigMember.sheetId`/`sheetTitle`/`protectionId`/`permissionId` are nullable
-  so partial setup is recordable. A stale mapping is `NeedsRepairError` — never
-  a silent title-match fallback. A file with no configuration at all is opened
-  on Google's own sharing instead (role `open`), and the person picks their tab.
-- `protectionId` is now always `null`: **employee tabs are created open**. No
-  setup path adds a protected range to one, and `authorizeFile` does not ask for
-  one — the field stays in the schema so files created before this still read.
-  Only the hidden `__APP_CONFIG` sheet keeps its owner-only protection.
-- `__APP_CONFIG` is optional metadata, not a gate. Where it exists it still
-  resolves a person straight to their tab; where it does not, the file is still
-  fully usable.
+  as strings; member identity is the email; sheet **IDs** are stored.
+- Member `setupStatus` is exactly `pending` | `ready` | `invite-failed`.
+- `protectionId` is always `null`: **employee tabs are created open.** Only the
+  hidden `__APP_CONFIG` sheet keeps its owner-only protection.
 - `initialize` refuses to overwrite an existing config sheet unless the caller
   passes `replaceExisting: true` (the import path's switch). `deleteSheet` is
   emitted on no other path.
@@ -205,19 +225,17 @@ nobody can do anything Google would refuse. On top of that:
 1. the normalized email always comes from the verified server session, never
    from the client;
 2. `authorizeFile` re-reads current Drive access on every request, never a
-   cached role;
-3. a file **with** a configuration keeps the mapped-employee restriction — an
-   employee still cannot address another member's mapped sheet;
-4. a file **without** a configuration returns role `open`: the requested tab is
-   taken as given, because there is no mapping to restrict against and Google
-   already decided the person may open the file;
-5. `ownedByMe` is **not** required anywhere. Shared Drive files are owned by the
+   cached role, and reads **Drive metadata only**;
+3. the current Drive owner is `manager`; everyone else is `open` and the
+   requested tab is taken as given;
+4. `ownedByMe` is **not** required anywhere. Shared Drive files are owned by the
    organization and have no owner at all, and they are exactly the files people
-   record hours in.
+   record hours in;
+5. the only tabs refused are ones the file does not have, and hidden ones —
+   which is what keeps `__APP_CONFIG` out of the attendance editor.
 
-`authorizeFile` deliberately does **not** gate on the file-level `setupState`,
-and a missing config sheet is **not** a refusal — only a configuration that
-exists and is broken is (`NeedsRepairError`).
+`authorizeFile` gates on no configuration at all: not on `setupState`, not on a
+member row, not on the sheet's presence.
 
 Cross-tab editing is out of scope: it is a Google Sheets sharing concern. If
 per-tab isolation is ever wanted it comes from protected ranges on the file, not

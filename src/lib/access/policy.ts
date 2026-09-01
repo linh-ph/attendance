@@ -1,24 +1,15 @@
 /**
- * Per-request file authorization.
+ * Per-request file authorization, from Drive metadata alone.
  *
- * Implements the defense-in-depth check from section 7.3 of the approved
- * design: every call re-reads current Drive ownership metadata and the
- * protected sheet-native mapping, and never trusts a client-supplied email, a
- * cached role, or a sheet title.
- *
- * A missing mapping is surfaced as `Needs setup` / `Needs repair` rather than
- * degrading into a silent match, per section 9.2.
+ * Every call re-reads current Drive ownership and never trusts a
+ * client-supplied email or a cached role. It no longer reads `__APP_CONFIG`:
+ * see `authorizeFile` below and
+ * `docs/decisions/2026-08-29-app-is-a-sheets-client.md`.
  */
 
-import {
-  ConfigMissingError,
-  isConfigRepositoryError,
-  type ConfigReadResult,
-  type ConfigRepository,
-} from "@/lib/config/repository";
-import { isAppConfigError, normalizeEmail, type ConfigMember } from "@/lib/config/schema";
+import { normalizeEmail } from "@/lib/config/schema";
 import { FileUnavailableError } from "@/lib/google/errors";
-import type { DriveFileAccess, DriveGateway, SheetSummary } from "@/lib/google/types";
+import type { DriveFileAccess, DriveGateway } from "@/lib/google/types";
 
 /* -------------------------------------------------------------------------- */
 /* Errors                                                                      */
@@ -52,7 +43,13 @@ export class ForbiddenError extends AccessError {
   }
 }
 
-/** The file (or the actor's member row) has not been configured yet. */
+/**
+ * The file has not been set up yet.
+ *
+ * `authorizeFile` no longer raises this — it does not read the configuration
+ * sheet at all. It is still raised by the manager-side setup, import, and
+ * member services, which do write that sheet.
+ */
 export class NeedsSetupError extends AccessError {
   constructor(reason: string) {
     super("needs-setup", "This attendance file needs setup.", reason);
@@ -78,18 +75,16 @@ export function isAccessError(value: unknown): value is AccessError {
 
 export type FileRole =
   | { kind: "manager"; email: string }
-  | { kind: "employee"; email: string; sheetId: string; sheetTitle: string }
   /**
-   * A file this app never configured. There is no mapping to restrict against,
-   * so Google's own sharing is the only boundary — which is the boundary the
-   * person already has when they open the file in Google Sheets. The requested
-   * tab is passed through unchanged.
+   * Everyone who is not the current owner. There is no mapping to restrict
+   * against, so Google's own sharing is the only boundary — which is the
+   * boundary the person already has when they open the file in Google Sheets.
+   * The requested tab is passed through unchanged.
    */
   | { kind: "open"; email: string; sheetId: string | null };
 
 export interface AccessDependencies {
   drive: DriveGateway;
-  config: ConfigRepository;
 }
 
 export interface AuthorizeFileRequest {
@@ -110,57 +105,25 @@ function isCurrentOwner(access: DriveFileAccess, actorEmail: string): boolean {
   return ownerEmail !== null && ownerEmail === actorEmail;
 }
 
-async function readConfig(
-  dependencies: AccessDependencies,
-  fileId: string,
-): Promise<ConfigReadResult> {
-  try {
-    return await dependencies.config.read(fileId);
-  } catch (error) {
-    if (error instanceof ConfigMissingError) {
-      throw new NeedsSetupError("config-sheet-missing");
-    }
-    if (isConfigRepositoryError(error)) {
-      throw new NeedsRepairError(`config-repository:${error.code}`);
-    }
-    if (isAppConfigError(error)) {
-      throw new NeedsRepairError(`config-unreadable:${error.code}`);
-    }
-    throw error;
-  }
-}
-
-function findSheet(sheets: SheetSummary[], sheetId: string): SheetSummary | undefined {
-  return sheets.find((sheet) => String(sheet.sheetId) === sheetId);
-}
-
-function resolveEmployeeSheet(member: ConfigMember, sheets: SheetSummary[]): SheetSummary {
-  if (member.sheetId === null) {
-    throw new NeedsSetupError("member-sheet-not-mapped");
-  }
-
-  const sheet = findSheet(sheets, member.sheetId);
-  if (!sheet) {
-    // Never fall back to matching by title: the sheet ID is the identity key.
-    throw new NeedsRepairError("member-sheet-missing");
-  }
-
-  /*
-   * A protected range is deliberately not required here.
-   *
-   * Tabs are created open — see `docs/decisions/2026-08-29-app-is-a-sheets-client.md`:
-   * this app is a convenience client over Google Sheets, not an authorization
-   * layer of its own, and every real workbook was measured with
-   * `protectedRanges: []`. Demanding one only ever refused the people using the
-   * app while the same edit stayed one click away in Google Sheets itself.
-   *
-   * What still holds: the request runs on the signed-in user's own Google
-   * credentials, and a configured file still resolves this person to their own
-   * mapped tab rather than any tab named in a URL.
-   */
-  return sheet;
-}
-
+/**
+ * Decides what the signed-in account may do with one file.
+ *
+ * It reads **Drive metadata and nothing else**. `__APP_CONFIG` used to be
+ * consulted here to resolve a member to their mapped tab and to refuse every
+ * other tab; that check is gone. It never protected anything — every real
+ * workbook was measured with `protectedRanges: []`, so the same edit was always
+ * one click away in Google Sheets — while it did refuse people whose files had
+ * no configuration, which is all of them.
+ *
+ * What still holds, and is the whole of the boundary:
+ *
+ * - every call runs on the signed-in user's own Google credentials, so nobody
+ *   can do anything Google would refuse;
+ * - the actor email comes from the verified server session, never the client;
+ * - live Drive access is re-read on every request, never a cached role.
+ *
+ * See `docs/decisions/2026-08-29-app-is-a-sheets-client.md`.
+ */
 export async function authorizeFile(
   dependencies: AccessDependencies,
   request: AuthorizeFileRequest,
@@ -170,7 +133,7 @@ export async function authorizeFile(
     throw new ForbiddenError("missing-actor-email");
   }
 
-  // Step 2: current Drive ownership/access metadata, never a cached role.
+  // Current Drive ownership/access metadata, never a cached role.
   const access = await dependencies.drive.getFileAccess(request.fileId);
   if (access.trashed) {
     throw new FileUnavailableError("trashed");
@@ -180,44 +143,5 @@ export async function authorizeFile(
     return { kind: "manager", email: actorEmail };
   }
 
-  // Step 3: the protected mapping decides every non-owner request — when there
-  // is one. A file with no configuration is not refused: this app does not add
-  // an authorization layer on top of Google's sharing (see
-  // docs/decisions/2026-08-29-app-is-a-sheets-client.md).
-  let read: ConfigReadResult;
-  try {
-    read = await readConfig(dependencies, request.fileId);
-  } catch (error) {
-    if (error instanceof NeedsSetupError) {
-      return {
-        kind: "open",
-        email: actorEmail,
-        sheetId: request.requestedSheetId ?? null,
-      };
-    }
-    throw error;
-  }
-
-  const { config, spreadsheet } = read;
-
-  const member = config.members.find((candidate) => candidate.email === actorEmail);
-  if (!member) {
-    throw new ForbiddenError("actor-not-configured");
-  }
-
-  const sheet = resolveEmployeeSheet(member, spreadsheet.sheets);
-  const sheetId = String(sheet.sheetId);
-
-  // Step 4/5: an employee may only address their own mapped sheet.
-  if (request.requestedSheetId !== undefined && request.requestedSheetId !== sheetId) {
-    throw new ForbiddenError("requested-sheet-not-mapped");
-  }
-
-  return {
-    kind: "employee",
-    email: actorEmail,
-    sheetId,
-    // The live title wins so a renamed tab stays addressable by ID.
-    sheetTitle: sheet.title,
-  };
+  return { kind: "open", email: actorEmail, sheetId: request.requestedSheetId ?? null };
 }

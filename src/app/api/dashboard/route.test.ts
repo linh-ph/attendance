@@ -247,10 +247,13 @@ describe("GET /api/dashboard", () => {
 
     const body = (await response.json()) as DashboardBody;
     expect(body.managed.map((file) => file.id)).toEqual(["owned-ready", "owned-legacy"]);
-    expect(body.managed[0]).toMatchObject({ setupState: "ready", memberCount: 1 });
-    expect(body.managed[1]).toMatchObject({ setupState: "needs-setup", memberCount: null });
+    // Card facts come from Drive `appProperties`; the roster lived in the
+    // configuration sheet, which nothing reads any more.
+    expect(body.managed[0]).toMatchObject({ memberCount: null });
+    expect(body.managed[1]).toMatchObject({ memberCount: null });
+    // No tab is preselected: the person picks theirs and it is remembered.
     expect(body.timesheets).toEqual([
-      expect.objectContaining({ id: "shared-file", sheetId: "222", sheetTitle: "Manager" }),
+      expect.objectContaining({ id: "shared-file", sheetId: null, sheetTitle: null }),
     ]);
     expect(body).not.toHaveProperty("folderError");
     expect(fakes.validateFolder).toHaveBeenCalledWith(FOLDER_ID);
@@ -259,13 +262,18 @@ describe("GET /api/dashboard", () => {
   it("ignores a client-supplied email and re-derives the actor from the session", async () => {
     installFakes();
 
-    const response = await GET(
+    const spoofed = await GET(
       await signedRequest(`${BASE_URL}?folderId=${FOLDER_ID}&email=${EMPLOYEE}&actorEmail=${EMPLOYEE}`),
     );
+    const plain = await GET(await signedRequest(`${BASE_URL}?folderId=${FOLDER_ID}`));
 
-    const body = (await response.json()) as DashboardBody;
-    // Sheet 222 is the session manager's mapping; 111 belongs to the spoofed email.
-    expect(body.timesheets.map((sheet) => sheet.sheetId)).toEqual(["222"]);
+    /*
+     * There is no per-member mapping left to demonstrate this with — every file
+     * lists the same tabs for everyone — so the assertion is that the extra
+     * parameters change nothing at all. The listing itself still runs on the
+     * session's own Google credentials, which is what actually scopes it.
+     */
+    expect(await spoofed.json()).toEqual(await plain.json());
   });
 
   it("rejects an anonymous request before touching Google", async () => {

@@ -197,7 +197,7 @@ export function createMemberService(dependencies: MemberServiceDependencies): Me
 
   /** Only the file's current Drive owner may see or change the roster. */
   async function requireManager(fileId: string, actorEmail: string): Promise<string> {
-    const role = await authorizeFile({ drive, config }, { fileId, actorEmail });
+    const role = await authorizeFile({ drive }, { fileId, actorEmail });
 
     if (role.kind !== "manager") {
       throw new ForbiddenError("actor-not-owner");

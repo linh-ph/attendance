@@ -164,7 +164,7 @@ export function createLegacySetup(
     fileId: string,
     folderId: string,
   ): Promise<{ folder: DriveFolder; fileName: string; driveMonth: string | null }> {
-    const role = await authorizeFile({ drive, config }, { fileId, actorEmail: ownerEmail });
+    const role = await authorizeFile({ drive }, { fileId, actorEmail: ownerEmail });
     if (role.kind !== "manager") {
       throw new ForbiddenError("actor-not-owner");
     }

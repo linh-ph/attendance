@@ -309,7 +309,7 @@ describe("GET /api/files/[fileId]/attendance/[sheetId]", () => {
     expect(body.sheetId).toBe(111);
     expect(body.sheetTitle).toBe(SHEET_A_TITLE);
     expect(body.month).toBe(MONTH);
-    expect(body.role).toBe("employee");
+    expect(body.role).toBe("open");
     expect(body.statuses).toEqual(APP_CONFIG.statuses);
     expect(body.days).toHaveLength(31);
     expect(fakes.tokens).toEqual(["provider-access-token"]);
@@ -361,18 +361,27 @@ describe("GET /api/files/[fileId]/attendance/[sheetId]", () => {
     expect(fakes.tokens).toEqual([]);
   });
 
-  it("returns 403 without leaking the other employee's identity", async () => {
+  it("opens another visible tab, and still refuses one the file does not have", async () => {
     stubAuthEnv();
     const fakes = createGateways();
 
-    const response = await handleAttendanceRead(
+    // Google's sharing is the boundary; every member can already open this tab
+    // in Sheets itself. See docs/decisions/2026-08-29-app-is-a-sheets-client.md.
+    const allowed = await handleAttendanceRead(
       await signedRequest(EMPLOYEE_A, {}, url(FILE_ID, SHEET_B_ID)),
       routeContext(FILE_ID, SHEET_B_ID),
       fakes,
     );
+    expect(allowed.status).toBe(200);
 
-    expect(response.status).toBe(403);
-    const text = await response.text();
+    const refused = await handleAttendanceRead(
+      await signedRequest(EMPLOYEE_A, {}, url(FILE_ID, "9999")),
+      routeContext(FILE_ID, "9999"),
+      fakes,
+    );
+
+    expect(refused.status).toBe(403);
+    const text = await refused.text();
     expect(JSON.parse(text)).toEqual({
       code: "forbidden",
       error: "You do not have access to this attendance sheet.",
@@ -500,22 +509,40 @@ describe("POST /api/files/[fileId]/attendance/[sheetId]", () => {
     expect(fakes.valueUpdates).toEqual([]);
   });
 
-  it("refuses a save addressed at another employee's sheet", async () => {
+  it("refuses a save addressed at a tab the file does not have", async () => {
     stubAuthEnv();
     const fakes = createGateways();
 
     const response = await handleAttendanceSave(
       await savePost(
         EMPLOYEE_A,
-        { date: DAY_4, patches: [{ field: "notes", baseline: "", value: "Not mine" }] },
-        SHEET_B_ID,
+        { date: DAY_4, patches: [{ field: "notes", baseline: "", value: "Nowhere" }] },
+        "9999",
       ),
-      routeContext(FILE_ID, SHEET_B_ID),
+      routeContext(FILE_ID, "9999"),
       fakes,
     );
 
     expect(response.status).toBe(403);
     expect(response.headers.get("location")).toBeNull();
+    expect(fakes.valueUpdates).toEqual([]);
+  });
+
+  it("refuses a save addressed at the hidden configuration tab", async () => {
+    stubAuthEnv();
+    const fakes = createGateways();
+
+    const response = await handleAttendanceSave(
+      await savePost(
+        EMPLOYEE_A,
+        { date: DAY_4, patches: [{ field: "notes", baseline: "", value: "Not a timesheet" }] },
+        "0",
+      ),
+      routeContext(FILE_ID, "0"),
+      fakes,
+    );
+
+    expect(response.status).toBe(403);
     expect(fakes.valueUpdates).toEqual([]);
   });
 

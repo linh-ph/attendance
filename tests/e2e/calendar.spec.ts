@@ -73,11 +73,13 @@ test("Sync sheet re-reads the month and keeps the calendar on screen", async ({ 
     .first()
     .click();
 
-  // Three fixture files cover July, so a timesheet has to be chosen first.
+  // Three fixture files cover July, so a file has to be chosen — and then a
+  // tab, because no file carries a member mapping.
   await page
-    .getByRole("button", { name: /^Use 202607勤怠管理表 — Employee A/ })
+    .getByRole("button", { name: /^Use 202607勤怠管理表 — choose tab/ })
     .first()
     .click();
+  await page.getByRole("button", { name: "Employee A" }).click();
 
   const grid = page.getByRole("grid", { name: "July 2026 attendance calendar" });
   await expect(grid).toBeVisible();

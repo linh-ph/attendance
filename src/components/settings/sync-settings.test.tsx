@@ -34,7 +34,7 @@ const view = (): AttendanceMonthView => ({
   sheetTitle: "Linh",
   month: "2026-07",
   spreadsheetTimeZone: "Asia/Tokyo",
-  role: "employee",
+  role: "open",
   statuses: [],
   days: [
     { ...emptyDay("2026-07-01"), clockIn: 9, clockOut: 18, breakHours: 1, workHours: 8 },

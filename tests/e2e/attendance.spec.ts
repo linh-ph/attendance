@@ -28,9 +28,11 @@ test.beforeEach(async ({ page }) => {
  * has no configuration for: Google's own sharing decides what is reachable,
  * and the person picks their tab when nothing says which is theirs.
  */
-test("the employee sees every reachable file and opens the mapped one at their tab", async ({
-  page,
-}) => {
+/**
+ * No file preselects a tab any more: discovery reads no `__APP_CONFIG`, so
+ * every reachable file offers its tab list and the person says which is theirs.
+ */
+test("the employee sees every reachable file and picks a tab to open one", async ({ page }) => {
   await page.goto("/timesheets");
 
   const timesheets = page.getByRole("region", { name: "Your attendance months" });
@@ -39,19 +41,22 @@ test("the employee sees every reachable file and opens the mapped one at their t
     .filter({ hasText: E2E_FIXTURE.managerEmail });
 
   await expect(readyTimesheet).toBeVisible();
-  await expect(readyTimesheet.getByText(E2E_FIXTURE.employeeSheetTitle)).toBeVisible();
   await expect(timesheets.getByRole("listitem").first()).toBeVisible();
 
   // The employee surface stays focused on authorized timesheets; management
   // data lives on its own route instead of being mixed into this page.
   await expect(page.getByRole("heading", { name: "Attendance files" })).toHaveCount(0);
 
-  await readyTimesheet.getByRole("link", { name: "Open timesheet" }).click();
+  await readyTimesheet.getByRole("link", { name: "Choose your tab" }).click();
 
-  await expect(page).toHaveURL(new RegExp(`${ATTENDANCE_URL}$`));
+  await expect(page.getByRole("heading", { name: "Choose your tab", level: 1 })).toBeVisible();
+  await page
+    .getByRole("link", { name: "Open this tab" })
+    .first()
+    .click();
+
   await expect(page.getByRole("heading", { name: "Timesheet", level: 1 })).toBeVisible();
   await expect(page.getByText("July 2026")).toBeVisible();
-  await expect(page.getByText(E2E_FIXTURE.employeeSheetTitle)).toBeVisible();
 });
 
 test("a file with no mapping offers a tab choice instead of being hidden", async ({ page }) => {
@@ -89,13 +94,16 @@ for (const viewport of [
       .first()
       .click();
 
-    // Three fixture files cover July, so the app still refuses to guess.
-
+    // Three fixture files cover July, so the app refuses to guess the file …
     const choice = page.getByRole("button", {
-      name: `Use ${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle} — ${E2E_FIXTURE.managerEmail}`,
+      name: `Use ${E2E_FIXTURE.readyFile.name} — choose tab — ${E2E_FIXTURE.managerEmail}`,
     });
     await expect(choice).toBeVisible();
     await choice.click();
+
+    // … and, with no member mapping to read, it refuses to guess the tab too.
+    await expect(page.getByRole("heading", { name: "Which tab is yours?" })).toBeVisible();
+    await page.getByRole("button", { name: E2E_FIXTURE.employeeSheetTitle }).click();
 
     const calendar = page.getByRole("grid", { name: "July 2026 attendance calendar" });
     await expect(calendar).toBeVisible();

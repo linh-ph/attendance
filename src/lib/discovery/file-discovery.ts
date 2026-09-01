@@ -17,19 +17,8 @@
  * interfaces.
  */
 
-import {
-  APP_PROPERTY_MONTH,
-  ConfigMissingError,
-  isConfigRepositoryError,
-  type ConfigReadResult,
-  type ConfigRepository,
-} from "@/lib/config/repository";
-import {
-  CONFIG_SHEET_TITLE,
-  isAppConfigError,
-  normalizeEmail,
-  type AppConfig,
-} from "@/lib/config/schema";
+import { APP_PROPERTY_MONTH, APP_PROPERTY_SETUP_STATE } from "@/lib/config/repository";
+import { CONFIG_SHEET_TITLE, normalizeEmail } from "@/lib/config/schema";
 import { FolderUnavailableError } from "@/lib/google/errors";
 import {
   ATTENDANCE_NAME_MARKER,
@@ -142,8 +131,7 @@ export interface FileDiscovery {
 
 export interface FileDiscoveryDependencies {
   drive: DriveGateway;
-  config: ConfigRepository;
-  /** Reads the tab list of a file that carries no configuration. */
+  /** Reads each file's tab list, which is what the person picks from. */
   sheets: SheetsGateway;
 }
 
@@ -178,68 +166,48 @@ function findSheet(sheets: SheetSummary[], sheetId: string): SheetSummary | unde
 }
 
 /* -------------------------------------------------------------------------- */
-/* Sequential configuration reads                                              */
+/* Drive metadata                                                              */
 /* -------------------------------------------------------------------------- */
 
-type ConfigOutcome =
-  | { kind: "config"; result: ConfigReadResult }
-  | { kind: "missing" }
-  | { kind: "broken" }
-  | { kind: "unreadable" };
+const SETUP_STATES: ReadonlySet<string> = new Set(["ready", "needs-setup", "needs-repair"]);
 
 /**
- * Classifies one candidate's configuration. Every failure is contained here so
- * a single bad file degrades to a card state instead of rejecting `load`.
+ * The setup state a managed card shows, from Drive `appProperties`.
+ *
+ * The create, import, and setup flows stamp `attendanceSetupState` on the file
+ * as well as writing the configuration sheet, so this is the same fact from a
+ * source that costs no extra call — discovery used to open every managed file's
+ * configuration sheet just to read it back.
+ *
+ * No stamp means this app has never set the file up, which is exactly
+ * `needs-setup`. That is a fact about the Drive metadata, not a guess about the
+ * file's contents. `unknown` is left for a stamp this build does not recognise.
  */
-async function readConfigOutcome(
-  config: ConfigRepository,
-  fileId: string,
-): Promise<ConfigOutcome> {
-  try {
-    return { kind: "config", result: await config.read(fileId) };
-  } catch (error) {
-    if (error instanceof ConfigMissingError) return { kind: "missing" };
-    if (isConfigRepositoryError(error) || isAppConfigError(error)) return { kind: "broken" };
-    return { kind: "unreadable" };
-  }
+function driveSetupState(file: AttendanceFileSummary): DashboardSetupState {
+  const stamped = file.appProperties[APP_PROPERTY_SETUP_STATE];
+  if (stamped === undefined || stamped === "") return "needs-setup";
+
+  return SETUP_STATES.has(stamped) ? (stamped as DashboardSetupState) : "unknown";
 }
 
-function managedSetupState(config: AppConfig): DashboardSetupState {
-  if (config.setupState === "ready") return "ready";
-  if (config.setupState === "needs-repair") return "needs-repair";
-  return "needs-setup";
-}
-
-function toManagedFile(file: AttendanceFileSummary, outcome: ConfigOutcome): ManagedFile {
-  const base = {
+/**
+ * One managed card, from Drive metadata alone.
+ *
+ * `memberCount` is `null`: the roster lived in the configuration sheet, and
+ * counting it again would mean opening every managed file. The card already
+ * treats `null` as "do not show this fact".
+ */
+function toManagedFile(file: AttendanceFileSummary): ManagedFile {
+  return {
     id: file.id,
     name: file.name,
     ownerEmail: file.ownerEmail,
     modifiedTime: file.modifiedTime,
+    month: driveMonth(file) ?? monthFromName(file.name),
+    memberCount: null,
+    setupState: driveSetupState(file),
+    error: null,
   };
-
-  if (outcome.kind === "config") {
-    const { config } = outcome.result;
-    return {
-      ...base,
-      month: config.month,
-      memberCount: config.members.length,
-      setupState: managedSetupState(config),
-      error: null,
-    };
-  }
-
-  const setupState: DashboardSetupState =
-    outcome.kind === "missing" ? "needs-setup" : outcome.kind === "broken" ? "needs-repair" : "unknown";
-
-  const error =
-    outcome.kind === "missing"
-      ? null
-      : outcome.kind === "broken"
-        ? BROKEN_CONFIG_MESSAGE
-        : UNREADABLE_CONFIG_MESSAGE;
-
-  return { ...base, month: driveMonth(file), memberCount: null, setupState, error };
 }
 
 /**
@@ -264,44 +232,12 @@ function baseTimesheet(file: AttendanceFileSummary, month: string | null) {
   };
 }
 
-/**
- * A configured file still resolves the actor to their mapped tab, which keeps
- * the familiar one-click path. A file with no configuration is not refused: it
- * is returned with its tab list so the person opens whichever tab is theirs.
- */
-function toTimesheet(
-  file: AttendanceFileSummary,
-  outcome: ConfigOutcome,
-  actorEmail: string,
-): Timesheet | null {
-  if (outcome.kind !== "config") return null;
-
-  const { config, spreadsheet } = outcome.result;
-  const tabs = toTabs(spreadsheet.sheets);
-  const matches = config.members.filter((member) => normalizeEmail(member.email) === actorEmail);
-
-  if (matches.length === 1 && matches[0].sheetId !== null) {
-    // The sheet ID is the identity key; never fall back to matching by title.
-    const sheet = findSheet(spreadsheet.sheets, matches[0].sheetId);
-    if (sheet) {
-      return {
-        ...baseTimesheet(file, config.month),
-        sheetId: String(sheet.sheetId),
-        sheetTitle: sheet.title,
-        tabs,
-      };
-    }
-  }
-
-  return { ...baseTimesheet(file, config.month), sheetId: null, sheetTitle: null, tabs };
-}
-
 /* -------------------------------------------------------------------------- */
 /* Factory                                                                     */
 /* -------------------------------------------------------------------------- */
 
 export function createFileDiscovery(dependencies: FileDiscoveryDependencies): FileDiscovery {
-  const { drive, config, sheets } = dependencies;
+  const { drive, sheets } = dependencies;
 
   async function loadManaged(
     folderId: string,
@@ -312,12 +248,8 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
       (file) => file.ownedByMe && hasAttendanceName(file.name),
     );
 
-    const managed: ManagedFile[] = [];
-    for (const file of candidates) {
-      managed.push(toManagedFile(file, await readConfigOutcome(config, file.id)));
-    }
-
-    return { folder, managed };
+    // Drive metadata only: no configuration sheet is opened for any card.
+    return { folder, managed: candidates.map(toManagedFile) };
   }
 
   /**
@@ -328,9 +260,10 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
    * is exactly the file people record hours in. Drive returning the file is
    * the access decision.
    */
-  async function loadTimesheets(
-    actorEmail: string,
-  ): Promise<{ timesheets: Timesheet[]; unreadable: UnreadableFile[] }> {
+  async function loadTimesheets(): Promise<{
+    timesheets: Timesheet[];
+    unreadable: UnreadableFile[];
+  }> {
     const candidates = (await drive.listEmployeeCandidates()).filter((file) =>
       hasAttendanceName(file.name),
     );
@@ -339,23 +272,23 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
     const unreadable: UnreadableFile[] = [];
 
     for (const file of candidates) {
-      const outcome = await readConfigOutcome(config, file.id);
-
-      if (outcome.kind === "config") {
-        const timesheet = toTimesheet(file, outcome, actorEmail);
-        if (timesheet) timesheets.push(timesheet);
-        continue;
-      }
-
-      // No configuration: read the tab list directly so the file is still
-      // openable. A file whose tabs cannot be read at all is not offered — but
-      // it is *named*, so the caller can distinguish a provider failure from an
-      // account with no timesheets. Swallowing it here is what made a Sheets
-      // outage look like an empty Drive.
+      /*
+       * The tab list, and no mapping.
+       *
+       * This used to read `__APP_CONFIG` first and preselect the tab it mapped
+       * the actor to. Nothing does that now: the person picks their own tab and
+       * the calendar remembers the choice. Every file therefore takes the same
+       * path, which is the one that already worked for all of them.
+       *
+       * A file whose tabs cannot be read is not offered — but it is *named*, so
+       * the caller can tell a provider failure from an account with no
+       * timesheets. Swallowing it here is what made a Sheets outage look like
+       * an empty Drive.
+       */
       try {
         const spreadsheet = await sheets.getSpreadsheet(file.id);
         timesheets.push({
-          ...baseTimesheet(file, monthFromName(file.name)),
+          ...baseTimesheet(file, driveMonth(file) ?? monthFromName(file.name)),
           sheetId: null,
           sheetTitle: null,
           tabs: toTabs(spreadsheet.sheets),
@@ -374,7 +307,7 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
       const folderId = request.folderId?.trim() ?? "";
 
       // The employee section is always computed, whatever the folder state is.
-      const { timesheets, unreadable } = await loadTimesheets(actorEmail);
+      const { timesheets, unreadable } = await loadTimesheets();
 
       if (folderId === "") {
         return { folder: null, folderError: null, managed: [], timesheets, unreadable };

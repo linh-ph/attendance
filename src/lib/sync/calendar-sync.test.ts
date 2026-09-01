@@ -43,7 +43,7 @@ const view = (over: Partial<AttendanceMonthView> = {}): AttendanceMonthView => (
   sheetTitle: "Linh",
   month: "2026-07",
   spreadsheetTimeZone: "Asia/Tokyo",
-  role: "employee",
+  role: "open",
   statuses: [],
   days: [emptyDay("2026-07-01"), emptyDay("2026-07-02")],
   ...over,

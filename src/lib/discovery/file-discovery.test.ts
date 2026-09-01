@@ -341,6 +341,7 @@ describe("FileDiscovery.load — manager section", () => {
     const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
 
     expect(dashboard.managed.map((file) => file.id)).toEqual(["direct-ready", "direct-legacy"]);
+    // No `attendanceSetupState` stamp: this app has never set it up.
     expect(dashboard.managed.find((file) => file.id === "direct-legacy")?.setupState).toBe(
       "needs-setup",
     );
@@ -351,7 +352,7 @@ describe("FileDiscovery.load — manager section", () => {
     expect(harness.listManagerFiles).toHaveBeenCalledWith(FOLDER_ID);
   });
 
-  it("describes a configured file with month, owner, member count, and modified time", async () => {
+  it("describes a card from Drive metadata alone", async () => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
@@ -360,22 +361,28 @@ describe("FileDiscovery.load — manager section", () => {
     expect(ready).toMatchObject({
       name: MARKER_NAME,
       ownerEmail: MANAGER,
+      // Both from `appProperties`, which the create and import flows stamp.
       month: "2026-07",
-      memberCount: 2,
-      modifiedTime: "2026-07-30T09:00:00.000Z",
       setupState: "ready",
+      modifiedTime: "2026-07-30T09:00:00.000Z",
+      // The roster lived in the configuration sheet, which is no longer read.
+      memberCount: null,
       error: null,
     });
   });
 
-  it("falls back to the Drive month property for a file with no readable configuration", async () => {
+  it("takes the month from the file name when Drive carries no month property", async () => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
     const legacy = dashboard.managed.find((file) => file.id === "direct-legacy");
 
-    expect(legacy).toMatchObject({ setupState: "needs-setup", memberCount: null, month: null });
-    expect(legacy?.error).toBeNull();
+    expect(legacy).toMatchObject({
+      month: "2026-05",
+      memberCount: null,
+      setupState: "needs-setup",
+      error: null,
+    });
   });
 
   it("never validates or lists a folder when no folder is selected", async () => {
@@ -414,44 +421,20 @@ describe("FileDiscovery.load — manager section", () => {
     expect(dashboard.folder).toEqual({ id: FOLDER_ID, name: "Attendance 2026" });
   });
 
-  it("turns one failed configuration read into a card-level error", async () => {
-    const configs = defaultConfigs();
-    configs.set("direct-ready", new GoogleApiError("Google request failed: values.batchGet."));
-    const discovery = createFileDiscovery(createHarness({ configs }));
-
-    const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
-
-    expect(dashboard.managed.map((file) => file.id)).toEqual(["direct-ready", "direct-legacy"]);
-    expect(dashboard.managed[0]).toMatchObject({
-      setupState: "unknown",
-      error: "Could not read this file's attendance configuration.",
-    });
-    expect(dashboard.managed[1].setupState).toBe("needs-setup");
-  });
-
-  it("marks a structurally broken configuration as needing repair", async () => {
-    const configs = defaultConfigs();
-    configs.set(
-      "direct-ready",
-      new AppConfigError("invalid-member-row", "members", "Member row 1 has no displayName."),
-    );
-    const discovery = createFileDiscovery(createHarness({ configs }));
-
-    const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
-
-    expect(dashboard.managed[0]).toMatchObject({
-      setupState: "needs-repair",
-      error: "This file's attendance configuration needs repair.",
-    });
-  });
-
-  it("reads candidate configurations sequentially in v1", async () => {
+  /**
+   * The manager list used to open every card's `__APP_CONFIG` sheet, so one
+   * unreadable or structurally broken configuration became a card-level error.
+   * Nothing opens it now, so neither failure exists — and listing the folder no
+   * longer costs one Sheets call per file.
+   */
+  it("opens no configuration sheet for any managed card", async () => {
     const harness = createHarness();
     const discovery = createFileDiscovery(harness);
 
-    await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
+    const dashboard = await discovery.load({ actorEmail: MANAGER, folderId: FOLDER_ID });
 
-    expect(harness.maxConcurrentReads()).toBe(1);
+    expect(harness.readOrder).toEqual([]);
+    expect(dashboard.managed.every((file) => file.error === null)).toBe(true);
   });
 });
 
@@ -482,32 +465,30 @@ describe("FileDiscovery.load — employee section", () => {
     ]);
   });
 
-  it("still resolves the mapped tab when a configuration names one", async () => {
+  /**
+   * No file preselects a tab any more.
+   *
+   * Discovery used to open `__APP_CONFIG` and, where it mapped the actor to
+   * exactly one tab, return that tab. Every real file is unconfigured, so that
+   * branch almost never ran; the person picks their tab on the calendar and it
+   * is remembered per file.
+   */
+  it("preselects no tab, and offers the file's own tab list instead", async () => {
     const discovery = createFileDiscovery(createHarness());
 
     const dashboard = await discovery.load({ actorEmail: EMPLOYEE });
 
-    expect(dashboard.timesheets[0]).toMatchObject({
-      id: "shared-mapped",
-      ownerEmail: "owner@blended-asia.com",
-      month: "2026-07",
-      sheetId: "111",
-      sheetTitle: "Live 111",
-    });
+    expect(dashboard.timesheets.every((sheet) => sheet.sheetId === null)).toBe(true);
+    expect(dashboard.timesheets.every((sheet) => sheet.sheetTitle === null)).toBe(true);
+    expect(dashboard.timesheets.every((sheet) => sheet.tabs.length > 0)).toBe(true);
   });
 
-  it.each([
-    ["zero mappings", "shared-unmapped"],
-    ["two mappings for the same actor", "shared-duplicate"],
-    ["a mapped sheet that no longer exists", "shared-missing-sheet"],
-  ])("offers a tab choice instead of refusing when the file has %s", async (_case, fileId) => {
-    const discovery = createFileDiscovery(createHarness());
+  it("reads no configuration sheet for any candidate", async () => {
+    const harness = createHarness();
 
-    const dashboard = await discovery.load({ actorEmail: EMPLOYEE });
-    const timesheet = dashboard.timesheets.find((sheet) => sheet.id === fileId);
+    await createFileDiscovery(harness).load({ actorEmail: EMPLOYEE });
 
-    expect(timesheet).toMatchObject({ sheetId: null, sheetTitle: null });
-    expect(timesheet?.tabs.length).toBeGreaterThan(0);
+    expect(harness.readOrder).toEqual([]);
   });
 
   it("still excludes a name without the case-sensitive marker", async () => {
@@ -518,12 +499,15 @@ describe("FileDiscovery.load — employee section", () => {
     expect(dashboard.timesheets.map((sheet) => sheet.id)).not.toContain("shared-wrong-name");
   });
 
-  it("normalizes the actor email before matching a mapping", async () => {
+  it("lists the same files whatever casing the actor email arrives in", async () => {
     const discovery = createFileDiscovery(createHarness());
 
-    const dashboard = await discovery.load({ actorEmail: "  Employee@Blended-Asia.com  " });
+    const spaced = await discovery.load({ actorEmail: "  Employee@Blended-Asia.com  " });
+    const plain = await discovery.load({ actorEmail: EMPLOYEE });
 
-    expect(dashboard.timesheets[0].sheetId).toBe("111");
+    expect(spaced.timesheets.map((sheet) => sheet.id)).toEqual(
+      plain.timesheets.map((sheet) => sheet.id),
+    );
   });
 
   it("still lists the files for an actor mapped nowhere, with no tab preselected", async () => {
@@ -548,7 +532,7 @@ describe("FileDiscovery.load — combined roles", () => {
 
     expect(dashboard.managed.map((file) => file.id)).toEqual(["direct-ready", "direct-legacy"]);
     expect(dashboard.timesheets).toContainEqual(
-      expect.objectContaining({ id: "shared-mapped", sheetId: "222", sheetTitle: "Live 222" }),
+      expect.objectContaining({ id: "shared-mapped", sheetId: null, sheetTitle: null }),
     );
   });
 });

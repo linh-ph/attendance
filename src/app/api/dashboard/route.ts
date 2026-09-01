@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { requireGoogleSessionFromRequest, toApiErrorResponse } from "@/lib/auth/session";
-import { createConfigRepository } from "@/lib/config/repository";
 import { createFileDiscovery, type FolderError } from "@/lib/discovery/file-discovery";
 import { createGoogleGateways } from "@/lib/google/client";
 import { debugErrorsEnabled, toGoogleErrorDiagnostic } from "@/lib/google/errors";
@@ -56,11 +55,8 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const { drive, sheets } = createGoogleGateways(session.accessToken);
-    const discovery = createFileDiscovery({
-      drive,
-      sheets,
-      config: createConfigRepository({ sheets, drive }),
-    });
+    // No configuration repository: discovery reads Drive metadata and tab lists.
+    const discovery = createFileDiscovery({ drive, sheets });
 
     const dashboard = await discovery.load({ actorEmail: session.email, folderId });
 

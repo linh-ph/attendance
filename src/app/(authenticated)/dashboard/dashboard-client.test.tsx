@@ -33,7 +33,7 @@ function monthView(overrides: Partial<AttendanceMonthView> = {}): AttendanceMont
     sheetTitle: "Linh",
     month: "2026-08",
     spreadsheetTimeZone: "Asia/Ho_Chi_Minh",
-    role: "employee",
+    role: "open",
     statuses: [{ code: "office", labelEn: "Office", sheetValue: "出社" }],
     days: Array.from({ length: 31 }, (_, index) => {
       const day = emptyDay(`2026-08-${String(index + 1).padStart(2, "0")}`);

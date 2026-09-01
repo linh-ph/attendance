@@ -40,7 +40,7 @@ function monthView(overrides: Partial<AttendanceMonthView> = {}): AttendanceMont
     sheetId: Number(SHEET_ID),
     sheetTitle: "Linh",
     month: "2026-07",
-    role: "employee",
+    role: "open",
     statuses: STATUSES,
     days: monthDays(),
     ...overrides,

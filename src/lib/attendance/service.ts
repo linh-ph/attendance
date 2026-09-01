@@ -15,23 +15,12 @@
  * imports `googleapis`.
  */
 
-import {
-  authorizeFile,
-  ForbiddenError,
-  NeedsRepairError,
-  NeedsSetupError,
-  type FileRole,
-} from "@/lib/access/policy";
-import {
-  ConfigMissingError,
-  createConfigRepository,
-  isConfigRepositoryError,
-  type ConfigReadResult,
-  type ConfigRepository,
-} from "@/lib/config/repository";
-import { isAppConfigError, type AppConfig, type ConfigStatus } from "@/lib/config/schema";
+import { authorizeFile, ForbiddenError, NeedsRepairError, type FileRole } from "@/lib/access/policy";
+import { APP_PROPERTY_MONTH } from "@/lib/config/repository";
+import { CONFIG_SHEET_TITLE, type ConfigStatus } from "@/lib/config/schema";
 import type {
   CellValue,
+  DriveFileAccess,
   DriveGateway,
   SheetsGateway,
   SpreadsheetSnapshot,
@@ -88,11 +77,15 @@ export function isAttendanceError(value: unknown): value is AttendanceError {
 export interface AttendanceDependencies {
   drive: DriveGateway;
   sheets: SheetsGateway;
-  /** Injected in tests; defaults to the sheet-native repository. */
-  config?: ConfigRepository;
 }
 
-export type AttendanceRole = "manager" | "employee" | "open";
+/**
+ * `manager` is the file's current Drive owner; `open` is everyone else.
+ *
+ * There is no `employee` any more: it existed only while `__APP_CONFIG` mapped
+ * a person to one tab, and nothing produces it now.
+ */
+export type AttendanceRole = "manager" | "open";
 
 export interface ReadAttendanceRequest {
   fileId: string;
@@ -278,50 +271,14 @@ function toAttendanceDay(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Configuration and authorization                                             */
+/* Authorization and target                                                    */
 /* -------------------------------------------------------------------------- */
-
-/**
- * Reads the protected configuration at most once per service call.
- *
- * `authorizeFile` reads it for every non-owner request; caching keeps the
- * manager and employee paths on one read without weakening either check.
- */
-function cachedConfigRepository(repository: ConfigRepository): ConfigRepository {
-  const pending = new Map<string, Promise<ConfigReadResult>>();
-
-  return {
-    read(fileId) {
-      const cached = pending.get(fileId) ?? repository.read(fileId);
-      pending.set(fileId, cached);
-      return cached;
-    },
-    initialize: (input) => repository.initialize(input),
-    updateMemberProgress: (fileId, update) => repository.updateMemberProgress(fileId, update),
-    updateSetupState: (fileId, setupState) => repository.updateSetupState(fileId, setupState),
-  };
-}
-
-/** Mirrors the policy mapping: a broken mapping is never a silent fallback. */
-async function readConfig(
-  repository: ConfigRepository,
-  fileId: string,
-): Promise<ConfigReadResult> {
-  try {
-    return await repository.read(fileId);
-  } catch (error) {
-    if (error instanceof ConfigMissingError) throw new NeedsSetupError("config-sheet-missing");
-    if (isConfigRepositoryError(error)) throw new NeedsRepairError(`config-repository:${error.code}`);
-    if (isAppConfigError(error)) throw new NeedsRepairError(`config-unreadable:${error.code}`);
-    throw error;
-  }
-}
 
 interface AttendanceTarget {
   role: AttendanceRole;
   sheetId: number;
   sheetTitle: string;
-  config: AppConfig;
+  statuses: ConfigStatus[];
   month: string;
   dates: string[];
   /** Validated IANA zone, or `null`. Taken from the snapshot already fetched. */
@@ -329,25 +286,12 @@ interface AttendanceTarget {
 }
 
 /**
- * A manager may address any mapped member sheet in the file they own; the
- * configuration sheet and any unmapped tab stay forbidden for everyone.
+ * The status enum, from the workbook contract.
+ *
+ * It used to be read out of `__APP_CONFIG`, which only ever mirrored these two
+ * values back. `STATUS_OPTIONS` is the definition, so reading a copy of it from
+ * a sheet added a failure mode and nothing else.
  */
-function resolveManagerSheet(
-  config: AppConfig,
-  spreadsheet: SpreadsheetSnapshot,
-  requestedSheetId: string,
-): { sheetId: number; sheetTitle: string } {
-  const member = config.members.find((candidate) => candidate.sheetId === requestedSheetId);
-  if (!member) throw new ForbiddenError("requested-sheet-not-mapped");
-
-  const sheet = spreadsheet.sheets.find((candidate) => String(candidate.sheetId) === requestedSheetId);
-  if (!sheet) throw new NeedsRepairError("member-sheet-missing");
-
-  // The live title wins so a renamed tab stays addressable by ID.
-  return { sheetId: sheet.sheetId, sheetTitle: sheet.title };
-}
-
-/** The status enum a file without a configuration falls back to. */
 const FALLBACK_STATUSES: ConfigStatus[] = STATUS_OPTIONS.map((status) => ({
   code: status.code,
   labelEn: status.labelEn,
@@ -368,16 +312,31 @@ function monthFromName(name: string): string | null {
 }
 
 /**
- * The target for a file this app never configured.
+ * The month the file covers, from Drive metadata alone.
  *
- * There is no roster to resolve against, so the requested tab is taken as
- * given and the status list falls back to the workbook defaults. Google has
- * already decided the person may open the file.
+ * `appProperties.attendanceMonth` is what the create and import flows stamp on
+ * a file, and the name marker (`202607勤怠管理表` is July 2026) covers every file
+ * created outside this app. Neither needs the configuration sheet, which is why
+ * dropping that read costs nothing here.
  */
-async function resolveOpenTarget(
+function resolveMonth(access: DriveFileAccess): string | null {
+  const stamped = access.appProperties[APP_PROPERTY_MONTH];
+  if (stamped !== undefined && stamped !== "") return stamped;
+
+  return monthFromName(access.name);
+}
+
+async function resolveTarget(
   dependencies: AttendanceDependencies,
-  request: { fileId: string; sheetId: string },
+  request: { fileId: string; actorEmail: string; sheetId: string },
 ): Promise<AttendanceTarget> {
+  // Drive metadata decides this, and nothing else — no configuration sheet is
+  // read anywhere on the attendance path.
+  const role: FileRole = await authorizeFile(
+    { drive: dependencies.drive },
+    { fileId: request.fileId, actorEmail: request.actorEmail, requestedSheetId: request.sheetId },
+  );
+
   const [access, spreadsheet] = await Promise.all([
     dependencies.drive.getFileAccess(request.fileId),
     dependencies.sheets.getSpreadsheet(request.fileId),
@@ -388,61 +347,26 @@ async function resolveOpenTarget(
   );
   if (!sheet) throw new ForbiddenError("requested-sheet-not-found");
 
-  const month = monthFromName(access.name);
-  if (month === null) throw new NeedsRepairError("month-not-derivable");
-
-  const config: AppConfig = {
-    schemaVersion: 1,
-    setupState: "ready",
-    month,
-    ownerEmail: access.ownerEmail ?? "",
-    templateVersion: 1,
-    statuses: FALLBACK_STATUSES,
-    members: [],
-  };
-
-  return {
-    role: "open",
-    sheetId: sheet.sheetId,
-    sheetTitle: sheet.title,
-    config,
-    month,
-    dates: monthDates(month),
-    spreadsheetTimeZone: normalizeSpreadsheetTimeZone(spreadsheet.timeZone),
-  };
-}
-
-async function resolveTarget(
-  dependencies: AttendanceDependencies,
-  request: { fileId: string; actorEmail: string; sheetId: string },
-): Promise<AttendanceTarget> {
-  const repository = cachedConfigRepository(
-    dependencies.config ?? createConfigRepository({ sheets: dependencies.sheets, drive: dependencies.drive }),
-  );
-
-  const role: FileRole = await authorizeFile(
-    { drive: dependencies.drive, config: repository },
-    { fileId: request.fileId, actorEmail: request.actorEmail, requestedSheetId: request.sheetId },
-  );
-
-  if (role.kind === "open") {
-    return resolveOpenTarget(dependencies, request);
+  /*
+   * A hidden tab is never an attendance tab, and `__APP_CONFIG` is hidden.
+   * Dropping the configuration read must not turn that sheet into an editable
+   * grid: a save would write attendance columns over the settings table. This
+   * is the same filter discovery applies when it lists selectable tabs.
+   */
+  if (sheet.hidden || sheet.title === CONFIG_SHEET_TITLE) {
+    throw new ForbiddenError("requested-sheet-not-recordable");
   }
 
-  const { config, spreadsheet } = await readConfig(repository, request.fileId);
-  const resolved =
-    role.kind === "manager"
-      ? resolveManagerSheet(config, spreadsheet, request.sheetId)
-      : { sheetId: Number(role.sheetId), sheetTitle: role.sheetTitle };
+  const month = resolveMonth(access);
+  if (month === null) throw new NeedsRepairError("month-not-derivable");
 
   return {
     role: role.kind,
-    ...resolved,
-    config,
-    month: config.month,
-    dates: monthDates(config.month),
-    // Reuses the snapshot the configuration read already fetched, so surfacing
-    // the timezone costs no extra Sheets call.
+    sheetId: sheet.sheetId,
+    sheetTitle: sheet.title,
+    statuses: FALLBACK_STATUSES,
+    month,
+    dates: monthDates(month),
     spreadsheetTimeZone: normalizeSpreadsheetTimeZone(spreadsheet.timeZone),
   };
 }
@@ -473,7 +397,7 @@ export async function readAttendanceMonth(
     if (!isDateCell(columnValue(row, COLUMN.date.index), date)) {
       throw new AttendanceError("sheet-structure", `column-a-mismatch:${date}`);
     }
-    return toAttendanceDay(date, row, target.config.statuses);
+    return toAttendanceDay(date, row, target.statuses);
   });
 
   return {
@@ -483,7 +407,7 @@ export async function readAttendanceMonth(
     month: target.month,
     spreadsheetTimeZone: target.spreadsheetTimeZone,
     role: target.role,
-    statuses: target.config.statuses,
+    statuses: target.statuses,
     days,
   };
 }
@@ -647,7 +571,7 @@ export async function saveAttendanceDay(
   if (!DATE_PATTERN.test(request.date) || !target.dates.includes(request.date)) {
     throw new AttendanceError("invalid-request", "date-outside-configured-month");
   }
-  validatePatches(request.patches, target.config.statuses);
+  validatePatches(request.patches, target.statuses);
 
   const row = await resolveRow(dependencies, request.fileId, target, request.date);
 
@@ -660,15 +584,15 @@ export async function saveAttendanceDay(
     throw new AttendanceError("sheet-structure", "date-row-moved");
   }
 
-  const current = toAttendanceDay(request.date, currentRow, target.config.statuses);
+  const current = toAttendanceDay(request.date, currentRow, target.statuses);
   const baseline = applyPatches(current, request.patches, "baseline");
   const next = applyPatches(current, request.patches, "value");
 
-  const issues = validateAttendanceDay(next, target.config.statuses);
+  const issues = validateAttendanceDay(next, target.statuses);
   if (issues.length > 0) throw new AttendanceError("invalid-day", "day-validation-failed", issues);
 
-  const written = diffDay(baseline, next, row, target.config.statuses);
-  const divergences = diffDay(baseline, current, row, target.config.statuses);
+  const written = diffDay(baseline, next, row, target.statuses);
+  const divergences = diffDay(baseline, current, row, target.statuses);
   const conflicts = written.flatMap<AttendanceConflict>((patch) => {
     const divergence = divergences.find((candidate) => candidate.range === patch.range);
     return divergence

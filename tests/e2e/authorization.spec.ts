@@ -17,7 +17,6 @@ import {
 
 const OWN_SHEET_PATH = `/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.employeeSheetId}`;
 const OWN_SHEET_API = `/api/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.employeeSheetId}`;
-const OTHER_SHEET_PATH = `/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.teammateSheetId}`;
 const OTHER_SHEET_API = `/api/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.teammateSheetId}`;
 
 const INJECTED_NOTE = "injected-by-another-employee";
@@ -37,39 +36,50 @@ test.describe("employee refusals", () => {
     await resetStore(page.request);
   });
 
-  test("requesting another member's sheet URL is refused and discloses nothing", async ({
-    page,
-  }) => {
-    await page.goto(OTHER_SHEET_PATH);
+  /**
+   * Another member's visible tab is **not** refused any more.
+   *
+   * Google's own sharing is the boundary: every member already has edit access
+   * to the whole file, so the app refusing this only ever stopped the people
+   * using the app. See `docs/decisions/2026-08-29-app-is-a-sheets-client.md`.
+   */
+  test("another member's visible tab opens, because Google already allows it", async ({ page }) => {
+    const read = await page.request.get(OTHER_SHEET_API);
 
-    // The page shell renders no attendance value of its own, and the editor
-    // reports the refusal without naming the other member.
-    await expect(
-      page.getByRole("alert").filter({ hasText: "Could not load this timesheet." }),
-    ).toBeVisible();
-    await expect(page.getByText(E2E_FIXTURE.teammateEmail)).toHaveCount(0);
-    await expect(page.getByText(E2E_FIXTURE.teammateSheetTitle)).toHaveCount(0);
+    expect(read.status()).toBe(200);
+    expect(await bodyOf(read)).toContain(E2E_FIXTURE.teammateSheetTitle);
   });
 
-  test("the attendance API answers 403 for another member's sheet", async ({ page }) => {
-    const read = await page.request.get(OTHER_SHEET_API);
+  test("the hidden configuration tab is refused, for reads and for writes", async ({ page }) => {
+    const configApi = `/api/files/${E2E_FIXTURE.readyFile.id}/attendance/100`;
+
+    const read = await page.request.get(configApi);
+    expect(read.status()).toBe(403);
+    expect(await bodyOf(read)).toContain("You do not have access to this attendance sheet.");
+
+    const write = await page.request.post(configApi, { data: saveBody(INJECTED_NOTE) });
+    expect(write.status()).toBe(403);
+  });
+
+  test("a tab the file does not have is refused, and discloses nothing", async ({ page }) => {
+    const missingApi = `/api/files/${E2E_FIXTURE.readyFile.id}/attendance/999999`;
+
+    const read = await page.request.get(missingApi);
     expect(read.status()).toBe(403);
 
     const body = await bodyOf(read);
     expect(body).toContain("You do not have access to this attendance sheet.");
     expect(body).not.toContain(E2E_FIXTURE.teammateEmail);
     expect(body).not.toContain(E2E_FIXTURE.teammateSheetTitle);
-
-    const write = await page.request.post(OTHER_SHEET_API, { data: saveBody(INJECTED_NOTE) });
-    expect(write.status()).toBe(403);
   });
 
-  test("a refused write never reaches the other member's sheet", async ({ page, browser }) => {
-    const refused = await page.request.post(OTHER_SHEET_API, { data: saveBody(INJECTED_NOTE) });
+  test("a refused write never reaches the sheet", async ({ page, browser }) => {
+    const configApi = `/api/files/${E2E_FIXTURE.readyFile.id}/attendance/100`;
+    const refused = await page.request.post(configApi, { data: saveBody(INJECTED_NOTE) });
     expect(refused.status()).toBe(403);
 
     // A second, manager-owned context reads the same live store — no reseed in
-    // between — so the tab is inspected exactly as the refused write left it.
+    // between — so the file is inspected exactly as the refused write left it.
     const managerContext = await browser.newContext({ storageState: MANAGER_STORAGE_STATE });
     try {
       const managerRead = await managerContext.request.get(

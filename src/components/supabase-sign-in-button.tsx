@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GOOGLE_SCOPES } from "@/auth.config";
+import { GOOGLE_SCOPES } from "@/lib/auth/scopes";
 import { createClient } from "@/lib/supabase/client";
 
 /**

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createGoogleCredentials } from "@/lib/supabase/google-credentials";
 import { createSupabaseCredentialTable, hasServiceRole } from "@/lib/supabase/credential-table";
 import { createClient } from "@/lib/supabase/server";
-import { GOOGLE_SCOPES } from "@/auth.config";
+import { GOOGLE_SCOPES } from "@/lib/auth/scopes";
 
 /**
  * Where Supabase returns after Google consent.

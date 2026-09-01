@@ -2,16 +2,11 @@ import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import { refreshGoogleToken } from "@/lib/auth/google-token";
 import { isPublicPath } from "@/lib/auth/paths";
+import { GOOGLE_SCOPES } from "@/lib/auth/scopes";
 import { toBrowserSession } from "@/lib/auth/session";
 
-export const GOOGLE_SCOPES = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/spreadsheets",
-  "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/drive.metadata.readonly",
-] as const;
+// Re-exported so existing importers and tests keep one name for the scope list.
+export { GOOGLE_SCOPES };
 
 export const authConfig = {
   providers: [

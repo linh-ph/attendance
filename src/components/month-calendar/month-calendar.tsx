@@ -58,6 +58,18 @@ function isWeekend(date: string): boolean {
   return weekday === 0 || weekday === 6;
 }
 
+/**
+ * Whether `date` is still to come.
+ *
+ * `todayDate` is the spreadsheet's own calendar day and is `null` when the file
+ * reports no usable timezone. With no today to compare against, nothing is
+ * treated as future — a month that has clearly passed still shows its gaps
+ * rather than hiding them behind a missing property.
+ */
+function isAfter(date: string, todayDate: string | null): boolean {
+  return todayDate !== null && date > todayDate;
+}
+
 function durationLabel(hours: number | null): string | null {
   if (hours === null || !Number.isFinite(hours)) return null;
   return `${hours.toFixed(hours % 1 === 0 ? 0 : 1)}h`;
@@ -167,8 +179,18 @@ export function MonthCalendar({
             const selected = selectedDate === day.date;
             const local = localDates.has(day.date);
             const attention = attentionDates.has(day.date);
+            /*
+             * A working day that has passed with nothing recorded is the one
+             * thing a person opens this calendar to find, so it is the one
+             * thing painted red. A weekend is not missing anything, and neither
+             * is a day that has not happened yet — colouring those would turn
+             * the rest of the month red on the first of it.
+             */
+            const missing =
+              recordState === "not-recorded" && !weekend && !isAfter(day.date, todayDate);
             const states = [
               recordState === "recorded" ? "Recorded" : "Not recorded",
+              missing ? "Missing" : null,
               weekend ? "Non-working day" : null,
               local ? "Local changes" : null,
               attention ? "Needs attention" : null,
@@ -186,6 +208,7 @@ export function MonthCalendar({
                   "month-calendar-day",
                   `month-calendar-day-${recordState}`,
                   cell.inMonth ? "" : "is-outside",
+                  missing ? "is-missing" : "",
                   weekend ? "is-non-working" : "",
                   selected ? "is-selected" : "",
                   today ? "is-today" : "",
@@ -219,6 +242,7 @@ export function MonthCalendar({
 
       <ul className="month-calendar-legend" aria-label="Calendar legend">
         <li data-legend="recorded">Recorded</li>
+        <li data-legend="missing">Missing — a working day with nothing recorded</li>
         <li data-legend="not-recorded">Not recorded</li>
         <li data-legend="no-data">No timesheet data</li>
         <li data-legend="non-working">Non-working day</li>

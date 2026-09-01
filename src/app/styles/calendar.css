@@ -323,6 +323,36 @@
   background: var(--success);
 }
 
+/*
+ * A working day that has passed with nothing recorded.
+ *
+ * Red, because this is the one thing a person opens the calendar to find. The
+ * wash is never the only carrier: the accessible name says `Missing`, and the
+ * corner marker below is a shape, so the state survives greyscale, printing,
+ * and colour-blind vision.
+ */
+.month-calendar-day.is-missing {
+  color: var(--ink-900);
+  border-color: var(--danger-line);
+  background: var(--danger-wash);
+}
+
+.month-calendar-day.is-missing::after {
+  content: "";
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.month-calendar-day.is-missing .month-calendar-day-state {
+  color: var(--danger);
+  font-weight: var(--weight-bold);
+}
+
 .month-calendar-day.is-non-working {
   background-image: linear-gradient(135deg, transparent 84%, var(--warning-line) 84%);
 }
@@ -447,6 +477,7 @@
 }
 
 .month-calendar-legend [data-legend="recorded"]::before { background: var(--success); }
+.month-calendar-legend [data-legend="missing"]::before { background: var(--danger); }
 .month-calendar-legend [data-legend="no-data"]::before { border-style: dashed; }
 .month-calendar-legend [data-legend="non-working"]::before { border-color: var(--warning); }
 .month-calendar-legend [data-legend="local"]::before { background: var(--primary); }

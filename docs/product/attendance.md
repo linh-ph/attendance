@@ -146,6 +146,19 @@ answer. Weekends are marked either way, because the date alone settles that.
 `Today` is marked only when a spreadsheet is loaded and reports a timezone;
 without one, no date is marked rather than the wrong one.
 
+**What counts as recorded: the work report.** Columns E/F/G — clock in, clock
+out, break — and a plain `出社` status arrive pre-filled from the monthly
+template on every working day, so they say nothing about whether the person
+filled the day in. A day is recorded when it has a work-report entry in J:AS, a
+note, or a status that answers the day on its own such as `欠勤`.
+
+A working day that has already passed with nothing recorded is shown as
+**`Missing`, on a red ground**. That is the one thing people open this calendar
+to find. Weekends are not missing anything, and neither is a day that has not
+happened yet — colouring those would turn the rest of the month red on the
+first of it. Where the spreadsheet reports no timezone there is no today to
+compare against, and every gap in the month is marked.
+
 The calendar never guesses which file to open. Exactly one authorized file for
 the month opens directly; several require an explicit choice. When no file
 covers the month, the empty calendar stays on screen and the reason is a

@@ -148,6 +148,89 @@ describe("MonthCalendar", () => {
     ).toBeVisible();
   });
 
+  /**
+   * The template fills clock in, clock out and a break on every working day, so
+   * a day that reads `Not recorded` is one nobody has filled in. When it has
+   * also already passed, it is the thing a person opens this calendar to find.
+   */
+  it("marks a passed working day with nothing recorded as Missing", () => {
+    render(
+      <MonthCalendar
+        month="2026-08"
+        // 31 August 2026 is a Monday: template values, empty work report.
+        days={[{ ...emptyDay("2026-08-31"), statusCode: "office", clockIn: 8, clockOut: 17, breakHours: 1 }]}
+        selectedDate={null}
+        todayDate="2026-09-01"
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const cell = screen.getByRole("gridcell", { name: /Monday, August 31, 2026/ });
+    expect(cell).toHaveAccessibleName(/Not recorded/);
+    expect(cell).toHaveAccessibleName(/Missing/);
+    expect(cell.className).toContain("is-missing");
+  });
+
+  it("does not mark a weekend as Missing — nothing is owed on it", () => {
+    render(
+      <MonthCalendar
+        month="2026-08"
+        days={[emptyDay("2026-08-30")]}
+        selectedDate={null}
+        todayDate="2026-09-01"
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const cell = screen.getByRole("gridcell", { name: /Sunday, August 30, 2026/ });
+    expect(cell).toHaveAccessibleName(/Not recorded/);
+    expect(cell).not.toHaveAccessibleName(/Missing/);
+    expect(cell.className).not.toContain("is-missing");
+  });
+
+  it("does not mark a day that has not happened yet", () => {
+    render(
+      <MonthCalendar
+        month="2026-09"
+        // A Wednesday, after the spreadsheet's today.
+        days={[emptyDay("2026-09-30")]}
+        selectedDate={null}
+        todayDate="2026-09-01"
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("gridcell", { name: /Wednesday, September 30, 2026/ }).className,
+    ).not.toContain("is-missing");
+  });
+
+  it("marks every gap when the spreadsheet reports no timezone", () => {
+    render(
+      <MonthCalendar
+        month="2026-08"
+        days={[emptyDay("2026-08-31")]}
+        selectedDate={null}
+        // No usable zone: there is no today to compare against, so a month that
+        // has clearly passed still shows its gaps.
+        todayDate={null}
+        localDates={new Set()}
+        attentionDates={new Set()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("gridcell", { name: /Monday, August 31, 2026/ }).className,
+    ).toContain("is-missing");
+  });
+
   it("explains every visible state in a persistent legend", () => {
     render(
       <MonthCalendar
@@ -163,6 +246,7 @@ describe("MonthCalendar", () => {
 
     const legend = screen.getByLabelText("Calendar legend");
     expect(legend).toHaveTextContent("Recorded");
+    expect(legend).toHaveTextContent("Missing");
     expect(legend).toHaveTextContent("Not recorded");
     expect(legend).toHaveTextContent("No timesheet data");
     expect(legend).toHaveTextContent("Non-working day");

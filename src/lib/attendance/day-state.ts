@@ -28,22 +28,47 @@ function hasText(value: string): boolean {
 }
 
 /**
- * Whether the day carries any attendance value.
+ * Statuses that answer the day on their own.
  *
- * Six independent carriers: status, clock in, clock out, a non-zero break,
- * notes, and any work-report slot. Two fields are deliberately *not* carriers:
+ * Somebody marked absent has nothing to report, so the absence of a work report
+ * is the correct state for that day, not a gap. `出社` / `office` is the
+ * opposite: it is the template's default and says nothing about whether the
+ * person actually recorded anything.
+ */
+const SELF_ANSWERING_STATUSES: ReadonlySet<string> = new Set(["absent"]);
+
+/**
+ * Whether the day carries an attendance record.
  *
- * - `workHours` is column H, the `=F-G-E` formula this app never writes. A
- *   value read back from it is derived, not entered.
- * - `lunchBreak` is inferred on read from the break plus the two noon slots, so
- *   counting it would double-count `breakHours`.
+ * **The work report decides.** Columns E/F/G — clock in, clock out, break — and
+ * a plain `office` status arrive pre-filled from the monthly template: measured
+ * on the real workbook, every one of August's 21 working days carried an
+ * identical `office / 08:00 / 17:00 / 1`, while the J:AS work report was filled
+ * on 20 of them. Counting the clock columns therefore marked a day recorded
+ * before anybody had touched it, and the one genuinely empty day — 2026-08-31 —
+ * was indistinguishable from the twenty finished ones.
+ *
+ * So a day is recorded when it has:
+ *
+ * - any work-report slot filled — the thing a person actually enters daily; or
+ * - a note; or
+ * - a self-answering status such as `absent`.
+ *
+ * Deliberately *not* carriers:
+ *
+ * - `clockIn` / `clockOut` / `breakHours` — template values, see above.
+ * - a plain `office` status — likewise.
+ * - `workHours`, column H's `=F-G-E`, which is derived and never written here.
+ * - `lunchBreak`, inferred on read from the break and the two noon slots.
+ *
+ * **Limit worth knowing:** a team that records only clock in and out and never
+ * uses the work report would read as entirely unrecorded. Both real months use
+ * the work report on every recorded day, but this is the assumption to revisit
+ * if another member works differently.
  */
 export function dayRecordState(day: AttendanceDay): DayRecordState {
   const recorded =
-    day.statusCode !== null ||
-    day.clockIn !== null ||
-    day.clockOut !== null ||
-    day.breakHours !== 0 ||
+    (day.statusCode !== null && SELF_ANSWERING_STATUSES.has(day.statusCode)) ||
     hasText(day.notes) ||
     Object.values(day.slots).some(hasText);
 

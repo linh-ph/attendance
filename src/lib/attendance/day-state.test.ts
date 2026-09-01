@@ -14,24 +14,33 @@ describe("dayRecordState", () => {
   });
 
   /*
-   * Six independent carriers. Each case sets exactly one of them on an
-   * otherwise empty day, so none can be carried by another.
+   * The work report decides. Each case sets exactly one field on an otherwise
+   * empty day, so nothing can be carried by another.
    */
 
-  it("is recorded when only a status is set", () => {
-    expect(dayRecordState(day({ statusCode: "office" }))).toBe("recorded");
+  /**
+   * The template fills these on every working day of the month before anybody
+   * touches it — measured on the real workbook, all 21 of August's working days
+   * carried an identical `office / 08:00 / 17:00 / 1`. Counting them marked a
+   * day recorded that nobody had filled in.
+   */
+  it("is not recorded from the values the monthly template pre-fills", () => {
+    expect(dayRecordState(day({ statusCode: "office" }))).toBe("not-recorded");
+    expect(dayRecordState(day({ clockIn: 8 }))).toBe("not-recorded");
+    expect(dayRecordState(day({ clockOut: 17 }))).toBe("not-recorded");
+    expect(dayRecordState(day({ breakHours: 1 }))).toBe("not-recorded");
   });
 
-  it("is recorded when only a clock-in is set", () => {
-    expect(dayRecordState(day({ clockIn: 9 }))).toBe("recorded");
+  it("is not recorded for a whole template-filled day with an empty work report", () => {
+    // This is exactly 2026-08-31 in the owner's workbook.
+    expect(
+      dayRecordState(day({ statusCode: "office", clockIn: 8, clockOut: 17, breakHours: 1 })),
+    ).toBe("not-recorded");
   });
 
-  it("is recorded when only a clock-out is set", () => {
-    expect(dayRecordState(day({ clockOut: 17.5 }))).toBe("recorded");
-  });
-
-  it("is recorded when only a non-zero break is set", () => {
-    expect(dayRecordState(day({ breakHours: 1 }))).toBe("recorded");
+  it("is recorded when the status answers the day on its own", () => {
+    // Somebody absent has nothing to report; an empty work report is correct.
+    expect(dayRecordState(day({ statusCode: "absent" }))).toBe("recorded");
   });
 
   it("is recorded when only notes are set", () => {

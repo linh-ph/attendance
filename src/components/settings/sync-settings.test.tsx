@@ -37,7 +37,16 @@ const view = (): AttendanceMonthView => ({
   role: "open",
   statuses: [],
   days: [
-    { ...emptyDay("2026-07-01"), clockIn: 9, clockOut: 18, breakHours: 1, workHours: 8 },
+    // Recorded because the work report is filled. The clock columns arrive
+    // pre-filled from the template on every working day, so they say nothing.
+    {
+      ...emptyDay("2026-07-01"),
+      clockIn: 9,
+      clockOut: 18,
+      breakHours: 1,
+      workHours: 8,
+      slots: { ...emptyDay("2026-07-01").slots, "09:00": "FMC" },
+    },
     emptyDay("2026-07-02"),
     emptyDay("2026-07-03"),
   ],

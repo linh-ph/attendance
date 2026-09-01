@@ -1126,11 +1126,22 @@ does not rebuild them, and it does not add a second way to do any of it.
 - `src/lib/sync/shared-fetch.ts` — in-flight coalescing for `/api/dashboard`.
   Measured: 84 → 29 dashboard calls across the same 49 e2e specs. It shares only
   while a request is in flight, so it can never serve a stale answer.
-- `src/components/calendar-panel/*` — the month grid, its legend, and the
-  first-load orchestration, mounted by `dashboard/page.tsx`. **This is the
-  placeholder S2 replaces**: it has no day preview (option A), no keyboard date
-  movement, and no per-cell interaction. Its data flow and its states are the
-  contract; its interaction is not.
+- `src/lib/attendance/calendar-grid.ts` — `buildMonthGrid`, which produces the
+  month's complete weeks from the month string alone, with real neighbouring
+  dates padding the first and last rows. **The grid is never data-dependent**:
+  no timesheet, no month, and no Google at all still draw an ordinary calendar,
+  and attendance is an overlay on top. S2 must keep that property; replacing it
+  with a grid built from `snapshot.days` reintroduces the blank panel.
+- `src/components/calendar-panel/*` — the month grid, its legend, month
+  stepping, and the first-load orchestration, mounted by `dashboard/page.tsx`.
+  **This is the placeholder S2 replaces**: it has no day preview (option A), no
+  keyboard date movement, and no per-cell interaction. Its data flow, its grid
+  rule, and its states are the contract; its interaction is not.
+
+  Note for S2's rule 2: previous/next are *not* disabled when no candidate
+  covers the target month. That rule was written assuming the grid needs data;
+  it does not any more, so the month moves and the empty calendar explains
+  itself underneath.
 - `src/components/settings/sync-settings.tsx` on `/more` — `Sync now`. It is a
   *section*, not a navigation destination: spec §3.2's shell is unchanged.
 

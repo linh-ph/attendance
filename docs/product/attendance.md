@@ -78,26 +78,41 @@ longer also means "Google could not be reached".
 
 ## The calendar
 
-The dashboard opens on a month calendar, which loads itself in three steps:
+The dashboard opens on a month calendar.
 
-1. this browser's stored copy of the month is drawn first, so the grid is not a
-   blank wait;
+**The grid is a property of the month, not of the data.** It is built from the
+calendar alone, so it is drawn whether or not Google has anything for that
+month — an account with no timesheet, a month nobody has created yet, and a
+Sheets outage all still show an ordinary calendar. Weeks are complete, and the
+first and last rows carry real dates from the neighbouring months, dimmed and
+announced as outside this month. `‹` and `›` step between months and are never
+disabled for want of data: moving the calendar is not the same as finding a
+timesheet for it.
+
+Attendance data is an **overlay** on that grid, loaded in three steps:
+
+1. this browser's stored copy of the month is drawn first, so the grid is
+   populated without a network wait;
 2. the authorized file list is fetched in the background;
 3. the current month is read from Google Sheets and replaces the stored copy.
 
-Each date shows `Recorded` or `Not recorded` — the same two-value rule the day
-editor uses, carried by a word and a shape as well as a colour — plus whether it
-is a non-working day, and `Today` when the spreadsheet reports a timezone.
+A date the sheet has a row for shows `Recorded` or `Not recorded` — the same
+two-value rule the day editor uses, carried by a word and a shape as well as a
+colour. A date with no row shows `No timesheet data`, which is not the same
+answer. Weekends are marked either way, because the date alone settles that.
+`Today` is marked only when a spreadsheet is loaded and reports a timezone;
+without one, no date is marked rather than the wrong one.
 
 The calendar never guesses which file to open. Exactly one authorized file for
-the month opens directly; several require an explicit choice; a file with no
-configuration asks which tab is yours. When no file covers the month, the
-calendar says which month it looked for and offers the two things that help:
-pick another month, or create the file and press `Load files`.
+the month opens directly; several require an explicit choice (`Show in calendar`
+draws it in place, `Open` goes to the timesheet); a file with no configuration
+asks which tab is yours. When no file covers the month, the empty calendar stays
+on screen and the reason is a sentence underneath it, with the two things that
+help: move to another month, or create the file and press `Load files`.
 
-A failure is never shown as an empty month. `Offline`, an expired session, and a
-Google fault each get their own message and recovery step, and the stored copy
-stays on screen and usable.
+A failure is never shown as an empty month either. `Offline`, an expired
+session, and a Google fault each get their own message and recovery step under a
+calendar that is still drawn, and any stored copy stays usable.
 
 ## Syncing to this browser
 

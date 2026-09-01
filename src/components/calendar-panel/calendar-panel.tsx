@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MonthLabel, formatMonthLabel } from "@/components/month-label";
 import { MonthInput } from "@/components/month-input";
 import { StateNotice, SyncStatus } from "@/components/sync-status";
+import { shiftMonth } from "@/lib/attendance/calendar-grid";
 import { todayInZone } from "@/lib/attendance/zone";
 import {
   resolveCalendarCache,
@@ -234,9 +235,27 @@ export function CalendarPanel({
     };
   }, [cache, transport, now, email, requestedMonth, requestedFileId, requestedSheetId, attempt]);
 
-  const wantedMonth = requestedMonth ?? report?.month ?? currentMonth(now());
-  const today = snapshot ? todayInZone(snapshot.spreadsheetTimeZone, now()) : null;
+  /**
+   * The month the grid draws. It is resolved before any data is consulted,
+   * because the calendar is a property of the month and not of the sheet: an
+   * account with no timesheet at all still gets this month's calendar.
+   */
+  const displayMonth = requestedMonth ?? snapshot?.month ?? currentMonth(now());
+
+  // Data is an overlay, and only over its own month — a cached May must not
+  // paint itself onto July while July is loading.
+  const overlay = snapshot !== null && snapshot.month === displayMonth ? snapshot : null;
+
+  const today = overlay ? todayInZone(overlay.spreadsheetTimeZone, now()) : null;
   const lastChecked = report?.checkedAt ?? snapshot?.checkedAt ?? null;
+
+  function goToMonth(month: string): void {
+    setMonthDraft(month);
+    dispatch({ type: "load-month", month });
+  }
+
+  const previousMonth = shiftMonth(displayMonth, -1);
+  const nextMonth = shiftMonth(displayMonth, 1);
 
   return (
     <section className="surface-panel calendar-panel" aria-labelledby="calendar-panel-title">
@@ -254,12 +273,52 @@ export function CalendarPanel({
         ) : null}
       </div>
 
-      <CalendarBody
-        snapshot={snapshot}
+      {/*
+        Month navigation always works, because moving the calendar is not the
+        same as finding data for it. A month with no timesheet is drawn empty
+        and says so underneath, rather than blocking the control.
+      */}
+      <div className="calendar-toolbar">
+        <button
+          className="btn-ghost calendar-step"
+          type="button"
+          aria-label="Previous month"
+          disabled={previousMonth === null}
+          onClick={() => previousMonth && goToMonth(previousMonth)}
+        >
+          ‹
+        </button>
+
+        <p className="calendar-month" aria-live="polite">
+          <MonthLabel month={displayMonth} />
+          {overlay ? <span className="calendar-sheet">{overlay.sheetTitle}</span> : null}
+        </p>
+
+        <button
+          className="btn-ghost calendar-step"
+          type="button"
+          aria-label="Next month"
+          disabled={nextMonth === null}
+          onClick={() => nextMonth && goToMonth(nextMonth)}
+        >
+          ›
+        </button>
+      </div>
+
+      <MonthGrid
+        month={displayMonth}
+        days={overlay?.days}
+        sheetTitle={overlay?.sheetTitle}
         today={today}
+      />
+
+      <MonthGridLegend hasToday={today !== null} hasData={overlay !== null} />
+
+      <CalendarNotices
+        overlay={overlay}
+        displayMonth={displayMonth}
         syncing={syncing}
         report={report}
-        wantedMonth={wantedMonth}
         onRetry={() => dispatch({ type: "reload" })}
         onChooseFile={(fileId, sheetId) => dispatch({ type: "load-file", fileId, sheetId })}
       />
@@ -319,55 +378,61 @@ export function CalendarPanel({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Body                                                                        */
+/* Notices                                                                     */
 /* -------------------------------------------------------------------------- */
 
-interface CalendarBodyProps {
-  snapshot: CalendarSnapshot | null;
-  today: string | null;
+/**
+ * Everything said *about* the month, underneath the month.
+ *
+ * These used to replace the calendar. They no longer can: the grid is drawn
+ * from the month itself, so a missing timesheet, a provider fault, or a first
+ * load is a sentence under a calendar rather than a panel where one should be.
+ */
+interface CalendarNoticesProps {
+  /** The loaded month, when it is the one on screen. */
+  overlay: CalendarSnapshot | null;
+  displayMonth: string;
   syncing: boolean;
   report: SyncReport | null;
-  wantedMonth: string;
   onRetry: () => void;
   onChooseFile: (fileId: string, sheetId: string) => void;
 }
 
-function CalendarBody({
-  snapshot,
-  today,
+function CalendarNotices({
+  overlay,
+  displayMonth,
   syncing,
   report,
-  wantedMonth,
   onRetry,
   onChooseFile,
-}: CalendarBodyProps) {
-  if (snapshot !== null) {
-    // Showing a month the person was last on while the month that was actually
-    // checked has no file. Saying so is the difference between "here is where
-    // you left off" and a calendar that looks stuck on the wrong month.
+}: CalendarNoticesProps) {
+  if (overlay !== null) {
+    // The month on screen is the one the person was last on, while the month
+    // that was actually checked has no file. Saying so is the difference
+    // between "here is where you left off" and a calendar that looks stuck.
     const showingAnotherMonth =
-      report !== null && report.context.kind === "none" && report.month !== snapshot.month;
+      report !== null && report.context.kind === "none" && report.month !== overlay.month;
 
     return (
       <>
-        <MonthGrid snapshot={snapshot} today={today} />
-        <MonthGridLegend hasToday={today !== null} />
-
         {showingAnotherMonth ? (
           <p className="page-lede">
-            Showing <MonthLabel month={snapshot.month} />, where you left off. No timesheet covers{" "}
+            Showing <MonthLabel month={overlay.month} />, where you left off. No timesheet covers{" "}
             <MonthLabel month={report.month} /> yet.
           </p>
         ) : null}
 
-        {snapshot.spreadsheetTimeZone === null ? (
+        {overlay.spreadsheetTimeZone === null ? (
           <p className="page-lede">
             This spreadsheet does not report a timezone, so no date is marked as today.
           </p>
         ) : null}
 
         <p className="card-actions">
-          <Link className="action action-primary" href={attendanceHref(snapshot.fileId, snapshot.sheetId)}>
+          <Link
+            className="action action-primary"
+            href={attendanceHref(overlay.fileId, overlay.sheetId)}
+          >
             Open timesheet
           </Link>
         </p>
@@ -376,7 +441,11 @@ function CalendarBody({
   }
 
   if (syncing || report === null) {
-    return <StateNotice state="first-load" scope="section" />;
+    return (
+      <p className="page-lede" role="status">
+        Checking Google Sheets for <MonthLabel month={displayMonth} />…
+      </p>
+    );
   }
 
   if (report.syncState === "offline") {
@@ -395,8 +464,8 @@ function CalendarBody({
     return (
       <>
         <p className="page-lede">
-          More than one timesheet covers <MonthLabel month={wantedMonth} />. Choose the one to open —
-          the app will not pick for you.
+          More than one timesheet covers <MonthLabel month={displayMonth} />. Choose the one to open
+          — the app will not pick for you.
         </p>
         <ul className="card-list">
           {report.context.candidates.map((candidate) => (
@@ -451,7 +520,9 @@ function CalendarBody({
     <StateNotice
       state="no-timesheet"
       scope="section"
-      detail={`No timesheet covers ${formatMonthLabel(wantedMonth) ?? wantedMonth}. Load another month below, or create the file and press Load files.`}
+      detail={`The calendar above is empty because no timesheet covers ${
+        formatMonthLabel(displayMonth) ?? displayMonth
+      }. Move to another month, or create the file and press Load files.`}
       action={{ label: "Create a monthly file", href: "/files/new" }}
     />
   );

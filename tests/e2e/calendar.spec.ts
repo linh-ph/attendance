@@ -35,15 +35,35 @@ async function showJulyInCalendar(page: Page): Promise<void> {
   await panel.getByRole("button", { name: "Show in calendar" }).first().click();
 }
 
-test("says which month it looked for when no timesheet covers it", async ({ page }) => {
+test("draws the month even when no timesheet covers it", async ({ page }) => {
   await page.goto("/dashboard");
 
   const panel = calendar(page);
 
-  await expect(panel.getByText(/No timesheet covers/)).toBeVisible();
-  // The two recoveries the person actually has.
+  // The calendar is a property of the month, so it is drawn first and always.
+  const table = panel.getByRole("table");
+  await expect(table).toBeVisible();
+  await expect(table.locator("tbody tr")).not.toHaveCount(0);
+  await expect(table.locator("tbody tr").first().locator("td")).toHaveCount(7);
+
+  // The absence of data is a sentence underneath, not a missing panel.
+  await expect(panel.getByText(/no timesheet covers/i)).toBeVisible();
   await expect(panel.getByRole("link", { name: "Create a monthly file" })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Load files" })).toBeEnabled();
+});
+
+test("steps between months without needing data for either", async ({ page }) => {
+  await page.goto("/dashboard");
+
+  const panel = calendar(page);
+  await expect(panel.getByRole("table")).toBeVisible();
+
+  const captionBefore = await panel.getByRole("table").locator("caption").textContent();
+
+  await panel.getByRole("button", { name: "Next month" }).click();
+
+  await expect(panel.getByRole("table")).toBeVisible();
+  await expect(panel.getByRole("table").locator("caption")).not.toHaveText(captionBefore ?? "");
 });
 
 test("never picks between several timesheets for the same month", async ({ page }) => {
@@ -74,7 +94,11 @@ test("draws each date's state once a timesheet is chosen", async ({ page }) => {
 test("keeps the month it loaded after a reload, from this browser's own copy", async ({ page }) => {
   await page.goto("/dashboard");
   await showJulyInCalendar(page);
-  await expect(calendar(page).getByRole("table")).toBeVisible();
+
+  // Wait for July's *data*, not merely for a table: the September grid is on
+  // screen from the first frame, so asserting a table here would let the reload
+  // race the load it is supposed to be testing.
+  await expect(calendar(page).getByText(/July 1, 2026, (Recorded|Not recorded)/)).toBeVisible();
 
   await page.reload();
 

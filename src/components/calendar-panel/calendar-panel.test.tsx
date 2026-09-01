@@ -87,11 +87,63 @@ function renderPanel(options: HarnessOptions = {}) {
   return parts;
 }
 
+/**
+ * The grid's accessible name is its caption, so asking for the table by month
+ * is both precise and the thing a screen-reader user would use to find it.
+ */
+const grid = (month: string | RegExp) =>
+  screen.findByRole("table", { name: typeof month === "string" ? new RegExp(month) : month });
+
+describe("CalendarPanel — the calendar is drawn from the month, not from the data", () => {
+  it("draws a full month grid even when the account has no timesheet at all", async () => {
+    renderPanel({ timesheets: [] });
+
+    // July 2026 has 31 days and starts on a Wednesday, so the grid runs from
+    // Sunday 28 June to Saturday 1 August: five complete weeks.
+    const table = await grid("July 2026");
+    const rows = table.querySelectorAll("tbody tr");
+
+    expect(rows).toHaveLength(5);
+    rows.forEach((row) => expect(row.querySelectorAll("td")).toHaveLength(7));
+
+    expect(screen.getByText(/Wednesday, July 1, 2026, No timesheet data/)).toBeTruthy();
+    expect(screen.getByText(/Friday, July 31, 2026, No timesheet data/)).toBeTruthy();
+  });
+
+  it("completes the first and last weeks with real neighbouring dates", async () => {
+    renderPanel({ timesheets: [] });
+    await grid("July 2026");
+
+    expect(screen.getByText(/Sunday, June 28, 2026, outside July 2026/)).toBeTruthy();
+    expect(screen.getByText(/Saturday, August 1, 2026, outside July 2026/)).toBeTruthy();
+  });
+
+  it("still marks weekends when there is no data to read them from", async () => {
+    renderPanel({ timesheets: [] });
+    await grid("July 2026");
+
+    // 2026-07-04 is a Saturday; the date alone is enough to know that.
+    expect(screen.getByText(/Saturday, July 4, 2026, No timesheet data, weekend/)).toBeTruthy();
+  });
+
+  it("moves to another month and keeps drawing, with or without a timesheet", async () => {
+    renderPanel({ timesheets: [] });
+    await grid("July 2026");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(await grid("August 2026")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(await grid("June 2026")).toBeTruthy();
+  });
+});
+
 describe("CalendarPanel — first load for an account", () => {
   it("discovers the files in the background and loads the current month", async () => {
     const parts = renderPanel();
 
-    expect(await screen.findByText(/July 2026/)).toBeTruthy();
+    expect(await grid("July 2026")).toBeTruthy();
     expect(parts.discover).toHaveBeenCalledTimes(1);
     expect(parts.readMonth).toHaveBeenCalledWith("file-1", "101");
   });
@@ -105,7 +157,7 @@ describe("CalendarPanel — first load for an account", () => {
 
   it("stores what it loaded, so the next open has a month to draw immediately", async () => {
     const parts = renderPanel();
-    await screen.findByText(/July 2026/);
+    await grid("July 2026");
 
     await waitFor(async () => {
       const pointer = await parts.cache.readPointer(EMAIL);
@@ -147,8 +199,8 @@ describe("CalendarPanel — first load for an account", () => {
 
     render(<CalendarPanel email={EMAIL} cache={cache} transport={transport} now={() => NOW} />);
 
-    // The network is still blocked, and the month is already on screen.
-    expect(await screen.findByText(/July 2026/)).toBeTruthy();
+    // The network is still blocked, and the month's data is already on screen.
+    expect(await screen.findByText(/Wednesday, July 1, 2026, Recorded/)).toBeTruthy();
     release();
   });
 
@@ -178,10 +230,14 @@ describe("CalendarPanel — first load for an account", () => {
 });
 
 describe("CalendarPanel — when no file covers the month", () => {
-  it("says which month it looked for and offers the two things a person can do", async () => {
+  it("explains the empty calendar underneath it, instead of replacing it", async () => {
     renderPanel({ timesheets: [timesheet({ month: "2026-06" })] });
 
-    expect(await screen.findByText(/No timesheet covers July 2026/)).toBeTruthy();
+    expect(
+      await screen.findByText(/calendar above is empty because no timesheet covers July 2026/),
+    ).toBeTruthy();
+    // The calendar itself is still there — that is the whole point.
+    expect(screen.getByRole("table", { name: /July 2026/ })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Create a monthly file/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Load" })).toBeTruthy();
   });
@@ -192,21 +248,21 @@ describe("CalendarPanel — when no file covers the month", () => {
       viewFor: () => view({ fileId: "file-may", sheetId: 55, month: "2026-05", days: [emptyDay("2026-05-01")] }),
     });
 
-    await screen.findByText(/No timesheet covers July 2026/);
+    await grid("July 2026");
 
     fireEvent.change(screen.getByLabelText("Load another month"), {
       target: { value: "2026-05" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Load" }));
 
-    expect(await screen.findByText(/May 2026/)).toBeTruthy();
+    expect(await grid("May 2026")).toBeTruthy();
     expect(parts.readMonth).toHaveBeenCalledWith("file-may", "55");
   });
 
   it("re-runs discovery when the person says they created the file", async () => {
     const parts = renderPanel({ timesheets: [] });
 
-    await screen.findByText(/No timesheet covers July 2026/);
+    await grid("July 2026");
     expect(parts.discover).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Load files" }));

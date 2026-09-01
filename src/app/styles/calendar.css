@@ -196,12 +196,39 @@
   table-layout: fixed;
 }
 
-.month-grid-caption {
-  margin-block-end: var(--space-sm);
-  color: var(--ink-700);
-  font-size: var(--text-md);
+/*
+ * The month and its two steps. Navigation is always available: moving the
+ * calendar is not the same as finding data for it, so a month with no timesheet
+ * is still reachable and still drawn.
+ */
+.calendar-toolbar {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.calendar-month {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-xs);
+  align-items: baseline;
+  margin: 0;
+  color: var(--ink-900);
+  font-size: var(--text-lg);
   font-weight: var(--weight-bold);
-  text-align: start;
+}
+
+.calendar-sheet {
+  color: var(--ink-500);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.calendar-step {
+  min-width: var(--touch-target);
+  font-size: var(--text-md);
+  line-height: 1;
 }
 
 .month-grid thead th {
@@ -215,7 +242,7 @@
 
 .month-grid-cell {
   position: relative;
-  height: var(--touch-target, 2.75rem);
+  height: var(--touch-target);
   padding: var(--space-2xs);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -223,9 +250,24 @@
   vertical-align: top;
 }
 
-.month-grid-cell.is-empty {
+/*
+ * The neighbouring-month dates that complete the first and last rows. Dimmed
+ * rather than hidden: a month grid reads as a calendar because the weeks are
+ * continuous, and blanks break that.
+ */
+.month-grid-cell[data-outside="true"] {
+  background: var(--canvas);
   border-color: transparent;
-  background: none;
+}
+
+.month-grid-cell[data-outside="true"] .month-grid-date {
+  color: var(--ink-500);
+  opacity: 0.6;
+}
+
+/* A date the sheet has no row for. An ordinary calendar day, not a fault. */
+.month-grid-cell[data-record="no-data"] {
+  background: var(--surface);
 }
 
 .month-grid-date {
@@ -263,6 +305,11 @@
 [data-record="not-recorded"] .month-grid-mark,
 .month-grid-legend [data-record="not-recorded"] .month-grid-mark {
   border: 1px solid var(--border-strong);
+}
+
+/* The legend's own entry for a month the sheet has nothing for. */
+.month-grid-legend [data-record="no-data"] .month-grid-mark {
+  border: 1px dashed var(--border-strong);
 }
 
 .month-grid-cell[data-record="recorded"] {

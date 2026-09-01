@@ -538,16 +538,12 @@ export function DashboardClient({
         />
       </section>
 
-      <aside className="calendar-side-panel" aria-label="Calendar shortcuts">
-        <section className="surface-panel">
-          <p className="eyebrow">Quick actions</p>
-          <h2>Keep moving</h2>
-          <div className="calendar-shortcuts">
-            <Link className="action action-primary" href="/timesheets">All timesheets</Link>
-            <Link className="action" href="/manage">Managed files</Link>
-          </div>
-        </section>
-      </aside>
+      {/*
+        There is no shortcut rail beside the calendar. It held links to
+        Timesheets and Managed files, which the shell's own navigation already
+        carries on every screen — so it cost the calendar a third of the page to
+        repeat what was one click away regardless.
+      */}
 
       {overlay && selectedDay && selectedTrigger ? (
         <DayQuickPreview

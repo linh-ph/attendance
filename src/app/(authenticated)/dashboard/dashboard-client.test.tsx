@@ -91,6 +91,10 @@ describe("DashboardClient calendar workspace", () => {
     // arrives. The timesheet name is what proves the month actually loaded.
     expect(await screen.findByText("Linh")).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Managed attendance files" })).toBeNull();
+    // No shortcut rail beside the calendar: those destinations live in the
+    // shell navigation, and repeating them cost the grid a third of the page.
+    expect(screen.queryByLabelText("Calendar shortcuts")).toBeNull();
+    expect(screen.queryByRole("link", { name: "All timesheets" })).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/files/file-1/attendance/22",
       expect.objectContaining({ cache: "no-store" }),

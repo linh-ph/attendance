@@ -178,18 +178,15 @@
 /* Calendar-first dashboard                                                    */
 /* -------------------------------------------------------------------------- */
 
+/*
+ * One column. The calendar is the page, so it gets the whole width rather than
+ * sharing it with a rail of links the shell navigation already carries.
+ */
 .calendar-dashboard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-lg);
   align-items: start;
-}
-
-.calendar-dashboard > .state-skeleton,
-.calendar-dashboard > .state-notice,
-.calendar-dashboard > .api-error,
-.calendar-dashboard > .calendar-context-choice {
-  grid-column: 1 / -1;
 }
 
 .calendar-workspace {
@@ -211,7 +208,6 @@
 
 .calendar-workspace-header h2,
 .calendar-context-choice h2,
-.calendar-side-panel h2,
 .day-preview h2 {
   margin: 0;
   color: var(--ink-900);
@@ -456,12 +452,6 @@
 .month-calendar-legend [data-legend="local"]::before { background: var(--primary); }
 .month-calendar-legend [data-legend="attention"]::before { background: var(--danger); }
 
-.calendar-side-panel {
-  position: sticky;
-  top: var(--space-md);
-}
-
-.calendar-shortcuts,
 .calendar-context-list {
   display: flex;
   flex-direction: column;
@@ -567,16 +557,6 @@
 .day-preview-actions {
   align-items: center;
   margin-top: var(--space-lg);
-}
-
-@media (max-width: 64rem) {
-  .calendar-dashboard {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .calendar-side-panel {
-    position: static;
-  }
 }
 
 @media (max-width: 48rem) {

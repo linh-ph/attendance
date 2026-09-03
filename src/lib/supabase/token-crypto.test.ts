@@ -28,6 +28,28 @@ describe("readKey", () => {
     expect(() => readKey(undefined)).toThrow(/not set/);
     expect(() => readKey("")).toThrow(/not set/);
   });
+
+  it("accepts 64 hex characters, which is what `secrets.token_hex(32)` produces", () => {
+    const hex = "a".repeat(64);
+
+    expect(readKey(hex)).toHaveLength(32);
+    expect(readKey(hex.toUpperCase())).toEqual(readKey(hex));
+    // A trailing newline is what a shell redirect leaves in a .env file.
+    expect(readKey(` ${hex}\n`)).toEqual(readKey(hex));
+  });
+
+  it("reads a hex key as hex, not as the 48 bytes it also base64-decodes to", () => {
+    // Hex digits are valid base64 characters, so getting this wrong would not
+    // throw — it would encrypt under a different key than the operator set.
+    const hex = "a".repeat(64);
+
+    expect(readKey(hex)).toEqual(Buffer.from(hex, "hex"));
+    expect(readKey(hex)).not.toEqual(Buffer.from(hex, "base64").subarray(0, 32));
+  });
+
+  it("still refuses hex of the wrong length", () => {
+    expect(() => readKey("ab".repeat(16))).toThrow(TokenCryptoError);
+  });
 });
 
 describe("encryptToken / decryptToken", () => {

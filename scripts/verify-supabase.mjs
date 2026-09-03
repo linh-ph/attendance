@@ -269,8 +269,18 @@ if (!serviceRole) {
 if (!encryptionKey) {
   record("GOOGLE_TOKEN_ENCRYPTION_KEY set", false, "not set — the callback cannot store a token");
 } else {
-  const bytes = Buffer.from(encryptionKey, "base64").length;
-  record("GOOGLE_TOKEN_ENCRYPTION_KEY set", bytes === 32, `decodes to ${bytes} bytes, needs 32`);
+  // Must agree with readKey() in src/lib/supabase/token-crypto.ts: 64 hex
+  // characters, or base64 that decodes to 32 bytes. Checking only base64 here
+  // would report a perfectly good hex key as broken.
+  const trimmed = encryptionKey.trim();
+  const hex = /^[0-9a-f]{64}$/i.test(trimmed);
+  const bytes = hex ? 32 : Buffer.from(trimmed, "base64").length;
+
+  record(
+    "GOOGLE_TOKEN_ENCRYPTION_KEY set",
+    bytes === 32,
+    hex ? "64 hex characters, 32 bytes" : `base64 decoding to ${bytes} bytes, needs 32`,
+  );
 }
 
 // ---------------------------------------------------------------------------

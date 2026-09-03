@@ -32,28 +32,42 @@ export class TokenCryptoError extends Error {
   }
 }
 
+/** 64 lowercase or uppercase hex characters — `secrets.token_hex(32)`. */
+const HEX_KEY = /^[0-9a-f]{64}$/i;
+
 /**
- * Reads the 32-byte key from a base64 string.
+ * Reads the 32-byte key, written as either 64 hex characters or base64.
+ *
+ * Two encodings, no ambiguity: hex digits are a subset of the base64 alphabet,
+ * so a hex key *would* also base64-decode — but to 48 bytes, never to 32. The
+ * length check below is what makes the distinction safe, and it is why hex is
+ * recognised by its exact shape first rather than attempted as a fallback.
  *
  * A wrong-sized key is refused rather than padded or hashed into shape: silently
  * accepting one would mean encrypting real credentials under a key nobody
  * intended, and the error would only surface as undecryptable rows later.
  */
-export function readKey(base64Key: string | undefined): Buffer {
-  if (!base64Key) {
+export function readKey(encodedKey: string | undefined): Buffer {
+  if (!encodedKey) {
     throw new TokenCryptoError("GOOGLE_TOKEN_ENCRYPTION_KEY is not set.");
+  }
+
+  const trimmed = encodedKey.trim();
+
+  if (HEX_KEY.test(trimmed)) {
+    return Buffer.from(trimmed, "hex");
   }
 
   let key: Buffer;
   try {
-    key = Buffer.from(base64Key, "base64");
+    key = Buffer.from(trimmed, "base64");
   } catch {
-    throw new TokenCryptoError("GOOGLE_TOKEN_ENCRYPTION_KEY is not valid base64.");
+    throw new TokenCryptoError("GOOGLE_TOKEN_ENCRYPTION_KEY is not valid base64 or hex.");
   }
 
   if (key.length !== KEY_BYTES) {
     throw new TokenCryptoError(
-      `GOOGLE_TOKEN_ENCRYPTION_KEY must decode to ${KEY_BYTES} bytes, got ${key.length}.`,
+      `GOOGLE_TOKEN_ENCRYPTION_KEY must be ${KEY_BYTES} bytes: ${KEY_BYTES * 2} hex characters, or base64 that decodes to ${KEY_BYTES}. Got ${key.length} bytes.`,
     );
   }
 

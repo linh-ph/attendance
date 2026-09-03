@@ -51,5 +51,39 @@ services:
       start_period: 40s
       retries: 5
 
+  # A Postgres *client*, not a database. Nothing runs locally — the schema lives
+  # in Supabase — but applying a migration needs `psql`, and neither the host
+  # nor the `app` image has one. Declaring it here keeps that out of ad-hoc
+  # `docker run` invocations, where the connection details get retyped and the
+  # password ends up on a command line.
+  #
+  # Behind a profile, so `docker compose up` never starts it:
+  #
+  #   docker compose run --rm psql -f /migrations/<file>.sql   # apply
+  #   docker compose run --rm psql -c "select 1"               # ad-hoc query
+  #
+  # It reaches Supabase through the IPv4 pooler. The direct host
+  # (`db.<ref>.supabase.co`) is IPv6-only and unreachable from a machine with no
+  # IPv6 route, which is why SUPABASE_DB_HOST names the pooler instead — and why
+  # its region is the pooler's, which need not match where the project appears
+  # to live.
+  psql:
+    image: postgres:16-alpine
+    profiles: ["tools"]
+    environment:
+      PGHOST: ${SUPABASE_DB_HOST:-}
+      PGPORT: "5432"
+      PGUSER: postgres.${SUPABASE_PROJECT_REF:-}
+      PGDATABASE: postgres
+      PGPASSWORD: ${DATABASE_PASSWORD:-}
+      PGCONNECT_TIMEOUT: "10"
+      # A migration that fails halfway leaves a schema neither version
+      # describes, so stop on the first error and wrap the file in one
+      # transaction.
+      PSQLRC: /dev/null
+    entrypoint: ["psql", "-w", "-v", "ON_ERROR_STOP=1", "--single-transaction"]
+    volumes:
+      - ./supabase/migrations:/migrations:ro
+
 volumes:
   app_node_modules:

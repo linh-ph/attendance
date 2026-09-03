@@ -48,9 +48,39 @@ cannot drift into asking for different Drive access.
 
 ## 3. Supabase — apply the schema
 
-**SQL Editor**, paste the contents of
-[`supabase/migrations/20260902000001_google_credentials.sql`](../../supabase/migrations/20260902000001_google_credentials.sql)
-and run it. It creates:
+Either paste the file into the dashboard **SQL Editor**, or apply it from here:
+
+```bash
+docker compose run --rm psql -f /migrations/20260902000001_google_credentials.sql
+```
+
+The `psql` service is behind a compose profile, so it never starts with
+`docker compose up`. It needs three variables in `.env`:
+
+```
+SUPABASE_PROJECT_REF=<the subdomain of your project URL>
+SUPABASE_DB_HOST=<Project Settings → Database → Connection pooling>
+DATABASE_PASSWORD=<the database password>
+```
+
+**Use the pooler host, not `db.<ref>.supabase.co`.** The direct host has only an
+IPv6 address, and a machine with no IPv6 route cannot reach it at all — the
+failure is `Network unreachable`, which reads like an outage and is not one.
+
+Two things about that host worth knowing before you go hunting for it:
+
+- The pooler's region is **not** necessarily the region the project appears to
+  be in. This project's direct host resolves to a Singapore address while its
+  pooler is `aws-0-ap-northeast-2` (Seoul). Copy the string from the dashboard
+  rather than deriving it.
+- A wrong region answers `Tenant or user not found`, not a timeout. That message
+  means "not on this pooler", not "wrong password".
+
+The migration is idempotent — `create table if not exists`, `drop policy if
+exists` — so re-running it is safe and the `NOTICE ... does not exist, skipping`
+lines on a first run are expected.
+
+It creates:
 
 - `public.profiles` — the login information, mirrored from `auth.users` by a
   trigger, readable by each person only for their own row.
@@ -70,11 +100,21 @@ SUPABASE_SERVICE_ROLE_KEY=<Project Settings → API keys → service_role>
 GOOGLE_TOKEN_ENCRYPTION_KEY=<generate below>
 ```
 
-Generate the encryption key:
+Generate the encryption key — this writes it straight into the files and never
+prints it, because a key that reaches a terminal reaches scrollback and shell
+history:
 
 ```bash
-docker compose run --rm app node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+python3 scripts/generate-encryption-key.py .env
 ```
+
+It accepts several paths if you keep more than one `.env` (a git worktree, say)
+and writes the same key to each — they must match, or a token stored under one
+cannot be read under the other. It refuses to overwrite an existing key without
+`--force`.
+
+Either encoding is accepted: 64 hex characters (what the script produces) or
+base64 that decodes to 32 bytes.
 
 Two things about these values:
 

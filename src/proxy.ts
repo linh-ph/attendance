@@ -27,12 +27,17 @@ async function refreshThenAuthorize(
     return authenticatedProxy(request);
   }
 
-  const { response, userId } = await refreshSupabaseSession(request);
+  const { response, userId, diagnostic } = await refreshSupabaseSession(request);
   if (userId !== null) {
     return response;
   }
 
-  return authenticatedProxy(request);
+  const fallback = await authenticatedProxy(request);
+  if (fallback instanceof Response) {
+    fallback.headers.set("x-supabase-session", diagnostic);
+  }
+
+  return fallback;
 }
 
 export const proxy = createProxy(refreshThenAuthorize);

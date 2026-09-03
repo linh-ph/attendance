@@ -24,6 +24,8 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export interface SupabaseRefresh {
   response: NextResponse;
+  /** A short, token-free reason the session was or was not accepted. */
+  diagnostic: string;
   /** The verified user id, or `null` when this request has no Supabase session. */
   userId: string | null;
 }
@@ -35,7 +37,9 @@ export function isSupabaseConfigured(): boolean {
 export async function refreshSupabaseSession(request: NextRequest): Promise<SupabaseRefresh> {
   let supabaseResponse = NextResponse.next({ request });
 
-  if (!supabaseUrl || !supabaseKey) return { response: supabaseResponse, userId: null };
+  if (!supabaseUrl || !supabaseKey) {
+    return { response: supabaseResponse, userId: null, diagnostic: "not-configured" };
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -63,14 +67,14 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
     .getAll()
     .some((cookie) => cookie.name.startsWith("sb-"));
 
-  if (!data.user) {
-    console.error(
-      `[supabase:diagnostic] ${request.nextUrl.pathname} cookies=${request.cookies
-        .getAll()
-        .map((cookie) => cookie.name)
-        .join(",")}`,
-    );
-  }
+  const sbCookies = request.cookies
+    .getAll()
+    .map((cookie) => cookie.name)
+    .filter((name) => name.startsWith("sb-"));
+
+  const diagnostic = data.user
+    ? "ok"
+    : `no-user cookies=${sbCookies.length} error=${error?.message ?? "none"}`;
 
   if (!data.user && carriesSupabaseCookie) {
     /*
@@ -92,5 +96,6 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
   return {
     response: supabaseResponse,
     userId: error || !data.user ? null : data.user.id,
+    diagnostic,
   };
 }

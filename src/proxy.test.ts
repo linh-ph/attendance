@@ -44,6 +44,17 @@ describe("proxy boundary", () => {
     expect(authenticatedProxy).toHaveBeenCalledTimes(1);
   });
 
+  it("never lets a browser cache the redirect to /login", async () => {
+    // Cached, it is replayed after signing in — bouncing a valid session back
+    // to the login page without ever reaching the server.
+    const proxy = createProxy(vi.fn().mockResolvedValue(undefined));
+
+    const response = await proxy(new NextRequest("https://attendance.test/dashboard"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
   it("lets Google's sign-in return through without a session", async () => {
     // The authorization code is spent at /auth/callback. Gating it would
     // redirect to /login before the exchange, so sign-in could never finish.

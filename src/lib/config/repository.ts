@@ -188,7 +188,8 @@ function toCellString(value: CellValue | undefined): string {
   return typeof value === "string" ? value : String(value);
 }
 
-function toRows(values: CellValue[][] | undefined): string[][] {
+/** Exported for discovery, which reads the member range without this repository. */
+export function toRows(values: CellValue[][] | undefined): string[][] {
   return (values ?? []).map((row) => row.map(toCellString));
 }
 

@@ -1,7 +1,11 @@
 # Nothing reads `__APP_CONFIG`
 
 Date: 2026-09-01
-Status: accepted
+Status: accepted, **partly amended 2026-09-03**
+Amended by: [`2026-09-03-discovery-maps-the-actor-to-their-tab.md`](2026-09-03-discovery-maps-the-actor-to-their-tab.md),
+which restores exactly one read — discovery preselecting a tab from an
+`H1:N` row matching the session **email**. Every other removal below still
+stands.
 Supersedes: the `__APP_CONFIG` read contract in
 [`2026-08-29-app-is-a-sheets-client.md`](2026-08-29-app-is-a-sheets-client.md),
 which demoted the sheet to "optional metadata, still readable".

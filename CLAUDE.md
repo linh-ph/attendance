@@ -202,17 +202,17 @@ Violating any of these is a product regression, not a style choice.
 - The client derives its dirty set by running the domain's own `diffDay`, so it
   cannot drift from the server's.
 
-**`__APP_CONFIG` is write-only. Nothing reads it.**
+**`__APP_CONFIG` is read for exactly one thing: `H1:N`, by discovery.**
 
-The read path — `access/policy`, `attendance/service`, `discovery` — opens no
-configuration sheet at all. What it used to supply now comes from cheaper,
-always-present sources:
+Everything else the read path once took from that sheet still comes from
+cheaper, always-present sources. `access/policy` and `attendance/service` open
+no configuration sheet at all.
 
 | Was read from the sheet | Comes from now |
 | --- | --- |
 | the month | `appProperties.attendanceMonth`, else the `202607勤怠管理表` name |
 | the status enum | `STATUS_OPTIONS` — the sheet only mirrored it back |
-| the member → tab mapping | the person picks their tab; the calendar remembers it per file |
+| the member → tab mapping | **`__APP_CONFIG!H1:N`, restored 2026-09-03** — see [`docs/decisions/2026-09-03-discovery-maps-the-actor-to-their-tab.md`](docs/decisions/2026-09-03-discovery-maps-the-actor-to-their-tab.md) |
 | the managed card's setup state | `appProperties.attendanceSetupState`; no stamp means `needs-setup` |
 
 Consequences to keep:
@@ -223,12 +223,26 @@ Consequences to keep:
   for reads and for writes. Dropping the mapping must not turn that sheet into
   an editable grid — a save would write attendance columns over the settings
   table. `attendance/service` refuses any hidden tab.
-- Discovery lists every reachable file with `sheetId: null` and its visible
-  tabs. It never matches a tab title against a name: that is the silent
-  fallback the workbook contract forbids, and it would open a colleague's tab
-  the day two names collide.
-- `memberCount` on a managed card is always `null`; the roster lived in the
-  sheet and counting it would mean opening every file.
+- Discovery preselects a tab **only** from a `H1:N` row whose **email** equals
+  the verified session email. It still never matches a tab title against a
+  name: that is the silent fallback the workbook contract forbids, and it would
+  open a colleague's tab the day two names collide. Everything else —
+  no config tab, no row, an unreadable or malformed table, a row pointing at a
+  deleted or hidden tab — yields `sheetId: null` and the person picks from
+  `tabs`. The mapping is a convenience and must never decide whether a file is
+  listed or make the calendar fail.
+- The mapping costs nothing where there is nothing to read: the tab list from
+  `getSpreadsheet` already says whether `__APP_CONFIG` exists, so a file
+  without one issues no extra call, and only `H1:N` is ever fetched — never the
+  whole configuration. That was the measured objection that removed this in the
+  first place.
+- A server mapping outranks the browser's remembered tab choice, and the
+  in-calendar tab picker only renders when `sheetId` is `null`. So a mapped
+  person cannot switch tabs from the calendar — which is intended, and is what
+  the pre-2026-09-01 behavior did.
+- `memberCount` on a managed card is always `null`; counting it would mean
+  opening every file, and discovery reads only the member range of files it is
+  already opening.
 
 The manager-side writers (`files/setup-*`, `files/member-service`,
 `files/import-service`) still create and update the sheet, so its shape still

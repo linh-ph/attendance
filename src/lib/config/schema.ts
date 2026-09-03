@@ -268,7 +268,16 @@ function readResourceId(
   return value;
 }
 
-function readMembers(rows: ReadonlyArray<RawRow>): ConfigMember[] {
+/**
+ * Exported because discovery reads `H1:N` on its own to map the signed-in
+ * person to their tab, and must not carry a second parser for this table: two
+ * readers that disagree about a member row is exactly how someone ends up
+ * pointed at a colleague's hours.
+ *
+ * It throws `AppConfigError` on a malformed table. Callers that only want a
+ * mapping should treat that as "no mapping" rather than as a failure.
+ */
+export function readMembers(rows: ReadonlyArray<RawRow>): ConfigMember[] {
   const dataRows = readTable(rows, MEMBER_TABLE_HEADER, "members");
   const members: ConfigMember[] = [];
   const seenEmails = new Set<string>();

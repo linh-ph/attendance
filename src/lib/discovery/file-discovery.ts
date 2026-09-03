@@ -17,8 +17,13 @@
  * interfaces.
  */
 
-import { APP_PROPERTY_MONTH, APP_PROPERTY_SETUP_STATE } from "@/lib/config/repository";
-import { CONFIG_SHEET_TITLE, normalizeEmail } from "@/lib/config/schema";
+import { APP_PROPERTY_MONTH, APP_PROPERTY_SETUP_STATE, toRows } from "@/lib/config/repository";
+import {
+  CONFIG_MEMBER_RANGE,
+  CONFIG_SHEET_TITLE,
+  normalizeEmail,
+  readMembers,
+} from "@/lib/config/schema";
 import { FolderUnavailableError } from "@/lib/google/errors";
 import {
   ATTENDANCE_NAME_MARKER,
@@ -260,7 +265,56 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
    * is exactly the file people record hours in. Drive returning the file is
    * the access decision.
    */
-  async function loadTimesheets(): Promise<{
+  /**
+   * The tab this file's `__APP_CONFIG!H1:N` maps the signed-in person to, or
+   * `null` for every other outcome.
+   *
+   * Three properties matter more than the happy path:
+   *
+   * 1. **Email, never a name.** The member row's email is the identity, and it
+   *    is compared against the verified server session. A tab *title* is never
+   *    evidence of whose tab it is — the day two colleagues share a name, that
+   *    guess opens the wrong person's hours.
+   * 2. **It costs nothing when there is nothing to read.** The tab list already
+   *    says whether `__APP_CONFIG` exists, so a file without one issues no
+   *    extra call. That was the measured objection in
+   *    `docs/decisions/2026-09-01-nothing-reads-app-config.md`, and it is why
+   *    only `H1:N` is read here rather than the whole configuration.
+   * 3. **Every failure is `null`, never a throw.** A missing table, a Sheets
+   *    error, a manager's typo that makes the table malformed — all of them
+   *    mean "pick your tab", which is the behaviour that already worked. A
+   *    convenience must not be able to take the calendar down.
+   *
+   * The mapping is also re-checked against the file's own tab list, so a row
+   * pointing at a deleted tab, or at the hidden configuration sheet, resolves
+   * to nothing. `tabs` already excludes hidden sheets, which is what keeps a
+   * save from writing attendance columns over the settings table.
+   */
+  async function mappedTab(
+    fileId: string,
+    sheetSummaries: readonly SheetSummary[],
+    tabs: TimesheetTab[],
+    actorEmail: string,
+  ): Promise<TimesheetTab | null> {
+    if (!sheetSummaries.some((sheet) => sheet.title === CONFIG_SHEET_TITLE)) {
+      return null;
+    }
+
+    try {
+      const ranges = await sheets.getValues(fileId, [CONFIG_MEMBER_RANGE]);
+      const members = readMembers(toRows(ranges.at(0)?.values));
+      const mine = members.find((member) => member.email === actorEmail);
+
+      if (!mine?.sheetId) return null;
+
+      // The stored title is a stale label; the file's live tab list is the truth.
+      return tabs.find((tab) => tab.sheetId === mine.sheetId) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function loadTimesheets(actorEmail: string): Promise<{
     timesheets: Timesheet[];
     unreadable: UnreadableFile[];
   }> {
@@ -273,25 +327,27 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
 
     for (const file of candidates) {
       /*
-       * The tab list, and no mapping.
-       *
-       * This used to read `__APP_CONFIG` first and preselect the tab it mapped
-       * the actor to. Nothing does that now: the person picks their own tab and
-       * the calendar remembers the choice. Every file therefore takes the same
-       * path, which is the one that already worked for all of them.
+       * The tab list, plus the mapping this file records for this person.
        *
        * A file whose tabs cannot be read is not offered — but it is *named*, so
        * the caller can tell a provider failure from an account with no
        * timesheets. Swallowing it here is what made a Sheets outage look like
        * an empty Drive.
+       *
+       * The mapping is the opposite: it is a convenience, so it never decides
+       * whether a file is listed. `mappedTab` returns null for every failure
+       * and the person picks a tab, exactly as before.
        */
       try {
         const spreadsheet = await sheets.getSpreadsheet(file.id);
+        const tabs = toTabs(spreadsheet.sheets);
+        const mine = await mappedTab(file.id, spreadsheet.sheets, tabs, actorEmail);
+
         timesheets.push({
           ...baseTimesheet(file, driveMonth(file) ?? monthFromName(file.name)),
-          sheetId: null,
-          sheetTitle: null,
-          tabs: toTabs(spreadsheet.sheets),
+          sheetId: mine?.sheetId ?? null,
+          sheetTitle: mine?.title ?? null,
+          tabs,
         });
       } catch {
         unreadable.push({ id: file.id, name: file.name });
@@ -307,7 +363,7 @@ export function createFileDiscovery(dependencies: FileDiscoveryDependencies): Fi
       const folderId = request.folderId?.trim() ?? "";
 
       // The employee section is always computed, whatever the folder state is.
-      const { timesheets, unreadable } = await loadTimesheets();
+      const { timesheets, unreadable } = await loadTimesheets(actorEmail);
 
       if (folderId === "") {
         return { folder: null, folderError: null, managed: [], timesheets, unreadable };

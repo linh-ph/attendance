@@ -29,10 +29,12 @@ test.beforeEach(async ({ page }) => {
  * and the person picks their tab when nothing says which is theirs.
  */
 /**
- * No file preselects a tab any more: discovery reads no `__APP_CONFIG`, so
- * every reachable file offers its tab list and the person says which is theirs.
+ * A file whose `__APP_CONFIG!H1:N` names this person opens straight into their
+ * own tab. The next test proves the other half: a file that maps nobody still
+ * offers its tab list. Both matter, because the mapping is a convenience
+ * layered over the chooser and never a replacement for it.
  */
-test("the employee sees every reachable file and picks a tab to open one", async ({ page }) => {
+test("the employee opens a mapped file straight into their own tab", async ({ page }) => {
   await page.goto("/timesheets");
 
   const timesheets = page.getByRole("region", { name: "Your attendance months" });
@@ -47,15 +49,23 @@ test("the employee sees every reachable file and picks a tab to open one", async
   // data lives on its own route instead of being mixed into this page.
   await expect(page.getByRole("heading", { name: "Attendance files" })).toHaveCount(0);
 
-  await readyTimesheet.getByRole("link", { name: "Choose your tab" }).click();
+  // The member row carries this actor's email, so there is nothing to pick.
+  await readyTimesheet.getByRole("link", { name: "Open timesheet" }).click();
 
-  await expect(page.getByRole("heading", { name: "Choose your tab", level: 1 })).toBeVisible();
-  await page
-    .getByRole("link", { name: "Open this tab" })
-    .first()
-    .click();
-
-  await expect(page.getByRole("heading", { name: "Timesheet", level: 1 })).toBeVisible();
+  /*
+   * The URL is asserted first, and it names the mapped sheet id — that is the
+   * actual claim of this test, and nothing weaker proves it.
+   *
+   * `exact` is not decoration either: Playwright matches an accessible name by
+   * substring by default, so a bare `name: "Timesheet"` also matches the
+   * `Timesheets` heading on the list page. That made the old assertion pass
+   * before navigation had happened, which is why the following line then
+   * matched three months at once.
+   */
+  await expect(page).toHaveURL(
+    new RegExp(`/files/${E2E_FIXTURE.readyFile.id}/attendance/${E2E_FIXTURE.employeeSheetId}$`),
+  );
+  await expect(page.getByRole("heading", { name: "Timesheet", exact: true, level: 1 })).toBeVisible();
   await expect(page.getByText("July 2026")).toBeVisible();
 });
 
@@ -94,16 +104,19 @@ for (const viewport of [
       .first()
       .click();
 
-    // Three fixture files cover July, so the app refuses to guess the file …
+    /*
+     * Three fixture files cover July, so the app still refuses to guess which
+     * FILE — that is a genuine ambiguity no configuration resolves. The tab
+     * inside it is different: this file's member table names this person, so
+     * the button already carries their tab title and no second step follows.
+     */
     const choice = page.getByRole("button", {
-      name: `Use ${E2E_FIXTURE.readyFile.name} — choose tab — ${E2E_FIXTURE.managerEmail}`,
+      name: `Use ${E2E_FIXTURE.readyFile.name} — ${E2E_FIXTURE.employeeSheetTitle} — ${E2E_FIXTURE.managerEmail}`,
     });
     await expect(choice).toBeVisible();
     await choice.click();
 
-    // … and, with no member mapping to read, it refuses to guess the tab too.
-    await expect(page.getByRole("heading", { name: "Which tab is yours?" })).toBeVisible();
-    await page.getByRole("button", { name: E2E_FIXTURE.employeeSheetTitle }).click();
+    await expect(page.getByRole("heading", { name: "Which tab is yours?" })).toHaveCount(0);
 
     const calendar = page.getByRole("grid", { name: "July 2026 attendance calendar" });
     await expect(calendar).toBeVisible();

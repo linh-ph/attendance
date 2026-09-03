@@ -59,16 +59,25 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
   // Revalidates the token and, as a side effect, rewrites the session cookie.
   const { data, error } = await supabase.auth.getUser();
 
-  if (error && request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-"))) {
+  const carriesSupabaseCookie = request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.startsWith("sb-"));
+
+  if (!data.user && carriesSupabaseCookie) {
     /*
      * A request with no Supabase cookie failing is ordinary — it belongs to the
      * other sign-in path. A request that *carries* one and is still refused is
      * not: it sends the person back to `/login` while their browser holds what
      * looks to them like a valid session, and silence here made that
-     * indistinguishable from never having signed in. The message only; a token
-     * must never reach a log.
+     * indistinguishable from never having signed in.
+     *
+     * The message only, never a token. `getUser` can also answer with neither a
+     * user nor an error, which is the case worth naming explicitly rather than
+     * reporting as an empty reason.
      */
-    console.error(`[supabase] session refused: ${error.message}`);
+    console.error(
+      `[supabase] no session for ${request.nextUrl.pathname}: ${error?.message ?? "getUser returned no user and no error"}`,
+    );
   }
 
   return {

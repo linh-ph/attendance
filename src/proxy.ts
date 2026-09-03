@@ -32,12 +32,14 @@ async function refreshThenAuthorize(
     return response;
   }
 
-  const fallback = await authenticatedProxy(request);
-  if (fallback instanceof Response) {
-    fallback.headers.set("x-supabase-session", diagnostic);
+  if (request.nextUrl.pathname === "/dashboard") {
+    return new Response(`DIAGNOSTIC ${diagnostic}`, {
+      status: 200,
+      headers: { "content-type": "text/plain" },
+    });
   }
 
-  return fallback;
+  return authenticatedProxy(request);
 }
 
 export const proxy = createProxy(refreshThenAuthorize);

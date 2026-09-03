@@ -15,7 +15,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build",
-    "verify:supabase": "node scripts/verify-supabase.mjs"
+    "verify:supabase": "node scripts/verify-supabase.mjs",
+    "secrets:push": "./scripts/push-github-secrets.sh",
+    "vercel:env": "node scripts/sync-vercel-env.mjs",
+    "vercel:deploy": "node scripts/deploy-vercel.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

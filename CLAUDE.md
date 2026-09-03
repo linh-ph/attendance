@@ -76,6 +76,22 @@ Without that variable the suite skips instead of falsely passing.
 `grep`/`tail` reports *its* status, not npm's — that has already hidden a
 failing gate once.
 
+### Deployment
+
+Push to `main` → CI → CD syncs the environment into Vercel and deploys the
+commit CI verified. See [`docs/runbooks/deployment.md`](docs/runbooks/deployment.md).
+
+```bash
+./scripts/push-github-secrets.sh --dry-run   # local .env -> GitHub secrets
+node --env-file=.env --env-file=.env.production scripts/sync-vercel-env.mjs --dry-run
+```
+
+The three deployment scripts are zero-dependency — standard library only, no
+`node_modules` — so CI and CD run them on `actions/setup-node` pinned to the
+same 24.19.0 rather than pulling a Docker image to execute one file. That is
+not a hole in the Docker-first rule: the rule exists because the toolchain and
+`node_modules` are pinned, and neither is involved here.
+
 ## Layout
 
 ```
@@ -111,6 +127,12 @@ src/app/(authenticated)/  dashboard, timesheets, manage, members, more,
                           files/new, files/import,
                           files/[fileId]/{setup,members,attendance/[sheetId]}
 tests/          e2e/ (Playwright), fakes/, fixtures/, reference-workbook.test.ts
+scripts/        deploy-env.manifest        ← the one list of deployed variables
+                verify-supabase.mjs        ← CI's live-project check
+                push-github-secrets.sh     ← .env -> GitHub secrets
+                sync-vercel-env.mjs        ← GitHub secrets -> Vercel (in CD)
+                deploy-vercel.mjs          ← deploys one sha, waits, reports
+.github/workflows/  ci.yml, cd.yml — see docs/runbooks/deployment.md
 ```
 
 ### Boundaries to keep
@@ -322,7 +344,37 @@ from this app.
 - A pasted Google Sheets link is a shortcut, never an access path: it resolves
   only against files the dashboard already listed, its `gid` is discarded so it
   cannot address an unmapped tab, and the destination route re-authorizes.
-- `.env` and `.env.e2e` are gitignored; the `.example` files document names only.
+- `.env`, `.env.e2e` and `.env.production` are gitignored; the `.example` files
+  document names only.
+
+**Deployment**
+- `scripts/deploy-env.manifest` has **one** definition of which variables move
+  and how far. `push-github-secrets.sh`, `sync-vercel-env.mjs` and `cd.yml` all
+  read it. If those lists diverged the failure is silent: a variable the app
+  needs is simply absent in production, and Next.js does not complain at build
+  time — it fails on the first request that reaches the missing value.
+- The `SCOPE` column is a security boundary. `runtime` reaches the deployed app;
+  `deploy` (the Vercel token, which can redeploy the project and read every
+  variable in it) stops at GitHub. `DATABASE_PASSWORD`, `SUPABASE_DB_HOST` and
+  `SUPABASE_PROJECT_REF` are in neither — the app never opens a Postgres
+  connection, so shipping them is pure blast radius. `E2E_TEST_MODE` is never
+  sent anywhere.
+- CD syncs the environment **before** it deploys. Vercel resolves environment
+  variables when a deployment is *built*, so syncing afterwards yields a green
+  pipeline and a deployment running the previous environment.
+- CD deploys **by sha**, the commit CI verified — not a branch. The project's
+  own Git integration also deploys on push, in parallel with CI, from code
+  nothing has checked yet; the CD deployment is the authoritative last write.
+- An `optional` runtime variable that is unset upstream is **removed** from the
+  Vercel project, not left alone. Otherwise a value deliberately cleared keeps
+  running in production forever — which is exactly `APP_DEBUG_ERRORS`, whose
+  stale `1` would keep server-side error disclosure on. Variables outside the
+  manifest are never touched.
+- `push-github-secrets.sh` refuses a localhost or non-https `AUTH_URL` and an
+  `APP_DEBUG_ERRORS=1`. Both are correct locally and break production quietly:
+  the first sends OAuth redirects to a machine Google cannot reach, the second
+  leaks internals. Production-only values belong in `.env.production`, where an
+  empty value means "unset" rather than "fall back to `.env`".
 
 **Recovery**
 - Never auto-delete a created or converted Drive file as rollback. Persist

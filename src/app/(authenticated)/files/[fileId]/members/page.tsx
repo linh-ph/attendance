@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { MemberForm } from "./member-form";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +16,9 @@ interface MembersPageProps {
  * current Drive ownership by `/api/files/[fileId]/members`.
  */
 export default async function MembersPage({ params }: MembersPageProps) {
-  const session = await auth();
+  const email = await currentUserEmail();
 
-  if (!session?.user?.email) {
+  if (!email) {
     redirect("/login");
   }
 

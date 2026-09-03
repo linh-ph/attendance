@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { PageShell } from "@/components/app-shell/page-shell";
 import { signOutAction } from "@/components/app-shell/sign-out-action";
 import { SyncSettings } from "@/components/settings/sync-settings";
@@ -17,8 +17,7 @@ export const dynamic = "force-dynamic";
  * and this session: the signed-in address, the manual sync, and sign out.
  */
 export default async function MorePage() {
-  const session = await auth();
-  const email = session?.user?.email;
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

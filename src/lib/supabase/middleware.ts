@@ -24,8 +24,6 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export interface SupabaseRefresh {
   response: NextResponse;
-  /** A short, token-free reason the session was or was not accepted. */
-  diagnostic: string;
   /** The verified user id, or `null` when this request has no Supabase session. */
   userId: string | null;
 }
@@ -38,7 +36,7 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
   let supabaseResponse = NextResponse.next({ request });
 
   if (!supabaseUrl || !supabaseKey) {
-    return { response: supabaseResponse, userId: null, diagnostic: "not-configured" };
+    return { response: supabaseResponse, userId: null };
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
@@ -67,15 +65,6 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
     .getAll()
     .some((cookie) => cookie.name.startsWith("sb-"));
 
-  const sbCookies = request.cookies
-    .getAll()
-    .map((cookie) => cookie.name)
-    .filter((name) => name.startsWith("sb-"));
-
-  const diagnostic = data.user
-    ? "ok"
-    : `no-user cookies=${sbCookies.length} error=${error?.message ?? "none"}`;
-
   if (!data.user && carriesSupabaseCookie) {
     /*
      * A request with no Supabase cookie failing is ordinary — it belongs to the
@@ -96,6 +85,5 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
   return {
     response: supabaseResponse,
     userId: error || !data.user ? null : data.user.id,
-    diagnostic,
   };
 }

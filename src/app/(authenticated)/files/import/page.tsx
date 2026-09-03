@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { ImportWizard } from "./import-wizard";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,7 @@ export const dynamic = "force-dynamic";
  * owner re-derived from the session by `POST /api/files/import`.
  */
 export default async function ImportFilePage() {
-  const session = await auth();
-  const email = session?.user?.email?.trim().toLowerCase();
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

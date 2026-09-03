@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { PageShell } from "@/components/app-shell/page-shell";
 import { MemberRoster } from "./member-roster";
 
@@ -17,8 +17,7 @@ export const dynamic = "force-dynamic";
  * handed down because it scopes the storage key.
  */
 export default async function MembersPage() {
-  const session = await auth();
-  const email = session?.user?.email;
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

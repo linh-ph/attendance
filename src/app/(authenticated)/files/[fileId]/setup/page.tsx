@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { LegacySetupWizard } from "./legacy-setup-wizard";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,7 @@ interface SetupPageProps {
  * been selected in Google Picker before it reads or changes anything.
  */
 export default async function SetupPage({ params }: SetupPageProps) {
-  const session = await auth();
-  const email = session?.user?.email?.trim().toLowerCase();
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

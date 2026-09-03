@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { signOutAction } from "@/components/app-shell/sign-out-action";
 
@@ -18,8 +18,7 @@ import { signOutAction } from "@/components/app-shell/sign-out-action";
 export default async function AuthenticatedLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const session = await auth();
-  const email = session?.user?.email ?? null;
+  const email = await currentUserEmail();
 
   // Signed out, the page itself redirects to `/login`; rendering the chrome
   // around that redirect would flash a navigation the visitor cannot use.

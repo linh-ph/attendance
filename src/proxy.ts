@@ -27,15 +27,7 @@ async function refreshThenAuthorize(
     return authenticatedProxy(request);
   }
 
-  const { response, userId, diagnostic } = await refreshSupabaseSession(request);
-
-  if (request.nextUrl.searchParams.get("probe") === "1") {
-    return new Response(`DIAGNOSTIC userId=${userId ?? "null"} ${diagnostic}`, {
-      status: 200,
-      headers: { "content-type": "text/plain" },
-    });
-  }
-
+  const { response, userId } = await refreshSupabaseSession(request);
   if (userId !== null) {
     return response;
   }

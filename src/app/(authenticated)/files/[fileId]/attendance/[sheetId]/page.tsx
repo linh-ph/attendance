@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { PageShell } from "@/components/app-shell/page-shell";
 import { AttendanceEditor } from "./attendance-editor";
 
@@ -20,9 +20,9 @@ interface AttendancePageProps {
  * value of its own, so an unauthorized route parameter reveals nothing.
  */
 export default async function AttendancePage({ params, searchParams }: AttendancePageProps) {
-  const session = await auth();
+  const email = await currentUserEmail();
 
-  if (!session?.user?.email) {
+  if (!email) {
     redirect("/login");
   }
 
@@ -38,7 +38,7 @@ export default async function AttendancePage({ params, searchParams }: Attendanc
       <AttendanceEditor
         fileId={fileId}
         sheetId={sheetId}
-        email={session.user.email}
+        email={email}
         initialDate={date}
       />
     </PageShell>

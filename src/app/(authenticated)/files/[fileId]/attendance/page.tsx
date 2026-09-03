@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { TabChooser } from "./tab-chooser";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,7 @@ interface TabChooserPageProps {
  * it comes from the verified session, never from the client.
  */
 export default async function TabChooserPage({ params, searchParams }: TabChooserPageProps) {
-  const session = await auth();
-  const email = session?.user?.email;
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

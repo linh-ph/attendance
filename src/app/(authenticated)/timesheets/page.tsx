@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { PageShell } from "@/components/app-shell/page-shell";
 import { TimesheetsClient } from "./timesheets-client";
 
@@ -18,8 +18,7 @@ export const dynamic = "force-dynamic";
  * it ever does not.
  */
 export default async function TimesheetsPage() {
-  const session = await auth();
-  const email = session?.user?.email?.trim().toLowerCase();
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

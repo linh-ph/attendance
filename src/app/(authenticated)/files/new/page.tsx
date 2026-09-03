@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { NewFileWizard } from "./new-file-wizard";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,7 @@ export const dynamic = "force-dynamic";
  * session by `POST /api/files/create`.
  */
 export default async function NewFilePage() {
-  const session = await auth();
-  const email = session?.user?.email?.trim().toLowerCase();
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

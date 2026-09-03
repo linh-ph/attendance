@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { currentUserEmail } from "@/lib/auth/current-user";
 import { PageShell } from "@/components/app-shell/page-shell";
 import { ManageClient } from "./manage-client";
 
@@ -19,8 +19,7 @@ export const dynamic = "force-dynamic";
  * links re-authorizes against Drive on the signed-in user's own credentials.
  */
 export default async function ManagePage() {
-  const session = await auth();
-  const email = session?.user?.email?.trim().toLowerCase();
+  const email = await currentUserEmail();
 
   if (!email) {
     redirect("/login");

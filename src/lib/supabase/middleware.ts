@@ -63,6 +63,15 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Supa
     .getAll()
     .some((cookie) => cookie.name.startsWith("sb-"));
 
+  if (!data.user) {
+    console.error(
+      `[supabase:diagnostic] ${request.nextUrl.pathname} cookies=${request.cookies
+        .getAll()
+        .map((cookie) => cookie.name)
+        .join(",")}`,
+    );
+  }
+
   if (!data.user && carriesSupabaseCookie) {
     /*
      * A request with no Supabase cookie failing is ordinary — it belongs to the

@@ -23,31 +23,21 @@ const authenticatedProxy = auth as unknown as AuthenticatedProxy;
 async function refreshThenAuthorize(
   request: NextRequest,
 ): Promise<Response | null | undefined> {
-  if (request.nextUrl.pathname === "/dashboard") {
-    return new Response(
-      `DIAGNOSTIC configured=${isSupabaseConfigured()} inlineUrl=${Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)} inlineKey=${Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)} cookies=${request.cookies
-        .getAll()
-        .map((c) => c.name)
-        .filter((n) => n.startsWith("sb-"))
-        .join("|")}`,
-      { status: 200, headers: { "content-type": "text/plain" } },
-    );
-  }
-
   if (!isSupabaseConfigured()) {
     return authenticatedProxy(request);
   }
 
   const { response, userId, diagnostic } = await refreshSupabaseSession(request);
-  if (userId !== null) {
-    return response;
-  }
 
-  if (request.nextUrl.pathname === "/dashboard") {
-    return new Response(`DIAGNOSTIC ${diagnostic}`, {
+  if (request.nextUrl.searchParams.get("probe") === "1") {
+    return new Response(`DIAGNOSTIC userId=${userId ?? "null"} ${diagnostic}`, {
       status: 200,
       headers: { "content-type": "text/plain" },
     });
+  }
+
+  if (userId !== null) {
+    return response;
   }
 
   return authenticatedProxy(request);

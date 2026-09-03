@@ -82,6 +82,77 @@ jobs:
           attendance-deps:ci
           npm run verify
 
+  # Everything above this job proves the code is correct. This one proves the
+  # project it will talk to is actually there and configured — the class of
+  # failure that a green build cannot see, because it lives in the Supabase
+  # dashboard rather than in the repository.
+  #
+  # `scripts/verify-supabase.mjs` checks that the project answers, that the
+  # Google provider is enabled and that Google accepts the handoff, that the
+  # schema is applied, that `google_credentials` REFUSES the browser key, that
+  # the service role can read and write it, and that the encryption key is the
+  # right shape. Any one of those failing means a deployment that builds
+  # perfectly and cannot sign anybody in.
+  #
+  # It reads only. Its single write is a probe row against an all-zero user id
+  # that `auth.users` will never issue, and it is removed again.
+  supabase:
+    name: Supabase connectivity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the commit
+        uses: actions/checkout@v4
+
+      # Not a departure from the Docker-first rule. That rule exists because the
+      # toolchain is pinned and `node_modules` lives in a Compose volume, so a
+      # host Node "close enough" can pass here and fail for a developer.
+      # `verify-supabase.mjs` imports nothing — no npm, no node_modules, only
+      # global `fetch` and `Buffer` — so pinning the same 24.19.0 honours the
+      # rule's intent without pulling an image to run one file.
+      - name: Set up the pinned Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+
+      # A fork's pull request gets no secrets. That is GitHub working correctly,
+      # not a misconfiguration, so it must not read as a failed check — but on a
+      # run that SHOULD have them, a silent skip would let an unconfigured
+      # project sail through to deploy. Hence: skip on a fork, fail anywhere else.
+      - name: Are the Supabase secrets available?
+        id: secrets
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          if [ -n "$SUPABASE_URL" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip (fork pull request, secrets are withheld by design)
+        if: >-
+          steps.secrets.outputs.available == 'false' &&
+          github.event.pull_request.head.repo.fork == true
+        run: echo "::notice::Fork PR — Supabase secrets are unavailable, skipping the live check."
+
+      - name: Fail (secrets missing on a run that should have them)
+        if: >-
+          steps.secrets.outputs.available == 'false' &&
+          github.event.pull_request.head.repo.fork != true
+        run: |
+          echo "::error::No Supabase secrets on this repository. Push them with ./scripts/push-github-secrets.sh"
+          exit 1
+
+      - name: node scripts/verify-supabase.mjs
+        if: steps.secrets.outputs.available == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_TOKEN_ENCRYPTION_KEY: ${{ secrets.GOOGLE_TOKEN_ENCRYPTION_KEY }}
+        run: node scripts/verify-supabase.mjs
+
   e2e:
     name: Browser proof
     runs-on: ubuntu-latest

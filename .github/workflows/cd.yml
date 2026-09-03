@@ -1,0 +1,177 @@
+# Continuous deployment.
+#
+# Runs when CI finishes successfully on `main`, and does two things in a fixed
+# order that is the whole point of the file:
+#
+#   1. sync the GitHub repository secrets into the Vercel project's environment
+#   2. deploy the exact commit CI just verified
+#
+# The order is not cosmetic. Vercel resolves environment variables when a
+# deployment is BUILT, so a value written after a build is simply not in that
+# build. Syncing second would produce a green pipeline and a production
+# deployment still running the previous environment — the failure would surface
+# days later as "sign-in is broken" with nothing in any log to explain it.
+#
+# Why deploy from here at all, when the Vercel project is linked to this
+# repository: a push-triggered deployment starts the moment the commit lands,
+# in parallel with CI. It builds code nothing has verified, using whatever
+# environment predates this run. Deploying here — by sha, after CI is green,
+# after the sync — is the only ordering in which "what is in production" and
+# "what passed CI" are the same commit with the same configuration.
+#
+# No value is ever echoed. Every script this workflow runs logs names, targets
+# and outcomes only; `SUPABASE_SERVICE_ROLE_KEY` bypasses Row Level Security
+# and `GOOGLE_TOKEN_ENCRYPTION_KEY` decrypts every stored Google connection,
+# and Actions logs are readable by anyone with repository access.
+
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # For redeploying the current main without pushing a commit — after rotating a
+  # secret, for instance, which changes nothing in the repository but must reach
+  # a new build to take effect.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialised, and NOT cancel-in-progress: cancelling midway through the env
+# sync would leave the project half-updated, and cancelling during a deploy
+# gives up waiting on something that keeps running anyway.
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Sync environment, then deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # `workflow_run` fires for every CI completion, including failures and
+    # including CI runs from pull requests. All three conditions are load
+    # bearing: conclusion, the branch, and the fact that it was a push — a pull
+    # request whose head branch happens to be `main` would otherwise deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+
+    # Named so the repository can require a reviewer here later without
+    # touching this file (Settings -> Environments -> production).
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.alias }}
+
+    steps:
+      # `workflow_run` does not check out the triggering commit for you, and the
+      # default would be the tip of main — which may already have moved past the
+      # commit CI verified. Passed through the environment rather than
+      # interpolated into the script body, so nothing from the event can be read
+      # as shell.
+      - name: Resolve the commit CI verified
+        id: commit
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          SHA="${RUN_SHA:-$DISPATCH_SHA}"
+          case "$SHA" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+            *) echo "::error::Could not resolve a commit sha to deploy."; exit 1 ;;
+          esac
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Deploying $SHA"
+
+      - name: Check out that commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.commit.outputs.sha }}
+
+      # Both scripts below import nothing outside Node's standard library, so
+      # there is no npm install and no node_modules here. See the note on the
+      # Supabase job in ci.yml for why this does not undercut the Docker-first
+      # rule: the pin is what matters, and it is the same 24.19.0.
+      - name: Set up the pinned Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+
+      # ---------------------------------------------------------------------
+      # 1. Environment first.
+      #
+      # The names come from scripts/deploy-env.manifest, which is also what
+      # push-github-secrets.sh reads — so this block and the developer's local
+      # push cannot list different variables. `deploy` scope stops here:
+      # VERCEL_TOKEN can redeploy this project and read every variable in it,
+      # and the running application must never hold it.
+      # ---------------------------------------------------------------------
+      - name: Sync the environment into Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          AUTH_TRUST_HOST: ${{ secrets.AUTH_TRUST_HOST }}
+          AUTH_PROVIDER: ${{ secrets.AUTH_PROVIDER }}
+          APP_DEBUG_ERRORS: ${{ secrets.APP_DEBUG_ERRORS }}
+
+          NEXT_PUBLIC_GOOGLE_PICKER_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY }}
+          NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER }}
+
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_TOKEN_ENCRYPTION_KEY: ${{ secrets.GOOGLE_TOKEN_ENCRYPTION_KEY }}
+        run: node scripts/sync-vercel-env.mjs
+
+      # ---------------------------------------------------------------------
+      # 2. Then the deployment, which picks that environment up at build time.
+      # ---------------------------------------------------------------------
+      - name: Deploy the verified commit
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_DEPLOY_SHA: ${{ steps.commit.outputs.sha }}
+        run: node scripts/deploy-vercel.mjs
+
+      # A build that compiles can still fail to boot, and a deployment can be
+      # READY while its alias points somewhere else. `GET /api/health` is
+      # unauthenticated by design and is the same readiness probe the `image`
+      # job uses against the container.
+      - name: GET /api/health on the live deployment
+        env:
+          ALIAS: ${{ steps.deploy.outputs.alias }}
+        run: |
+          test -n "$ALIAS" || { echo "::error::No deployment URL to check."; exit 1; }
+          curl --fail --silent --show-error \
+            --max-time 30 --retry 6 --retry-delay 5 --retry-all-errors \
+            "$ALIAS/api/health"
+
+      - name: Summary
+        if: always()
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+          ALIAS: ${{ steps.deploy.outputs.alias }}
+          DEPLOYMENT: ${{ steps.deploy.outputs.deployment_id }}
+        run: |
+          {
+            echo "### CD"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Deployment | \`${DEPLOYMENT:-not created}\` |"
+            echo "| URL | ${ALIAS:-none} |"
+          } >> "$GITHUB_STEP_SUMMARY"

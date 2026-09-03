@@ -110,3 +110,42 @@ docker compose run --rm \
 ```
 
 The test only reads the workbook; it never writes it.
+
+## Deploy
+
+Pushing to `main` runs CI; when CI passes, CD syncs the environment into the
+Vercel project and deploys the exact commit CI verified. Full detail, including
+what to do when a step fails, is in
+[`docs/runbooks/deployment.md`](docs/runbooks/deployment.md).
+
+One-time setup on a new machine:
+
+```bash
+cp .env.production.example .env.production   # production-only overrides
+$EDITOR .env.production
+
+./scripts/push-github-secrets.sh --dry-run   # review the plan
+./scripts/push-github-secrets.sh             # push to GitHub Actions secrets
+```
+
+`.env` is a development file: it holds `AUTH_URL=http://localhost:3000` and
+`APP_DEBUG_ERRORS=1`, and the push script refuses to promote either. Put the
+real values in `.env.production`, which overrides `.env` for exactly the keys it
+defines. Both files are gitignored.
+
+The variable list lives in one place, `scripts/deploy-env.manifest`, read by the
+push script, the Vercel sync and the CD workflow alike. Its `SCOPE` column is a
+boundary: `runtime` variables reach the deployed app, `deploy` ones (the Vercel
+token) stop at GitHub, and the database password is in neither — the application
+never opens a Postgres connection.
+
+Dry runs, which write nothing:
+
+```bash
+node --env-file=.env --env-file=.env.production scripts/sync-vercel-env.mjs --dry-run
+VERCEL_DEPLOY_SHA=$(git rev-parse HEAD) node --env-file=.env scripts/deploy-vercel.mjs --dry-run
+```
+
+CI also runs `scripts/verify-supabase.mjs` against the live Supabase project on
+every run, so a project that is reachable-but-misconfigured fails the build
+instead of failing the first person who tries to sign in.

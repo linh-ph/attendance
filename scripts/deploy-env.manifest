@@ -1,0 +1,58 @@
+# Which environment variables the deployment pipeline moves, and how far.
+#
+# ONE definition, read by three things that must never disagree:
+#
+#   scripts/push-github-secrets.sh   local .env            -> GitHub secrets
+#   scripts/sync-vercel-env.mjs      GitHub secrets (CD)   -> Vercel project env
+#   .github/workflows/cd.yml         names the secrets it forwards
+#
+# If these lists drifted, the failure is silent and expensive: a variable the
+# app needs is simply absent in production, and Next.js does not complain at
+# build time — it fails on the first request that reaches the missing value.
+#
+# Columns:  NAME  SCOPE  REQUIREMENT
+#
+#   SCOPE = runtime   the deployed application reads it. Pushed to GitHub AND
+#                     synced to the Vercel project (production + preview).
+#   SCOPE = deploy    only the CD workflow reads it. Pushed to GitHub and
+#                     NEVER written to the Vercel project — the running app has
+#                     no business holding a token that can redeploy itself.
+#
+#   REQUIREMENT = required   absent => the push/sync fails loudly.
+#               = optional   absent => skipped with a note.
+#
+# Deliberately ABSENT from this file, and therefore from GitHub and Vercel:
+#
+#   DATABASE_PASSWORD, SUPABASE_DB_HOST, SUPABASE_PROJECT_REF
+#       Migration-only. CLAUDE.md: "The application itself never opens a
+#       Postgres connection — it goes through PostgREST." Shipping a database
+#       password to a web host that cannot use it is pure blast radius.
+#
+#   E2E_TEST_MODE, E2E_RESET_SECRET
+#       resolveTestMode() throws under NODE_ENV=production. Never send them.
+
+AUTH_SECRET                              runtime  required
+AUTH_GOOGLE_ID                           runtime  required
+AUTH_GOOGLE_SECRET                       runtime  required
+AUTH_URL                                 runtime  required
+AUTH_TRUST_HOST                          runtime  required
+
+NEXT_PUBLIC_GOOGLE_PICKER_API_KEY        runtime  required
+NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER  runtime  required
+
+NEXT_PUBLIC_SUPABASE_URL                 runtime  required
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY     runtime  required
+SUPABASE_SERVICE_ROLE_KEY                runtime  required
+GOOGLE_TOKEN_ENCRYPTION_KEY              runtime  required
+
+# Which sign-in path /login offers: `authjs` (default) or `supabase`.
+AUTH_PROVIDER                            runtime  optional
+# Server-side debug disclosure. `1` turns it on; anything else leaves it off.
+# push-github-secrets.sh refuses to promote `1` — see PRODUCTION_REFUSALS there.
+APP_DEBUG_ERRORS                         runtime  optional
+
+VERCEL_TOKEN                             deploy   required
+VERCEL_PROJECT_ID                        deploy   required
+# Only needed when the token is personal rather than scoped to the team that
+# owns the project. A team-scoped token resolves the project without it.
+VERCEL_TEAM_ID                           deploy   optional
